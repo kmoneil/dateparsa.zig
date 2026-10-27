@@ -15,10 +15,13 @@ const Parser = @This();
 options: root.Options,
 cache: ?root.Layout = null,
 
+/// A parser with no cached layout, reading every value with options.
 pub fn init(options: root.Options) Parser {
     return .{ .options = options };
 }
 
+/// s parsed with the cached layout when it can read it, and detected
+/// afresh otherwise, which also replaces the cache.
 pub fn parse(p: *Parser, s: []const u8) root.ParseError!root.Result {
     if (p.cache) |*l| {
         if (!l.ambiguity_prone) {

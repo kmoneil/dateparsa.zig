@@ -30,6 +30,7 @@ pub const Epoch = struct {
     nanosecond: u32 = 0,
 };
 
+/// A day of the week; Sunday is 0, as in Go's time.Weekday.
 pub const Weekday = enum(u3) {
     sunday,
     monday,
@@ -46,6 +47,7 @@ pub fn isLeapYear(y: i32) bool {
     return @mod(y, 4) == 0 and (@mod(y, 100) != 0 or @mod(y, 400) == 0);
 }
 
+/// 366 in a leap year, else 365.
 pub fn daysInYear(y: i32) u16 {
     return if (isLeapYear(y)) 366 else 365;
 }
@@ -95,6 +97,7 @@ pub fn daysFromCivil(y_in: i32, month: u8, day: u8) i64 {
     return era * 146097 + doe - 719468;
 }
 
+/// A calendar date with no time of day.
 pub const CivilDate = struct { year: i32, month: u8, day: u8 };
 
 /// Civil date of a day count since 1970-01-01 (Hinnant's civil_from_days).
@@ -145,6 +148,7 @@ pub fn fromEpoch(e: Epoch, offset_seconds: i32) DateTime {
     };
 }
 
+/// The day of the week of the civil date, whatever the offset.
 pub fn weekday(dt: DateTime) Weekday {
     const days = daysFromCivil(dt.year, dt.month, dt.day);
     // 1970-01-01 is a Thursday; +4 lands Sunday on 0.

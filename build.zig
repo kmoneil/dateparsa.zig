@@ -40,6 +40,16 @@ pub fn build(b: *std.Build) void {
     const test_step = b.step("test", "Run tests");
     test_step.dependOn(&run_mod_tests.step);
 
+    // API documentation, from the doc comments, into zig-out/docs.
+    const docs_obj = b.addObject(.{ .name = "dateparsa", .root_module = mod });
+    const install_docs = b.addInstallDirectory(.{
+        .source_dir = docs_obj.getEmittedDocs(),
+        .install_dir = .prefix,
+        .install_subdir = "docs",
+    });
+    const docs_step = b.step("docs", "Generate API documentation into zig-out/docs");
+    docs_step.dependOn(&install_docs.step);
+
     const fmt = b.addFmt(.{
         .paths = &.{ b.path("build.zig"), b.path("src"), b.path("tools") },
         .check = true,

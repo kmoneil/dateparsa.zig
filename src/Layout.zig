@@ -39,6 +39,7 @@ ambiguity_prone: bool = false,
 /// layout from detection does.
 trims_padding: bool = false,
 
+/// Where a layout came from: a compiled format, or one of the sentinels.
 pub const Source = enum { program, epoch, natural_language };
 
 /// What a Unix timestamp's result carries: there is no format to reuse.

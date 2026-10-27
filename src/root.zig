@@ -19,11 +19,17 @@ const natural = @import("natural.zig");
 const signature = @import("signature.zig");
 const locale = @import("locale.zig");
 
+/// A civil date and time with a fixed UTC offset: what every parse returns.
 pub const DateTime = @import("DateTime.zig");
+/// A detected format, compiled, to re-parse the rest of a column with.
 pub const Layout = @import("Layout.zig");
+/// Parses a column, reusing the first value's layout where it can.
 pub const Parser = @import("Parser.zig");
+/// The locales whose words are read besides English, one field per locale
+/// this build compiled in: `.{ .fr = true, .de = true }`.
 pub const LocaleSet = locale.LocaleSet;
 
+/// Why a parse failed. Diagnostics, when asked for, says more.
 pub const ParseError = error{
     /// No format, timestamp or natural-language reading fits.
     NoMatch,
@@ -33,6 +39,7 @@ pub const ParseError = error{
     NoBaseTime,
 };
 
+/// What sort of time a result is.
 pub const Kind = enum {
     /// A structured date or a timestamp: "2024-03-15", "March 15, 2024".
     absolute,
@@ -42,6 +49,7 @@ pub const Kind = enum {
     now,
 };
 
+/// A successful parse.
 pub const Result = struct {
     time: DateTime,
     /// The format detected, to reuse on the rest of a column when
@@ -82,6 +90,8 @@ pub const Diagnostics = struct {
     }
 };
 
+/// How to read an input. The default reads English, assumes UTC for an
+/// input that writes no zone, and has no base time.
 pub const Options = struct {
     /// What relative expressions and year-less formats are read against.
     /// Null means such inputs fail with error.NoBaseTime.
@@ -257,4 +267,5 @@ test {
     _ = @import("Parser.zig");
     _ = @import("api_test.zig");
     _ = @import("golden_test.zig");
+    _ = @import("readme_test.zig");
 }
