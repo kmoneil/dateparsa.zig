@@ -22,35 +22,99 @@ const Config = detect.Config;
 const isDigit = std.ascii.isDigit;
 const isWordChar = compile.isWordChar;
 
-const Spelling = struct { name: []const u8, month: u8 };
+/// How a spelling is looked for, as Go's spellingLookup.
+const Lookup = enum {
+    /// Every byte a word character: it can only match a whole word of its
+    /// own length, which the word list answers.
+    word_list,
+    /// Word characters and one trailing dot, which the word list answers
+    /// too: the word before the dot, then the dot and a boundary.
+    dotted,
+    /// Anything else, which scans the input: the Chinese, Japanese and
+    /// Korean spellings that write a month as a digit and a character.
+    scan,
+};
+
+/// A month spelling and what the word matcher filters it on.
+const Spelling = struct {
+    name: []const u8,
+    month: u8,
+    how: Lookup,
+    /// The bit for the length of word it matches; every bit for a scan.
+    len_bit: u64,
+    /// The bit for its first byte; every bit for a scan.
+    first_bit: u32,
+};
+
+fn spelling(name: []const u8, month: u8) Spelling {
+    const how: Lookup = if (allWordChars(name))
+        .word_list
+    else if (name.len >= 2 and name[name.len - 1] == '.' and allWordChars(name[0 .. name.len - 1]))
+        .dotted
+    else
+        .scan;
+    return .{
+        .name = name,
+        .month = month,
+        .how = how,
+        .len_bit = switch (how) {
+            .word_list => lenBit(name.len),
+            .dotted => lenBit(name.len - 1),
+            .scan => ~@as(u64, 0),
+        },
+        .first_bit = if (how == .scan) ~@as(u32, 0) else firstBit(name[0]),
+    };
+}
+
+fn allWordChars(name: []const u8) bool {
+    for (name) |c| if (!isWordChar(c)) return false;
+    return true;
+}
+
+/// One bit per word length, saturating at 63. Bit 0 is no word's, and every
+/// mask has it, so a spelling carrying every bit is never filtered out.
+fn lenBit(n: usize) u64 {
+    return @as(u64, 1) << @intCast(@min(n, 63));
+}
+
+/// One bit per ASCII letter, case folded; every other byte, a UTF-8 lead
+/// byte included, shares first_bit_other. first_bit_sentinel is no byte's
+/// and plays bit 0's part for the first-byte mask.
+fn firstBit(b: u8) u32 {
+    const c = std.ascii.toLower(b);
+    return if (c >= 'a' and c <= 'z') @as(u32, 1) << @intCast(c - 'a') else first_bit_other;
+}
+
+const first_bit_other: u32 = 1 << 26;
+const first_bit_sentinel: u32 = 1 << 31;
 
 /// English, always searched first, in Go's order: a spelling comes before
 /// the shorter ones it contains ("september", then "sept", then "sep").
 const english = [_]Spelling{
-    .{ .name = "september", .month = 9 },
-    .{ .name = "february", .month = 2 },
-    .{ .name = "november", .month = 11 },
-    .{ .name = "december", .month = 12 },
-    .{ .name = "january", .month = 1 },
-    .{ .name = "october", .month = 10 },
-    .{ .name = "august", .month = 8 },
-    .{ .name = "march", .month = 3 },
-    .{ .name = "april", .month = 4 },
-    .{ .name = "june", .month = 6 },
-    .{ .name = "july", .month = 7 },
-    .{ .name = "sept", .month = 9 },
-    .{ .name = "jan", .month = 1 },
-    .{ .name = "feb", .month = 2 },
-    .{ .name = "mar", .month = 3 },
-    .{ .name = "apr", .month = 4 },
-    .{ .name = "may", .month = 5 },
-    .{ .name = "jun", .month = 6 },
-    .{ .name = "jul", .month = 7 },
-    .{ .name = "aug", .month = 8 },
-    .{ .name = "sep", .month = 9 },
-    .{ .name = "oct", .month = 10 },
-    .{ .name = "nov", .month = 11 },
-    .{ .name = "dec", .month = 12 },
+    spelling("september", 9),
+    spelling("february", 2),
+    spelling("november", 11),
+    spelling("december", 12),
+    spelling("january", 1),
+    spelling("october", 10),
+    spelling("august", 8),
+    spelling("march", 3),
+    spelling("april", 4),
+    spelling("june", 6),
+    spelling("july", 7),
+    spelling("sept", 9),
+    spelling("jan", 1),
+    spelling("feb", 2),
+    spelling("mar", 3),
+    spelling("apr", 4),
+    spelling("may", 5),
+    spelling("jun", 6),
+    spelling("jul", 7),
+    spelling("aug", 8),
+    spelling("sep", 9),
+    spelling("oct", 10),
+    spelling("nov", 11),
+    spelling("dec", 12),
 };
 
 /// Each compiled locale's spellings: per month the wide name, the
@@ -66,7 +130,7 @@ const locale_spellings: [locale.compiled.len][]const Spelling = blk: {
         for (d.months_wide, d.months_abbr, 1..) |wide, abbr, month| {
             for ([_][]const u8{ wide, abbr, std.mem.trimEnd(u8, abbr, ".") }, 0..) |name, k| {
                 if (name.len == 0 or (k == 2 and name.len == abbr.len)) continue;
-                list[n] = .{ .name = name, .month = month };
+                list[n] = spelling(name, month);
                 n += 1;
             }
         }
@@ -109,50 +173,110 @@ fn matchWord(s: []const u8, word: []const u8) ?Span {
     return null;
 }
 
-/// Above this many words Go's matcher stops keeping a list; the count is
-/// used for the rival check's shortcut, so it is kept the same.
+/// Above this many words the matcher keeps no list and every spelling
+/// scans, as Go's does.
 const word_cap = 48;
 
-/// How many runs of word characters s holds, or null for more than word_cap.
-fn wordCount(s: []const u8) ?usize {
-    var n: usize = 0;
-    var i: usize = 0;
-    while (i < s.len) {
-        if (!isWordChar(s[i])) {
-            i += 1;
-            continue;
+/// Go's wordMatcher: the input's words, listed once, so that each spelling
+/// is asked only about words of its own length rather than scanning the
+/// input. A spelling of word characters can only match a whole maximal run
+/// of them, so the answer is matchWord's. The masks say which lengths and
+/// first bytes the words have, and dismiss most spellings before any
+/// compare; they decide whether a spelling can match, never which wins.
+const WordMatcher = struct {
+    s: []const u8,
+    buf: [word_cap]Span,
+    /// How many words s holds, or null over word_cap, when every spelling
+    /// scans and the masks admit all of them.
+    n: ?usize,
+    len_mask: u64,
+    first_mask: u32,
+
+    fn init(m: *WordMatcher, s: []const u8) void {
+        m.s = s;
+        m.n = 0;
+        m.len_mask = 1;
+        m.first_mask = first_bit_sentinel;
+        var n: usize = 0;
+        var i: usize = 0;
+        while (i < s.len) {
+            const b = s[i];
+            if (!isWordChar(b)) {
+                i += 1;
+                continue;
+            }
+            const start = i;
+            while (i < s.len and isWordChar(s[i])) i += 1;
+            if (n == word_cap) {
+                m.n = null;
+                m.len_mask = ~@as(u64, 0);
+                m.first_mask = ~@as(u32, 0);
+                return;
+            }
+            m.buf[n] = .{ .start = start, .end = i };
+            m.len_mask |= lenBit(i - start);
+            m.first_mask |= firstBit(b);
+            n += 1;
         }
-        while (i < s.len and isWordChar(s[i])) i += 1;
-        n += 1;
-        if (n > word_cap) return null;
+        m.n = n;
     }
-    return n;
-}
+
+    fn admits(m: *const WordMatcher, sp: *const Spelling) bool {
+        return sp.len_bit & m.len_mask != 0 and sp.first_bit & m.first_mask != 0;
+    }
+
+    /// The first whole-word occurrence of sp, as matchWord finds it.
+    fn find(m: *const WordMatcher, sp: *const Spelling) ?Span {
+        const n = m.n orelse return matchWord(m.s, sp.name);
+        if (sp.how == .scan) return matchWord(m.s, sp.name);
+        if (sp.name.len > m.s.len) return null;
+        const dotted = sp.how == .dotted;
+        const wlen = sp.name.len - @intFromBool(dotted);
+        for (m.buf[0..n]) |w| {
+            if (w.end - w.start != wlen) continue;
+            var end = w.end;
+            if (dotted) {
+                // The dot, then a boundary. A miss here is not the end of
+                // the search: "sept." occurs in "sept sept." at 5.
+                if (end >= m.s.len or m.s[end] != '.') continue;
+                if (end + 1 < m.s.len and isWordChar(m.s[end + 1])) continue;
+                end += 1;
+            }
+            if (std.ascii.eqlIgnoreCase(m.s[w.start..w.end], sp.name[0..wlen])) {
+                return .{ .start = w.start, .end = end };
+            }
+        }
+        return null;
+    }
+};
 
 pub const Found = struct { month: u8, start: usize, end: usize, rival: bool };
 
 /// The first spelling found, English then each locale in tag order, and
 /// whether a spelling of a different month also occurs outside it.
 pub fn findMonthName(s: []const u8, locales: locale.LocaleSet) ?Found {
-    const words = wordCount(s);
-    for (&english) |sp| {
-        if (matchWord(s, sp.name)) |at| return found(s, words, sp.month, at, locales);
+    var m: WordMatcher = undefined;
+    m.init(s);
+    for (&english) |*sp| {
+        if (!m.admits(sp)) continue;
+        if (m.find(sp)) |at| return found(&m, sp.month, at, locales);
     }
     for (locale_spellings, 0..) |spellings, li| {
         if (!locale.contains(locales, li)) continue;
-        for (spellings) |sp| {
-            if (matchWord(s, sp.name)) |at| return found(s, words, sp.month, at, locales);
+        for (spellings) |*sp| {
+            if (!m.admits(sp)) continue;
+            if (m.find(sp)) |at| return found(&m, sp.month, at, locales);
         }
     }
     return null;
 }
 
-fn found(s: []const u8, words: ?usize, month: u8, at: Span, locales: locale.LocaleSet) Found {
+fn found(m: *const WordMatcher, month: u8, at: Span, locales: locale.LocaleSet) Found {
     return .{
         .month = month,
         .start = at.start,
         .end = at.end,
-        .rival = hasRival(s, words, month, at, locales),
+        .rival = hasRival(m, month, at, locales),
     };
 }
 
@@ -160,24 +284,25 @@ fn found(s: []const u8, words: ?usize, month: u8, at: Span, locales: locale.Loca
 /// outside the one found. Two month names leave no way to say which the
 /// date is written around, and picking the first spelling tried would let
 /// the table's order decide "MAY1MAR".
-fn hasRival(s: []const u8, words: ?usize, month: u8, at: Span, locales: locale.LocaleSet) bool {
-    if (words) |n| if (n < 2) return false;
-    for (&english) |sp| {
-        if (rivals(s, sp, month, at)) return true;
+fn hasRival(m: *const WordMatcher, month: u8, at: Span, locales: locale.LocaleSet) bool {
+    // One word cannot hold two month names at two spans.
+    if (m.n) |n| if (n < 2) return false;
+    for (&english) |*sp| {
+        if (rivals(m, sp, month, at)) return true;
     }
     for (locale_spellings, 0..) |spellings, li| {
         if (!locale.contains(locales, li)) continue;
-        for (spellings) |sp| {
-            if (rivals(s, sp, month, at)) return true;
+        for (spellings) |*sp| {
+            if (rivals(m, sp, month, at)) return true;
         }
     }
     return false;
 }
 
 /// Whether sp names another month and first occurs clear of at.
-fn rivals(s: []const u8, sp: Spelling, month: u8, at: Span) bool {
-    if (sp.month == month) return false;
-    const o = matchWord(s, sp.name) orelse return false;
+fn rivals(m: *const WordMatcher, sp: *const Spelling, month: u8, at: Span) bool {
+    if (sp.month == month or !m.admits(sp)) return false;
+    const o = m.find(sp) orelse return false;
     return o.start >= at.end or o.end <= at.start;
 }
 
@@ -883,4 +1008,54 @@ test "trimSpace trims what Go's strings.TrimSpace trims" {
     // A lone byte is not the code point of the same number: 0x85 is not NEL.
     try std.testing.expectEqualStrings("\x85", trimSpace("\x85"));
     try std.testing.expectEqualStrings("\xa0", trimSpace("\xa0 "));
+}
+test "the word matcher finds what scanning finds" {
+    // Go's TestWordMatcherAgreesWithScanning: every spelling of every
+    // compiled locale against every golden input, and the shapes that broke
+    // drafts of Go's matcher.
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    var inputs: std.ArrayList([]const u8) = .empty;
+    try inputs.appendSlice(a, &.{
+        "",           "2024-03-15",       "sept. 1, 2020", "x sept.y",
+        "sept sept.", "SEPT.",            "sept.1",        "MAY10",
+        "10MAY",      "mAy 1 mar",
+        "15 März 2024",
+        "15 MÄRZ",
+        "1월 11월",
+        "2024年3月15日",
+        "févr. 2024",
+        "mai.",       "Fri, 15 Mar 2024", "mar, 15 mar",   "\xffmay\xff",
+        "may\x00",
+    });
+    // Over word_cap words, where every spelling scans.
+    var long: std.ArrayList(u8) = .empty;
+    for (0..60) |_| try long.appendSlice(a, "a ");
+    try long.appendSlice(a, "Sept. 3");
+    try inputs.append(a, long.items);
+    var lines = std.mem.splitScalar(u8, @import("golden_corpus").text, '\n');
+    var buf: [4096]u8 = undefined;
+    while (lines.next()) |row| {
+        if (row.len == 0 or row[0] == '#') continue;
+        const quoted = row[0 .. std.mem.indexOfScalar(u8, row, '\t') orelse row.len];
+        try inputs.append(a, try a.dupe(u8, try @import("golden_test.zig").unquote(&buf, quoted)));
+    }
+
+    var checked: usize = 0;
+    for (inputs.items) |s| {
+        var m: WordMatcher = undefined;
+        m.init(s);
+        const tables = [_][]const Spelling{&english} ++ locale_spellings;
+        for (tables) |table| for (table) |*sp| {
+            const want = matchWord(s, sp.name);
+            const got = if (m.admits(sp)) m.find(sp) else null;
+            std.testing.expectEqual(want, got) catch |err| {
+                std.debug.print("\"{f}\" spelling \"{s}\"\n", .{ std.zig.fmtString(s), sp.name });
+                return err;
+            };
+            checked += 1;
+        };
+    }
+    try std.testing.expect(checked > 100_000);
 }
