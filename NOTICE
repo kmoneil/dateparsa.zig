@@ -1,0 +1,18 @@
+dateparsa: date parsing for Zig, for input whose format you do not control
+Copyright 2026 Kevin O'Neil
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use
+this file except in compliance with the License. You may obtain a copy of the
+License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed
+under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+CONDITIONS OF ANY KIND, either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
+
+This project is a port of dateparsa (github.com/kmoneil/dateparsa), Apache-2.0,
+by the same author. Locale data, when it lands, is derived from the Unicode
+Common Locale Data Repository (CLDR) via dateparsa and carries the Unicode
+License v3; that license text will be reproduced here alongside the data.
