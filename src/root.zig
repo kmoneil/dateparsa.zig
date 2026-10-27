@@ -256,4 +256,5 @@ test {
     _ = @import("formats.zig");
     _ = @import("Parser.zig");
     _ = @import("api_test.zig");
+    _ = @import("golden_test.zig");
 }

@@ -1,0 +1,178 @@
+// The Go side of the natural-language oracle for dateparsa.zig.
+// tools/oracle.sh copies this into a scratch copy of the Go repository as
+// internal/natural/zz_oracle_test.go, where it can call natural.Parse
+// directly. It writes one line per input and configuration:
+//
+//	<base index> <prefer future> <locales: - | * | tag> <hex input> <result>
+package natural
+
+import (
+	"bufio"
+	"encoding/hex"
+	"fmt"
+	"os"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/kmoneil/dateparsa/internal/locale"
+	_ "github.com/kmoneil/dateparsa/internal/locale/data"
+)
+
+var oracleBases = []time.Time{
+	time.Date(2024, 3, 15, 12, 0, 0, 0, time.UTC),
+	time.Date(2024, 1, 31, 23, 30, 0, 0, time.FixedZone("", 19800)),
+	time.Date(2024, 2, 29, 0, 0, 0, 0, time.FixedZone("", -28800)),
+}
+
+var english = []string{
+	"now", "today", "yesterday", "tomorrow", "tonight", "Now", "TODAY", "ToMoRrOw",
+	"3 days ago", "a week ago", "an hour ago", "an 8 hours ago", "a 3 days ago", "in 3 days", "3 days from now",
+	"2 weeks from now", "1 month ago", "1 year ago", "5 hours ago", "10 minutes ago", "30 seconds ago",
+	"30 s ago", "1 sec ago", "2 mins ago", "3 hrs ago", "in 10 minutes", "in 2 hours", "in 1 week",
+	"1 month from now", "13 months ago", "25 years ago", "a few days ago", "twenty minutes ago",
+	"thirty days ago", "fifteen seconds from now", "one year ago", "ten weeks ago",
+	"last monday", "next monday", "this monday", "last friday", "next friday", "this friday",
+	"next sunday", "last sunday", "this saturday", "last tue", "next thurs", "this wed",
+	"monday", "fri", "sunday", "saturday",
+	"next week", "last week", "this week", "next month", "last month", "this month",
+	"next year", "last year", "this year", "next day", "last day", "this day", "next hour",
+	"beginning of month", "end of month", "start of week", "end of week", "beginning of year",
+	"end of year", "start of day", "end of day", "end of hour", "end of the month",
+	"yesterday at 5pm", "tomorrow at 14:00", "today at noon", "today at midnight",
+	"next friday at 5:30pm", "yesterday at 5 pm", "tomorrow at 9", "tomorrow at 9 am",
+	"today at 12am", "today at 12pm", "today at 12 am", "now at 5pm", "tonight at 9pm",
+	"3 days ago at 5pm", "in 3 days at 14:30", "today at 23:59", "today at 24:00",
+	"today at 5:7", "today at 25pm", "25pm", "today at 13pm", "today at 13 pm", "5pm", "at 5pm",
+	"in 2 hours and 30 minutes", "1 day and 2 hours ago", "1 day and 2 hours and 3 minutes ago",
+	"in 1 day and 2 hours", "1 day and 2 hours from now", "2 days 3 hours ago", "1 day and ago",
+	"half an hour ago", "half a day ago", "half hour from now", "half a week ago", "half a minute ago",
+	"half a month ago", "in half an hour",
+	"last night", "this morning", "next evening", "afternoon", "night", "last morning",
+	"march 5", "march 31", "feb 31", "feb 29", "dec 25 at 5pm", "sept 1", "may 0", "may 32",
+	"next march", "last march", "this march", "next december", "last january", "next mar",
+	"1000000 days ago", "999999 days ago", "999999 years ago", "999999 hours ago",
+	"3 DAYS AGO", "3 days ago!", "in   3   days", "3days ago", "3rd", "now please", "",
+	"the day after tomorrow", "next", "ago", "5:30", "3 days", "days ago", "in days",
+	"3 días ago", "\xff3 days ago", "ÄÖÜ now", "now ünd", "İn 3 days", "from now", "3 days from  now",
+	"3 days from nowhere", "yesterday, at 5pm", "tomorrow:5pm", "2nd day ago", "3rd monday",
+	"1st of march", "end of march", "past friday", "coming week", "previous month",
+}
+
+func localeInputs(d *locale.Data) []string {
+	var out []string
+	r := d.Relative
+	first := func(xs []string) string {
+		if len(xs) == 0 {
+			return ""
+		}
+		return xs[0]
+	}
+	add := func(s string) {
+		if s != "" {
+			out = append(out, s, strings.ToUpper(s))
+		}
+	}
+	for _, list := range [][]string{r.Now, r.Today, r.Yesterday, r.Tomorrow} {
+		for _, w := range list {
+			add(w)
+			add(w + " 5pm")
+			add(w + " at 14:00")
+		}
+	}
+	units := [][]string{r.Seconds, r.Minutes, r.Hours, r.Days, r.Weeks, r.Months, r.Years}
+	for _, list := range units {
+		for _, u := range list {
+			for _, ago := range r.Ago {
+				add("3 " + u + " " + ago)
+				add(ago + " 3 " + u)
+			}
+			for _, in := range r.InFuture {
+				add(in + " 3 " + u)
+			}
+			for _, sel := range [][]string{r.Last, r.Next, r.This} {
+				add(first(sel) + " " + u)
+			}
+		}
+	}
+	for i := range 7 {
+		for _, wd := range []string{d.WeekdaysWide[i], d.WeekdaysAbbr[i]} {
+			add(wd)
+			for _, sel := range [][]string{r.Last, r.Next, r.This} {
+				for _, s := range sel {
+					add(s + " " + wd)
+				}
+			}
+		}
+	}
+	return out
+}
+
+func formatResult(r *Result) string {
+	if r == nil {
+		return "nil"
+	}
+	f := func(t time.Time) string {
+		y, m, d := t.Date()
+		hh, mm, ss := t.Clock()
+		_, off := t.Zone()
+		return fmt.Sprintf("%d-%02d-%02dT%02d:%02d:%02d.%09d%+d", y, int(m), d, hh, mm, ss, t.Nanosecond(), off)
+	}
+	alt := "-"
+	if r.Ambiguous {
+		alt = f(r.AltTime)
+	}
+	return fmt.Sprintf("%s kind=%d amb=%t alt=%s", f(r.Time), int(r.Kind), r.Ambiguous, alt)
+}
+
+func TestZZOracle(t *testing.T) {
+	var all []*locale.Data
+	for _, tag := range locale.Tags() {
+		all = append(all, locale.Lookup(tag))
+	}
+	w := bufio.NewWriter(os.Stdout)
+	path := os.Getenv("ORACLE_OUT")
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	w = bufio.NewWriter(f)
+	defer w.Flush()
+	emit := func(spec string, locs []*locale.Data, in string) {
+		for bi, base := range oracleBases {
+			for _, pf := range []bool{false, true} {
+				r := Parse(in, Config{BaseTime: base, PreferFuture: pf, Locales: locs})
+				p := 0
+				if pf {
+					p = 1
+				}
+				fmt.Fprintf(w, "%d %d %s %s %s\n", bi, p, spec, hex.EncodeToString([]byte(in)), formatResult(r))
+			}
+		}
+	}
+	for _, in := range english {
+		emit("-", nil, in)
+		emit("*", all, in)
+	}
+	if extra := os.Getenv("ORACLE_EXTRA"); extra != "" {
+		data, err := os.ReadFile(extra)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+			spec, in, _ := strings.Cut(line, "\t")
+			if spec == "-" {
+				emit("-", nil, in)
+			} else {
+				emit(spec, []*locale.Data{locale.Lookup(spec)}, in)
+			}
+		}
+	}
+	for _, d := range all {
+		for _, in := range localeInputs(d) {
+			emit(d.Tag, []*locale.Data{d}, in)
+			emit("*", all, in)
+		}
+	}
+}

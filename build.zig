@@ -20,8 +20,20 @@ pub fn build(b: *std.Build) void {
     options.addOption([]const u8, "locales", locales);
     mod.addOptions("build_options", options);
 
+    // The tests are the library plus test data the package does not ship:
+    // the golden corpus vendored from the Go original.
+    const test_mod = b.createModule(.{
+        .root_source_file = b.path("src/root.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{
+            .name = "golden_corpus",
+            .module = b.createModule(.{ .root_source_file = b.path("testdata/golden.zig") }),
+        }},
+    });
+    test_mod.addOptions("build_options", options);
     const mod_tests = b.addTest(.{
-        .root_module = mod,
+        .root_module = test_mod,
     });
     const run_mod_tests = b.addRunArtifact(mod_tests);
 
@@ -66,8 +78,43 @@ pub fn build(b: *std.Build) void {
     // Regenerates src/unicode_data.zig from Go's unicode package, so that
     // natural-language lowercasing and word boundaries match the Go original.
     // A developer step needing `go` on PATH; the output is committed.
-    const unicode_gen = b.addSystemCommand(&.{ "go", "run", "tools/unicode_gen.go", "src/unicode_data.zig" });
+    const unicode_gen = b.addSystemCommand(&.{
+        "go",
+        "run",
+        "tools/unicode_gen.go",
+        "src/unicode_data.zig",
+    });
     unicode_gen.setCwd(b.path("."));
-    const unicode_step = b.step("unicode", "Regenerate src/unicode_data.zig from Go's unicode tables");
+    const unicode_step = b.step("unicode", "Regenerate src/unicode_data.zig from Go's tables");
     unicode_step.dependOn(&unicode_gen.step);
+
+    // Answer a Go oracle file with this port; tools/oracle.sh runs them.
+    // The natural-language one drives src/natural.zig as its own module,
+    // which is why the two are separate programs: a file belongs to one
+    // module.
+    const natural_mod = b.createModule(.{
+        .root_source_file = b.path("src/natural.zig"),
+        .target = target,
+        .optimize = .ReleaseSafe,
+    });
+    natural_mod.addOptions("build_options", options);
+    const oracles = [_]struct { []const u8, []const u8, []const u8, *std.Build.Module }{
+        .{ "oracle-api", "tools/oracle_api.zig", "dateparsa", mod },
+        .{ "oracle-natural", "tools/oracle_natural.zig", "natural", natural_mod },
+    };
+    for (oracles) |o| {
+        const exe = b.addExecutable(.{
+            .name = o[0],
+            .root_module = b.createModule(.{
+                .root_source_file = b.path(o[1]),
+                .target = target,
+                .optimize = .ReleaseSafe,
+                .imports = &.{.{ .name = o[2], .module = o[3] }},
+            }),
+        });
+        const run_exe = b.addRunArtifact(exe);
+        run_exe.addPassthruArgs();
+        const step = b.step(o[0], "Answer a Go oracle file with this port (see tools/oracle.sh)");
+        step.dependOn(&run_exe.step);
+    }
 }

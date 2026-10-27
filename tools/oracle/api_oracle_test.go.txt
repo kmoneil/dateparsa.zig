@@ -1,0 +1,166 @@
+// The Go side of the public-API oracle for dateparsa.zig. tools/oracle.sh
+// copies this into a scratch copy of the Go repository as
+// zz_api_oracle_test.go and runs it; it is kept as .txt here so that no Go
+// toolchain ever treats it as part of this repository.
+//
+// It writes one line per input and option set, plus layout-reuse lines:
+//
+//	<config> <hex input> <result>
+//	R <hex first> <hex row> <result of the first row's layout on row>
+package dateparsa
+
+import (
+	"bufio"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"os"
+	"path/filepath"
+	"sort"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+)
+
+func apiOracleInputs(t *testing.T) []string {
+	seen := map[string]bool{}
+	var out []string
+	add := func(s string) {
+		if len(s) <= 600 && !seen[s] {
+			seen[s] = true
+			out = append(out, s)
+		}
+	}
+	data, err := os.ReadFile("testdata/corpus/golden.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if line == "" || line[0] == '#' {
+			continue
+		}
+		q, _, _ := strings.Cut(line, "\t")
+		if s, err := strconv.Unquote(q); err == nil {
+			add(s)
+		}
+	}
+	files, _ := filepath.Glob("*_test.go")
+	sort.Strings(files)
+	fset := token.NewFileSet()
+	for _, f := range files {
+		if strings.HasPrefix(f, "zz_") {
+			continue
+		}
+		file, err := parser.ParseFile(fset, f, nil, 0)
+		if err != nil {
+			continue
+		}
+		ast.Inspect(file, func(n ast.Node) bool {
+			if lit, ok := n.(*ast.BasicLit); ok && lit.Kind == token.STRING {
+				if s, err := strconv.Unquote(lit.Value); err == nil {
+					add(s)
+				}
+			}
+			return true
+		})
+	}
+	return out
+}
+
+func apiFormatTime(t time.Time) string {
+	y, m, d := t.Date()
+	hh, mm, ss := t.Clock()
+	_, off := t.Zone()
+	return fmt.Sprintf("%d-%02d-%02dT%02d:%02d:%02d.%09d%+d", y, int(m), d, hh, mm, ss, t.Nanosecond(), off)
+}
+
+func apiFormat(r ParseResult, err error) string {
+	if err != nil {
+		var ae *AmbiguousDateError
+		if errors.As(err, &ae) {
+			var b strings.Builder
+			fmt.Fprintf(&b, "err ambiguous n=%d", len(ae.Interpretations))
+			for _, in := range ae.Interpretations {
+				label := in.Label
+				if in.Layout == LayoutNaturalLanguage {
+					label = "NATURAL_LANGUAGE"
+				}
+				fmt.Fprintf(&b, " %s@%s", label, apiFormatTime(in.Time))
+			}
+			return b.String()
+		}
+		if errors.Is(err, ErrAmbiguous) {
+			return "err ambiguous n=0"
+		}
+		return "err nomatch"
+	}
+	return fmt.Sprintf("ok %s kind=%s label=%s amb=%t reusable=%t",
+		apiFormatTime(r.Time), r.Kind, r.Layout.String(), r.Ambiguous, r.Layout.Reusable())
+}
+
+func TestZZAPIOracle(t *testing.T) {
+	baseA := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
+	baseB := time.Date(2031, 2, 3, 4, 5, 6, 0, time.UTC)
+	var all []Locale
+	for _, tag := range Locales() {
+		l, _ := LookupLocale(tag)
+		all = append(all, l)
+	}
+	configs := [][]Option{
+		{WithBaseTime(baseA)},
+		{WithBaseTime(baseA), WithPreferDayFirst(true)},
+		{WithBaseTime(baseA), WithPreferYearFirst(true)},
+		{WithBaseTime(baseA), WithStrictMode(true)},
+		{WithBaseTime(baseA), WithTimezone(time.FixedZone("", 19800))},
+		{WithBaseTime(baseA), WithLocales(all...)},
+		{WithBaseTime(baseA), WithPreferFuture(true)},
+		{WithBaseTime(baseB)},
+		{WithBaseTime(baseA), WithStrictMode(true), WithLocales(all...)},
+	}
+	f, err := os.Create(os.Getenv("ORACLE_OUT"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	w := bufio.NewWriter(f)
+	defer w.Flush()
+	inputs := apiOracleInputs(t)
+	byLabel := map[string][]string{}
+	for _, in := range inputs {
+		for ci, cfg := range configs {
+			r, err := ParseWith(in, cfg...)
+			fmt.Fprintf(w, "%d %s %s\n", ci, hex.EncodeToString([]byte(in)), apiFormat(r, err))
+			if ci == 0 && err == nil && r.Layout != LayoutEpoch && r.Layout != LayoutNaturalLanguage {
+				byLabel[r.Layout.String()] = append(byLabel[r.Layout.String()], in)
+			}
+		}
+	}
+	// Layout reuse: the first input of each format parses every other input
+	// detected as that format, and each input parses the next.
+	labels := make([]string, 0, len(byLabel))
+	for l := range byLabel {
+		labels = append(labels, l)
+	}
+	sort.Strings(labels)
+	pairs := 0
+	for _, l := range labels {
+		group := byLabel[l]
+		for i := 1; i < len(group); i++ {
+			for _, p := range [][2]string{{group[0], group[i]}, {group[i-1], group[i]}} {
+				r, _ := ParseWith(p[0], configs[0]...)
+				got, err := r.Layout.Parse(p[1])
+				res := "err"
+				if err == nil {
+					res = "ok " + apiFormatTime(got)
+				}
+				fmt.Fprintf(w, "R %s %s %s\n", hex.EncodeToString([]byte(p[0])), hex.EncodeToString([]byte(p[1])), res)
+				pairs++
+			}
+		}
+	}
+	t.Logf("%d inputs, %d reuse pairs", len(inputs), pairs)
+}

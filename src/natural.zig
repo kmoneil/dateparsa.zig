@@ -11,7 +11,9 @@
 
 const std = @import("std");
 const DateTime = @import("DateTime.zig");
-const locale = @import("locale.zig");
+/// Re-exported for tools/oracle_natural.zig, which drives this file as its
+/// own module and needs the locale set it is built with.
+pub const locale = @import("locale.zig");
 const unicode = @import("unicode.zig");
 
 /// Longer input is refused: the scanner and patterns are linear, and no

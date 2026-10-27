@@ -1,0 +1,1383 @@
+# Vendored from github.com/kmoneil/dateparsa testdata/corpus/golden.txt at v0.2.0
+# (1bdf7e3), Apache-2.0, same author. Each row is what the Go library parses
+# the input to with base time 2024-06-15T12:00:00Z; src/golden_test.zig checks
+# this port against every row.
+# 1377 inputs. Regenerate with: go test -run TestCorpusGolden -corpus-update
+# input	result	instant (UTC)	offset	format	ambiguous	kind
+"\x00MAY1"	ok	2024-05-01T00:00:00.000000000Z	+00:00	MONTH_DAY	ambiguous=false	kind=absolute
+"0000-001"	ok	0000-01-01T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"0000-01-01T00:00:00+24:00"	nomatch
+"0000-01-01T0:00:00+00:00"	nomatch
+"0000.01.01 "	ok	0000-01-01T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"0000.01.01 00:00:00+00"	ok	0000-01-01T00:00:00.000000000Z	+00:00	SQL_DATETIME_TZ_SHORT	ambiguous=false	kind=absolute
+"0000.01.01 00:00:00+01"	ok	-0001-12-31T23:00:00.000000000Z	+01:00	SQL_DATETIME_TZ_SHORT	ambiguous=false	kind=absolute
+"0000.01.01 00:00:60"	nomatch
+"0000000000"	ok	1970-01-01T00:00:00.000000000Z	+00:00	UNIX_TIMESTAMP	ambiguous=false	kind=absolute
+"00000101"	ok	0000-01-01T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"0001-01-01"	ok	0001-01-01T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"00:00:00"	ok	2024-01-01T00:00:00.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"00:00:00/000"	ok	2024-01-01T00:00:00.000000000Z	+00:00	TIME_HMS_FRAC3	ambiguous=false	kind=absolute
+"00:00:00/010"	ok	2024-01-01T00:00:00.010000000Z	+00:00	TIME_HMS_FRAC3	ambiguous=false	kind=absolute
+"00:08"	ok	2024-01-01T00:08:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"00:23"	ok	2024-01-01T00:23:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"00:27"	ok	2024-01-01T00:27:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"00:48:39"	ok	2024-01-01T00:48:39.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"00:54:44"	ok	2024-01-01T00:54:44.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"00:58:17"	ok	2024-01-01T00:58:17.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"01.01.1946"	ok	1946-01-01T00:00:00.000000000Z	+00:00	NUMERIC_AMBIG	ambiguous=true	kind=absolute
+"01.08.1941"	ok	1941-08-01T00:00:00.000000000Z	+00:00	NUMERIC_AMBIG	ambiguous=true	kind=absolute
+"01.12.1939"	ok	1939-12-01T00:00:00.000000000Z	+00:00	NUMERIC_AMBIG	ambiguous=true	kind=absolute
+"01/01/1000"	ok	1000-01-01T00:00:00.000000000Z	+00:00	NUMERIC_AMBIG	ambiguous=true	kind=absolute
+"01/09/1950"	ok	1950-01-09T00:00:00.000000000Z	+00:00	NUMERIC_AMBIG	ambiguous=true	kind=absolute
+"01/Aug/1969:19:42:12 +0000"	ok	1969-08-01T19:42:12.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"01/Mar/1947:17:58:34 +0000"	ok	1947-03-01T17:58:34.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"01:00 AM"	ok	2024-01-01T01:00:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"01:00 Am"	ok	2024-01-01T01:00:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"01:50:17"	ok	2024-01-01T01:50:17.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"01:52 PM"	ok	2024-01-01T13:52:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"01:58"	ok	2024-01-01T01:58:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"02.12.1945"	ok	1945-12-02T00:00:00.000000000Z	+00:00	NUMERIC_AMBIG	ambiguous=true	kind=absolute
+"02/21/2037"	ok	2037-02-21T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"02/Apr/2098:18:07:30 +0000"	ok	2098-04-02T18:07:30.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"02/Oct/1951:15:45:39 +0000"	ok	1951-10-02T15:45:39.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"020/1/0000"	nomatch
+"02:10:00"	ok	2024-01-01T02:10:00.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"02:11"	ok	2024-01-01T02:11:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"02:20 PM"	ok	2024-01-01T14:20:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"02:27:43"	ok	2024-01-01T02:27:43.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"02:29:39"	ok	2024-01-01T02:29:39.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"02:37"	ok	2024-01-01T02:37:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"02:43:20"	ok	2024-01-01T02:43:20.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"02:54 AM"	ok	2024-01-01T02:54:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"03/12/2005"	ok	2005-03-12T00:00:00.000000000Z	+00:00	NUMERIC_AMBIG	ambiguous=true	kind=absolute
+"03/15/2024"	ok	2024-03-15T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"03/16/2044"	ok	2044-03-16T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"03/18/2004"	ok	2004-03-18T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"03/30/1940"	ok	1940-03-30T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"03/Aug/1983:18:14:31 +0000"	ok	1983-08-03T18:14:31.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"03/Jun/2022:12:57:24 +0000"	ok	2022-06-03T12:57:24.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"03:04:57"	ok	2024-01-01T03:04:57.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"03:07:29"	ok	2024-01-01T03:07:29.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"03:08"	ok	2024-01-01T03:08:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"03:11 AM"	ok	2024-01-01T03:11:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"03:22:38"	ok	2024-01-01T03:22:38.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"03:25 PM"	ok	2024-01-01T15:25:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"03:28 PM"	ok	2024-01-01T15:28:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"03:41"	ok	2024-01-01T03:41:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"03:48 AM"	ok	2024-01-01T03:48:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"03:53 PM"	ok	2024-01-01T15:53:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"04.01.1944"	ok	1944-01-04T00:00:00.000000000Z	+00:00	NUMERIC_AMBIG	ambiguous=true	kind=absolute
+"04.04.2011"	ok	2011-04-04T00:00:00.000000000Z	+00:00	NUMERIC_AMBIG	ambiguous=true	kind=absolute
+"04/05/1936"	ok	1936-04-05T00:00:00.000000000Z	+00:00	NUMERIC_AMBIG	ambiguous=true	kind=absolute
+"04/13/2115"	ok	2115-04-13T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"04/28/1931"	ok	1931-04-28T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"04/Jul/2071:10:18:52 +0000"	ok	2071-07-04T10:18:52.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"04:03 PM"	ok	2024-01-01T16:03:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"04:09"	ok	2024-01-01T04:09:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"04:47"	ok	2024-01-01T04:47:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"04:59:45"	ok	2024-01-01T04:59:45.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"05/11/1942"	ok	1942-05-11T00:00:00.000000000Z	+00:00	NUMERIC_AMBIG	ambiguous=true	kind=absolute
+"05/18/2051"	ok	2051-05-18T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"05/22/1967"	ok	1967-05-22T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"05/Apr/1949:20:00:26 +0000"	ok	1949-04-05T20:00:26.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"05:10 AM"	ok	2024-01-01T05:10:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"05:17 PM"	ok	2024-01-01T17:17:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"05:20 PM"	ok	2024-01-01T17:20:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"05:24 AM"	ok	2024-01-01T05:24:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"05:30 AM"	ok	2024-01-01T05:30:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"05:33 AM"	ok	2024-01-01T05:33:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"05:40 PM"	ok	2024-01-01T17:40:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"05:51"	ok	2024-01-01T05:51:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"06/07/2025"	ok	2025-06-07T00:00:00.000000000Z	+00:00	NUMERIC_AMBIG	ambiguous=true	kind=absolute
+"06/21/2026"	ok	2026-06-21T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"06/24/2091"	ok	2091-06-24T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"06/Aug/1987:11:23:54 +0000"	ok	1987-08-06T11:23:54.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"06/Nov/1957:05:49:02 +0000"	ok	1957-11-06T05:49:02.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"06/Sep/2020:17:45:25 +0000"	ok	2020-09-06T17:45:25.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"06:02 AM"	ok	2024-01-01T06:02:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"06:06 AM"	ok	2024-01-01T06:06:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"06:06 PM"	ok	2024-01-01T18:06:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"06:07 AM"	ok	2024-01-01T06:07:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"06:14"	ok	2024-01-01T06:14:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"06:16:36"	ok	2024-01-01T06:16:36.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"06:19"	ok	2024-01-01T06:19:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"06:19 AM"	ok	2024-01-01T06:19:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"06:56 AM"	ok	2024-01-01T06:56:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"07.03.2012"	ok	2012-03-07T00:00:00.000000000Z	+00:00	NUMERIC_AMBIG	ambiguous=true	kind=absolute
+"07.11.2067"	ok	2067-11-07T00:00:00.000000000Z	+00:00	NUMERIC_AMBIG	ambiguous=true	kind=absolute
+"07.11.2080"	ok	2080-11-07T00:00:00.000000000Z	+00:00	NUMERIC_AMBIG	ambiguous=true	kind=absolute
+"07/06/1939"	ok	1939-07-06T00:00:00.000000000Z	+00:00	NUMERIC_AMBIG	ambiguous=true	kind=absolute
+"07/07/1969"	ok	1969-07-07T00:00:00.000000000Z	+00:00	NUMERIC_AMBIG	ambiguous=true	kind=absolute
+"07/11/2051"	ok	2051-07-11T00:00:00.000000000Z	+00:00	NUMERIC_AMBIG	ambiguous=true	kind=absolute
+"07/13/1987"	ok	1987-07-13T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"07/13/2019"	ok	2019-07-13T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"07/21/2104"	ok	2104-07-21T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"07/26/1989"	ok	1989-07-26T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"07/31/1931"	ok	1931-07-31T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"07/Feb/2096:02:11:09 +0000"	ok	2096-02-07T02:11:09.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"07/Nov/2107:23:44:00 +0000"	ok	2107-11-07T23:44:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"07/Oct/2026:11:15:42 +0000"	ok	2026-10-07T11:15:42.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"07:15:46"	ok	2024-01-01T07:15:46.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"07:24 PM"	ok	2024-01-01T19:24:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"07:40"	ok	2024-01-01T07:40:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"07:46"	ok	2024-01-01T07:46:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"08.07.1954"	ok	1954-07-08T00:00:00.000000000Z	+00:00	NUMERIC_AMBIG	ambiguous=true	kind=absolute
+"08/14/2048"	ok	2048-08-14T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"08/25/2096"	ok	2096-08-25T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"08/31/2036"	ok	2036-08-31T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"08:03"	ok	2024-01-01T08:03:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"08:17 AM"	ok	2024-01-01T08:17:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"08:21:17"	ok	2024-01-01T08:21:17.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"08:46"	ok	2024-01-01T08:46:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"08:52 PM"	ok	2024-01-01T20:52:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"08:54"	ok	2024-01-01T08:54:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"09.05.1943"	ok	1943-05-09T00:00:00.000000000Z	+00:00	NUMERIC_AMBIG	ambiguous=true	kind=absolute
+"09/10/2073"	ok	2073-09-10T00:00:00.000000000Z	+00:00	NUMERIC_AMBIG	ambiguous=true	kind=absolute
+"09/14/1925"	ok	1925-09-14T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"09/20/2001"	ok	2001-09-20T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"09/25/2096"	ok	2096-09-25T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"09/29/1981"	ok	1981-09-29T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"09/Jun/2024:20:03:02 +0000"	ok	2024-06-09T20:03:02.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"09/May/2011:02:43:06 +0000"	ok	2011-05-09T02:43:06.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"09:07 AM"	ok	2024-01-01T09:07:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"09:10:29"	ok	2024-01-01T09:10:29.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"09:29 AM"	ok	2024-01-01T09:29:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"09:39"	ok	2024-01-01T09:39:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"09:45:26"	ok	2024-01-01T09:45:26.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"09:59"	ok	2024-01-01T09:59:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"1 June 2065"	ok	2065-06-01T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"10 September 1937"	ok	1937-09-10T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"10/08/2086"	ok	2086-10-08T00:00:00.000000000Z	+00:00	NUMERIC_AMBIG	ambiguous=true	kind=absolute
+"10/17/2047"	ok	2047-10-17T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"10/30/1995"	ok	1995-10-30T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"10/31/1969"	ok	1969-10-31T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"10:01:00"	ok	2024-01-01T10:01:00.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"10:07:00"	ok	2024-01-01T10:07:00.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"10:12 AM"	ok	2024-01-01T10:12:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"10:15"	ok	2024-01-01T10:15:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"10:26"	ok	2024-01-01T10:26:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"10:27 AM"	ok	2024-01-01T10:27:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"10:30"	ok	2024-01-01T10:30:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"10:30 PM"	ok	2024-01-01T22:30:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"10:30:00"	ok	2024-01-01T10:30:00.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"10:30:00 PM"	ok	2024-01-01T22:30:00.000000000Z	+00:00	TIME_HMS_AMPM	ambiguous=false	kind=absolute
+"10:30:00.123"	ok	2024-01-01T10:30:00.123000000Z	+00:00	TIME_HMS_FRAC3	ambiguous=false	kind=absolute
+"10:30:00.123456"	ok	2024-01-01T10:30:00.123456000Z	+00:00	TIME_HMS_FRAC6	ambiguous=false	kind=absolute
+"10:37 PM"	ok	2024-01-01T22:37:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"10:38 AM"	ok	2024-01-01T10:38:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"10:48 PM"	ok	2024-01-01T22:48:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"10:54 PM"	ok	2024-01-01T22:54:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"10:58:46"	ok	2024-01-01T10:58:46.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"11.03.1999"	ok	1999-03-11T00:00:00.000000000Z	+00:00	NUMERIC_AMBIG	ambiguous=true	kind=absolute
+"11/27/2083"	ok	2083-11-27T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"11:00"	ok	2024-01-01T11:00:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"11:13 PM"	ok	2024-01-01T23:13:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"11:16 PM"	ok	2024-01-01T23:16:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"11:27"	ok	2024-01-01T11:27:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"11:40:04"	ok	2024-01-01T11:40:04.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"11:55:21"	ok	2024-01-01T11:55:21.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"11:58 PM"	ok	2024-01-01T23:58:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"11:59 AM"	ok	2024-01-01T11:59:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"11:59 PM"	ok	2024-01-01T23:59:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"12 March 2092"	ok	2092-03-12T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"12.07.1989"	ok	1989-07-12T00:00:00.000000000Z	+00:00	NUMERIC_AMBIG	ambiguous=true	kind=absolute
+"12.09.2059"	ok	2059-09-12T00:00:00.000000000Z	+00:00	NUMERIC_AMBIG	ambiguous=true	kind=absolute
+"12/13/2029"	ok	2029-12-13T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"12/25/1962"	ok	1962-12-25T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"12/28/2081"	ok	2081-12-28T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"12/29/2012"	ok	2012-12-29T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"12/May/1927:07:25:08 +0000"	ok	1927-05-12T07:25:08.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"12/May/2002:11:49:08 +0000"	ok	2002-05-12T11:49:08.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"12:00 AM"	ok	2024-01-01T00:00:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"12:00 PM"	ok	2024-01-01T12:00:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"12:17"	ok	2024-01-01T12:17:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"12:19 PM"	ok	2024-01-01T12:19:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"12:21 AM"	ok	2024-01-01T00:21:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"12:24:11"	ok	2024-01-01T12:24:11.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"12:27 PM"	ok	2024-01-01T12:27:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"12:31"	ok	2024-01-01T12:31:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"12:37:02"	ok	2024-01-01T12:37:02.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"12:42"	ok	2024-01-01T12:42:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"12:50:05"	ok	2024-01-01T12:50:05.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"12:59 AM"	ok	2024-01-01T00:59:00.000000000Z	+00:00	TIME_HM_AMPM	ambiguous=false	kind=absolute
+"13.03.2034"	ok	2034-03-13T00:00:00.000000000Z	+00:00	NUMERIC_DMY	ambiguous=false	kind=absolute
+"13.07.2026"	ok	2026-07-13T00:00:00.000000000Z	+00:00	NUMERIC_DMY	ambiguous=false	kind=absolute
+"13.09.1984"	ok	1984-09-13T00:00:00.000000000Z	+00:00	NUMERIC_DMY	ambiguous=false	kind=absolute
+"13/Jan/1958:12:10:06 +0000"	ok	1958-01-13T12:10:06.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"14 February 2066"	ok	2066-02-14T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"14 June 1964"	ok	1964-06-14T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"14.04.2074"	ok	2074-04-14T00:00:00.000000000Z	+00:00	NUMERIC_DMY	ambiguous=false	kind=absolute
+"14.06.1995"	ok	1995-06-14T00:00:00.000000000Z	+00:00	NUMERIC_DMY	ambiguous=false	kind=absolute
+"14.08.2082"	ok	2082-08-14T00:00:00.000000000Z	+00:00	NUMERIC_DMY	ambiguous=false	kind=absolute
+"14/Aug/2059:07:11:42 +0000"	ok	2059-08-14T07:11:42.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"14/May/1942:09:54:23 +0000"	ok	1942-05-14T09:54:23.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"14:01:56"	ok	2024-01-01T14:01:56.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"14:46:13"	ok	2024-01-01T14:46:13.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"15 Mar"	ok	2024-03-15T00:00:00.000000000Z	+00:00	DAY_MONTH	ambiguous=true	kind=absolute
+"15 Mar 24 10:30 UTC"	ok	2024-03-15T10:30:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=true	kind=absolute
+"15 March 2024"	ok	2024-03-15T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"15 November 2101"	ok	2101-11-15T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"15-Mar-2024"	ok	2024-03-15T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"15-Mar-2024 10:30"	ok	2024-03-15T10:30:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"15.02.1955"	ok	1955-02-15T00:00:00.000000000Z	+00:00	NUMERIC_DMY	ambiguous=false	kind=absolute
+"15.02.2009"	ok	2009-02-15T00:00:00.000000000Z	+00:00	NUMERIC_DMY	ambiguous=false	kind=absolute
+"15.03.2024"	ok	2024-03-15T00:00:00.000000000Z	+00:00	NUMERIC_DMY	ambiguous=false	kind=absolute
+"15.10.2090"	ok	2090-10-15T00:00:00.000000000Z	+00:00	NUMERIC_DMY	ambiguous=false	kind=absolute
+"15/03/2024"	ok	2024-03-15T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"15/Mar/2024:10:30:00 +0000"	ok	2024-03-15T10:30:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"15:13"	ok	2024-01-01T15:13:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"15:51"	ok	2024-01-01T15:51:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"15:52:15"	ok	2024-01-01T15:52:15.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"16.11.2091"	ok	2091-11-16T00:00:00.000000000Z	+00:00	NUMERIC_DMY	ambiguous=false	kind=absolute
+"16/Feb/2002:22:25:20 +0000"	ok	2002-02-16T22:25:20.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"16/Nov/2040:21:23:57 +0000"	ok	2040-11-16T21:23:57.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"16:11:34"	ok	2024-01-01T16:11:34.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"16:48:57"	ok	2024-01-01T16:48:57.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"17 November 1950"	ok	1950-11-17T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"17-1-01"	ok	2001-01-17T00:00:00.000000000Z	+00:00	NUMERIC_AMBIG	ambiguous=true	kind=absolute
+"17.09.2056"	ok	2056-09-17T00:00:00.000000000Z	+00:00	NUMERIC_DMY	ambiguous=false	kind=absolute
+"17.11.2087"	ok	2087-11-17T00:00:00.000000000Z	+00:00	NUMERIC_DMY	ambiguous=false	kind=absolute
+"17/11/0000"	ok	0000-11-17T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"17/May/1984:16:24:38 +0000"	ok	1984-05-17T16:24:38.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"17/Sep/1960:15:32:41 +0000"	ok	1960-09-17T15:32:41.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"1710500000"	ok	2024-03-15T10:53:20.000000000Z	+00:00	UNIX_TIMESTAMP	ambiguous=false	kind=absolute
+"1710500000.123"	ok	2024-03-15T10:53:20.123000000Z	+00:00	UNIX_TIMESTAMP	ambiguous=false	kind=absolute
+"1710500000000"	ok	2024-03-15T10:53:20.000000000Z	+00:00	UNIX_TIMESTAMP	ambiguous=false	kind=absolute
+"1799-12-31"	ok	1799-12-31T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"17:19"	ok	2024-01-01T17:19:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"17:24"	ok	2024-01-01T17:24:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"18 August 1958"	ok	1958-08-18T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"18 July 1941"	ok	1941-07-18T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"18 June 2009"	ok	2009-06-18T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"18 June 2097"	ok	2097-06-18T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"18/Apr/2078:19:08:06 +0000"	ok	2078-04-18T19:08:06.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"18/Aug/2042:10:02:13 +0000"	ok	2042-08-18T10:02:13.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"1800-01-01"	ok	1800-01-01T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"18:31"	ok	2024-01-01T18:31:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"18:33"	ok	2024-01-01T18:33:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"19 November 1958"	ok	1958-11-19T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"19/Jun/2005:00:20:20 +0000"	ok	2005-06-19T00:20:20.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"1904-02-29"	ok	1904-02-29T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"1924-08-17 01:04:14.409"	ok	1924-08-17T01:04:14.409000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"1924-10-09 12:29:11,938"	ok	1924-10-09T12:29:11.938000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"19241124T170957Z"	ok	1924-11-24T17:09:57.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"1925-05-19 06:27:03,539"	ok	1925-05-19T06:27:03.539000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"1926-05-08 00:01:18 UTC"	ok	1926-05-08T00:01:18.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"1926-07-30 11:41:08 PM"	ok	1926-07-30T23:41:08.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"1926-10-04T05:11:03.458298235-06:44"	ok	1926-10-04T11:55:03.458298235Z	-06:44	ISO8601_FRAC	ambiguous=false	kind=absolute
+"1926-11-03"	ok	1926-11-03T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"1926:04:05 08:52:28"	ok	1926-04-05T08:52:28.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"1927-01-16T00:16:19-11:35"	ok	1927-01-16T11:51:19.000000000Z	-11:35	RFC3339	ambiguous=false	kind=absolute
+"19270827T044850"	ok	1927-08-27T04:48:50.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"1927:08:27 17:14:11"	ok	1927-08-27T17:14:11.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"1928-06-25T16:15:48Z"	ok	1928-06-25T16:15:48.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"1928-09-16 12:15:49"	ok	1928-09-16T12:15:49.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"1928-10-31 02:17:18 UTC"	ok	1928-10-31T02:17:18.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"1928-W09"	ok	1928-02-27T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"19280501"	ok	1928-05-01T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"19280730T125522"	ok	1928-07-30T12:55:22.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"1928:06:28 04:37:41"	ok	1928-06-28T04:37:41.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"1930-05-17 15:26:11 UTC"	ok	1930-05-17T15:26:11.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"1930-12"	ok	1930-12-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"1930-12-10T11:47:23Z"	ok	1930-12-10T11:47:23.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"1931-04-21T00:07:58-02:59"	ok	1931-04-21T03:06:58.000000000Z	-02:59	RFC3339	ambiguous=false	kind=absolute
+"1931-04-22 15:00:47"	ok	1931-04-22T15:00:47.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"1931-05-11 05:45:12 UTC"	ok	1931-05-11T05:45:12.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"1931-06-07T14:32:35.337322646-06:26"	ok	1931-06-07T20:58:35.337322646Z	-06:26	ISO8601_FRAC	ambiguous=false	kind=absolute
+"1931:08:25"	ok	1931-08-25T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"1932-02-10 14:17:11 UTC"	ok	1932-02-10T14:17:11.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"1932-030"	ok	1932-01-30T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"1932-04-16T04:10:37"	ok	1932-04-16T04:10:37.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"1932-09"	ok	1932-09-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"1932-10-30T19:40:04.994269597-14:29"	ok	1932-10-31T10:09:04.994269597Z	-14:29	ISO8601_FRAC	ambiguous=false	kind=absolute
+"1932-11-07"	ok	1932-11-07T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"19320417T082300"	ok	1932-04-17T08:23:00.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"1933-11-10T21:23:19-04:12"	ok	1933-11-11T01:35:19.000000000Z	-04:12	RFC3339	ambiguous=false	kind=absolute
+"19330302"	ok	1933-03-02T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"19330927T112052"	ok	1933-09-27T11:20:52.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"19341207"	ok	1934-12-07T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"1935-01-13T19:36:07"	ok	1935-01-13T19:36:07.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"1935-160"	ok	1935-06-09T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"1935:07:30 11:16:09"	ok	1935-07-30T11:16:09.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"1936-06-27 16:14:48,905"	ok	1936-06-27T16:14:48.905000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"1936-W40"	ok	1936-09-28T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"1936:01:30 22:44:02"	ok	1936-01-30T22:44:02.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"1937-01-27"	ok	1937-01-27T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"1937-07-17 07:32:32 PM"	ok	1937-07-17T19:32:32.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"1937-09"	ok	1937-09-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"1938-05-16T16:27:59-14:46"	ok	1938-05-17T07:13:59.000000000Z	-14:46	RFC3339	ambiguous=false	kind=absolute
+"1939-08-17 09:12:59 PM"	ok	1939-08-17T21:12:59.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"1939-10-23"	ok	1939-10-23T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"1939:09:09 00:49:57"	ok	1939-09-09T00:49:57.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"1940-08-28T09:13:57Z"	ok	1940-08-28T09:13:57.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"1940-W09-6"	ok	1940-03-02T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"19400608T063932Z"	ok	1940-06-08T06:39:32.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"1941-01-22T19:21:43"	ok	1941-01-22T19:21:43.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"1941-03-17 08:30:37 PM"	ok	1941-03-17T20:30:37.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"1941-03-31T21:56:49+14:35"	ok	1941-03-31T07:21:49.000000000Z	+14:35	RFC3339	ambiguous=false	kind=absolute
+"1941-06-23 03:36:02.775"	ok	1941-06-23T03:36:02.775000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"1941-06-25T20:45:19"	ok	1941-06-25T20:45:19.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"1941-08"	ok	1941-08-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"1941-10-10T14:51:07"	ok	1941-10-10T14:51:07.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"1941-258"	ok	1941-09-15T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"1941:09:15"	ok	1941-09-15T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"1942-06-15T17:54:38"	ok	1942-06-15T17:54:38.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"1942-207"	ok	1942-07-26T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"19420709T113648Z"	ok	1942-07-09T11:36:48.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"1943-03-12T15:17:08+15:34"	ok	1943-03-11T23:43:08.000000000Z	+15:34	RFC3339	ambiguous=false	kind=absolute
+"1943-04-25 14:45:48 UTC"	ok	1943-04-25T14:45:48.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"1943-04-29"	ok	1943-04-29T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"1943-06"	ok	1943-06-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"1943-07-11 23:25:46"	ok	1943-07-11T23:25:46.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"1943-11-18"	ok	1943-11-18T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"19430504T105404"	ok	1943-05-04T10:54:04.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"19431130T044201"	ok	1943-11-30T04:42:01.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"1944-11-10"	ok	1944-11-10T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"1944:04:22 14:14:42"	ok	1944-04-22T14:14:42.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"1944:09:18 17:51:54"	ok	1944-09-18T17:51:54.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"1945-04-27 22:53:28,619"	ok	1945-04-27T22:53:28.619000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"1945-250"	ok	1945-09-07T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"1945-W39-3"	ok	1945-09-26T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"1945:01:17 16:24:43"	ok	1945-01-17T16:24:43.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"1946-02-20 07:57:08 PM"	ok	1946-02-20T19:57:08.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"1946-04-21 11:43:20 AM"	ok	1946-04-21T11:43:20.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"1946-07-06 17:39:30,897"	ok	1946-07-06T17:39:30.897000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"1946-07-08 05:38:57 AM"	ok	1946-07-08T05:38:57.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"1946-07-29T11:37:50"	ok	1946-07-29T11:37:50.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"1946-09-17T08:54:46Z"	ok	1946-09-17T08:54:46.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"1946-11-25"	ok	1946-11-25T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"19470716T121429Z"	ok	1947-07-16T12:14:29.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"1947:09:20 05:57:01"	ok	1947-09-20T05:57:01.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"1948-03-27T00:36:23"	ok	1948-03-27T00:36:23.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"1948-06-11"	ok	1948-06-11T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"1948-08-19T20:40:56Z"	ok	1948-08-19T20:40:56.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"1948-09-05 06:13:38"	ok	1948-09-05T06:13:38.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"1948-10-10 19:08:58"	ok	1948-10-10T19:08:58.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"1948-W20-5"	ok	1948-05-14T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"1948:12:18"	ok	1948-12-18T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"1949-11-22T07:24:04-05:24"	ok	1949-11-22T12:48:04.000000000Z	-05:24	RFC3339	ambiguous=false	kind=absolute
+"1949:07:14 05:53:05"	ok	1949-07-14T05:53:05.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"1949:10:14 08:43:58"	ok	1949-10-14T08:43:58.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"1949:11:15"	ok	1949-11-15T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"1950-04"	ok	1950-04-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"1950-05-25T03:59:50Z"	ok	1950-05-25T03:59:50.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"19500507T030339Z"	ok	1950-05-07T03:03:39.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"1950:05:07"	ok	1950-05-07T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"1951-04-02T07:17:22-19:26"	ok	1951-04-03T02:43:22.000000000Z	-19:26	RFC3339	ambiguous=false	kind=absolute
+"1951-05-14 13:14:43"	ok	1951-05-14T13:14:43.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"19510706T191821Z"	ok	1951-07-06T19:18:21.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"1951:03:21"	ok	1951-03-21T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"1952-02-11"	ok	1952-02-11T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"1952-04-04T08:52:56Z"	ok	1952-04-04T08:52:56.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"1952-12"	ok	1952-12-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"1952-12-24 16:47:15 UTC"	ok	1952-12-24T16:47:15.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"1953-03-13 00:15:57,167"	ok	1953-03-13T00:15:57.167000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"1953-11-20 22:00:18"	ok	1953-11-20T22:00:18.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"1954-01-06 07:35:23.390"	ok	1954-01-06T07:35:23.390000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"1954-06-23"	ok	1954-06-23T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"1954-08"	ok	1954-08-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"1954:03:04 02:54:49"	ok	1954-03-04T02:54:49.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"1955-05-04T03:24:33Z"	ok	1955-05-04T03:24:33.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"1955-124"	ok	1955-05-04T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"1955-W45-2"	ok	1955-11-08T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"1955:10:20 14:47:20"	ok	1955-10-20T14:47:20.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"1956-W41-3"	ok	1956-10-10T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"19560619T020235Z"	ok	1956-06-19T02:02:35.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"1957-12-09T09:17:28Z"	ok	1957-12-09T09:17:28.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"1957-12-24T19:31:02.319099526+04:17"	ok	1957-12-24T15:14:02.319099526Z	+04:17	ISO8601_FRAC	ambiguous=false	kind=absolute
+"1957:11:18 23:20:16"	ok	1957-11-18T23:20:16.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"1958-10-11T21:48:28Z"	ok	1958-10-11T21:48:28.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"1958-W13"	ok	1958-03-24T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"1958-W24"	ok	1958-06-09T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"1959-01"	ok	1959-01-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"1959-02-07 00:23:51"	ok	1959-02-07T00:23:51.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"1959-W19"	ok	1959-05-04T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"1959-W34-3"	ok	1959-08-19T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"1959:04:19"	ok	1959-04-19T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"1960-01-10"	ok	1960-01-10T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"1961-05-04T15:54:57Z"	ok	1961-05-04T15:54:57.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"1961-07-20 09:45:50 AM"	ok	1961-07-20T09:45:50.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"1962-07"	ok	1962-07-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"1962-09-05 06:33:44 PM"	ok	1962-09-05T18:33:44.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"1962-10-16"	ok	1962-10-16T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"1962-12-26"	ok	1962-12-26T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"19620626T142935Z"	ok	1962-06-26T14:29:35.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"1963-06-18 17:22:23.422"	ok	1963-06-18T17:22:23.422000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"1963-09-08 17:14:54 UTC"	ok	1963-09-08T17:14:54.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"1963:01:09 18:35:39"	ok	1963-01-09T18:35:39.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"1963:08:13"	ok	1963-08-13T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"1964-11-17T00:20:40+11:34"	ok	1964-11-16T12:46:40.000000000Z	+11:34	RFC3339	ambiguous=false	kind=absolute
+"1964-W11"	ok	1964-03-09T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"19640216"	ok	1964-02-16T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"19641031T052938Z"	ok	1964-10-31T05:29:38.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"1964:01:25 18:41:12"	ok	1964-01-25T18:41:12.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"1964:04:11 01:31:30"	ok	1964-04-11T01:31:30.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"1965-05-29 04:20:40 PM"	ok	1965-05-29T16:20:40.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"1965-056"	ok	1965-02-25T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"19651014"	ok	1965-10-14T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"1965:01:23 12:24:09"	ok	1965-01-23T12:24:09.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"1966-063"	ok	1966-03-04T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"19660614T171136"	ok	1966-06-14T17:11:36.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"1967-11-11T20:03:10"	ok	1967-11-11T20:03:10.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"1967-W41-4"	ok	1967-10-12T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"19670130T004049"	ok	1967-01-30T00:40:49.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"19670820"	ok	1967-08-20T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"19671224T182334"	ok	1967-12-24T18:23:34.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"1968-03-19T07:45:19+10:38"	ok	1968-03-18T21:07:19.000000000Z	+10:38	RFC3339	ambiguous=false	kind=absolute
+"1968-05-10 13:14:19 UTC"	ok	1968-05-10T13:14:19.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"1968-318"	ok	1968-11-13T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"1969-12-31T23:59:59Z"	ok	1969-12-31T23:59:59.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"1970-01-01T00:00:00Z"	ok	1970-01-01T00:00:00.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"1970-01-04T10:22:09.920233875+08:31"	ok	1970-01-04T01:51:09.920233875Z	+08:31	ISO8601_FRAC	ambiguous=false	kind=absolute
+"1970-06-08 05:35:57.531"	ok	1970-06-08T05:35:57.531000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"1970-09-19T16:45:59.67929503+13:23"	ok	1970-09-19T03:22:59.679295030Z	+13:23	ISO8601_FRAC	ambiguous=false	kind=absolute
+"1970-188"	ok	1970-07-07T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"1970:05:26"	ok	1970-05-26T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"1970:12:23 16:35:15"	ok	1970-12-23T16:35:15.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"1971-10"	ok	1971-10-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"19710319T005544"	ok	1971-03-19T00:55:44.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"19710414T084508"	ok	1971-04-14T08:45:08.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"1972-01-08T02:47:59.022565479-06:08"	ok	1972-01-08T08:55:59.022565479Z	-06:08	ISO8601_FRAC	ambiguous=false	kind=absolute
+"1972-10-07T13:47:55.968841891-12:02"	ok	1972-10-08T01:49:55.968841891Z	-12:02	ISO8601_FRAC	ambiguous=false	kind=absolute
+"19720324"	ok	1972-03-24T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"1973-01-04 02:56:15,221"	ok	1973-01-04T02:56:15.221000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"1973-02"	ok	1973-02-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"1973-05-13T04:27:34Z"	ok	1973-05-13T04:27:34.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"1973-10"	ok	1973-10-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"1973-W47-7"	ok	1973-11-25T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"19730217T032033"	ok	1973-02-17T03:20:33.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"19730710T140436Z"	ok	1973-07-10T14:04:36.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"19730712"	ok	1973-07-12T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"19731213T064941"	ok	1973-12-13T06:49:41.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"1974-05-14 04:19:34 UTC"	ok	1974-05-14T04:19:34.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"1974-W28-1"	ok	1974-07-08T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"1974-W51-5"	ok	1974-12-20T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"1974:04:25"	ok	1974-04-25T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"1975-05-08 08:48:31.938"	ok	1975-05-08T08:48:31.938000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"1975-06-07 07:28:33,948"	ok	1975-06-07T07:28:33.948000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"1975-11-15T16:36:28Z"	ok	1975-11-15T16:36:28.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"1976-01-25T14:17:21Z"	ok	1976-01-25T14:17:21.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"1976-07"	ok	1976-07-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"1976-207"	ok	1976-07-25T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"19761213T235217Z"	ok	1976-12-13T23:52:17.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"1977-06-14T00:22:09.940751944+01:42"	ok	1977-06-13T22:40:09.940751944Z	+01:42	ISO8601_FRAC	ambiguous=false	kind=absolute
+"1977-08"	ok	1977-08-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"1977-09-21 08:35:24 UTC"	ok	1977-09-21T08:35:24.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"1977-11"	ok	1977-11-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"19770401"	ok	1977-04-01T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"19770412T104041"	ok	1977-04-12T10:40:41.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"1977:02:09 20:14:49"	ok	1977-02-09T20:14:49.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"1978-12-18 03:42:39 AM"	ok	1978-12-18T03:42:39.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"1978-W06"	ok	1978-02-06T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"1978:10:04"	ok	1978-10-04T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"1979-07"	ok	1979-07-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"1979-09-20 14:10:21 UTC"	ok	1979-09-20T14:10:21.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"1979-W32-1"	ok	1979-08-06T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"1980-10"	ok	1980-10-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"19800601T173533"	ok	1980-06-01T17:35:33.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"1980:01:29 08:26:59"	ok	1980-01-29T08:26:59.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"1980:04:04 07:54:01"	ok	1980-04-04T07:54:01.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"1980:04:16"	ok	1980-04-16T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"1981-03-10T17:06:04Z"	ok	1981-03-10T17:06:04.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"1981-W44"	ok	1981-10-26T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"1982-01-20 23:03:01,603"	ok	1982-01-20T23:03:01.603000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"19820329"	ok	1982-03-29T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"19820601"	ok	1982-06-01T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"19820612T091215"	ok	1982-06-12T09:12:15.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"1984-03-06T18:31:16Z"	ok	1984-03-06T18:31:16.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"1984-08-18T09:11:01+10:09"	ok	1984-08-17T23:02:01.000000000Z	+10:09	RFC3339	ambiguous=false	kind=absolute
+"1984-10-24"	ok	1984-10-24T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"19840115T034154"	ok	1984-01-15T03:41:54.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"1985-W47-4"	ok	1985-11-21T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"1986-11-01 11:16:21.957"	ok	1986-11-01T11:16:21.957000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"1986-220"	ok	1986-08-08T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"1986-292"	ok	1986-10-19T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"1987-05-30T21:26:39"	ok	1987-05-30T21:26:39.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"1987-12-01T09:54:02.351153752+19:55"	ok	1987-11-30T13:59:02.351153752Z	+19:55	ISO8601_FRAC	ambiguous=false	kind=absolute
+"19870826"	ok	1987-08-26T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"1988-06-07 05:44:19,038"	ok	1988-06-07T05:44:19.038000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"1988-W08-4"	ok	1988-02-25T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"19880125T235150"	ok	1988-01-25T23:51:50.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"19880318T042018Z"	ok	1988-03-18T04:20:18.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"1989-314"	ok	1989-11-10T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"1989-W26"	ok	1989-06-26T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"1990-05-09 03:26:02"	ok	1990-05-09T03:26:02.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"1990-11-22 12:38:42 AM"	ok	1990-11-22T00:38:42.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"1991-06-14T10:30:58.303496826+23:56"	ok	1991-06-13T10:34:58.303496826Z	+23:56	ISO8601_FRAC	ambiguous=false	kind=absolute
+"1991-11-04T14:20:24+16:02"	ok	1991-11-03T22:18:24.000000000Z	+16:02	RFC3339	ambiguous=false	kind=absolute
+"19910829T224318"	ok	1991-08-29T22:43:18.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"1992-W33"	ok	1992-08-10T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"19920807T171141Z"	ok	1992-08-07T17:11:41.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"19920828"	ok	1992-08-28T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"1993-05-17 21:12:29 UTC"	ok	1993-05-17T21:12:29.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"1993-08-21 01:27:48,329"	ok	1993-08-21T01:27:48.329000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"1993-09-20"	ok	1993-09-20T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"1993-11-12 12:36:47"	ok	1993-11-12T12:36:47.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"1993-W02"	ok	1993-01-11T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"1994-01-27 10:50:59"	ok	1994-01-27T10:50:59.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"1994-02-19T15:21:00-10:49"	ok	1994-02-20T02:10:00.000000000Z	-10:49	RFC3339	ambiguous=false	kind=absolute
+"1994-W48"	ok	1994-11-28T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"19940110T215427"	ok	1994-01-10T21:54:27.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"1996-05-24 21:08:02"	ok	1996-05-24T21:08:02.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"1996-12-19T01:56:33"	ok	1996-12-19T01:56:33.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"1997-07-09 22:33:11"	ok	1997-07-09T22:33:11.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"1997-07-17T03:06:03"	ok	1997-07-17T03:06:03.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"1997-W26"	ok	1997-06-23T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"1998-03-06T15:06:40.802952181-01:50"	ok	1998-03-06T16:56:40.802952181Z	-01:50	ISO8601_FRAC	ambiguous=false	kind=absolute
+"1998-12-25T23:35:24+17:33"	ok	1998-12-25T06:02:24.000000000Z	+17:33	RFC3339	ambiguous=false	kind=absolute
+"1998-218"	ok	1998-08-06T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"1999-07-05T01:46:49-07:04"	ok	1999-07-05T08:50:49.000000000Z	-07:04	RFC3339	ambiguous=false	kind=absolute
+"19990626"	ok	1999-06-26T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"1999:01:19"	ok	1999-01-19T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"19:38:42"	ok	2024-01-01T19:38:42.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"1MAY"	ok	2024-05-01T00:00:00.000000000Z	+00:00	DAY_MONTH	ambiguous=false	kind=absolute
+"1MAY10"	ok	2010-05-01T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"1MAr"	ok	2024-03-01T00:00:00.000000000Z	+00:00	DAY_MONTH	ambiguous=false	kind=absolute
+"2 February 2003"	ok	2003-02-02T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"2 November 1975"	ok	1975-11-02T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"20 April 2111"	ok	2111-04-20T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"20 February 2106"	ok	2106-02-20T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"20-1-00"	ok	2000-01-20T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"20.03.2002"	ok	2002-03-20T00:00:00.000000000Z	+00:00	NUMERIC_DMY	ambiguous=false	kind=absolute
+"20/Aug/2075:00:31:54 +0000"	ok	2075-08-20T00:31:54.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"2000-02-29"	ok	2000-02-29T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"2000-09"	ok	2000-09-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"20000507T231110"	ok	2000-05-07T23:11:10.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"20001115T114411"	ok	2000-11-15T11:44:11.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"2001-05-07 06:14:31 AM"	ok	2001-05-07T06:14:31.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"2001-05-15 06:21:21 AM"	ok	2001-05-15T06:21:21.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"2001-06-09T08:58:22.915649051+13:43"	ok	2001-06-08T19:15:22.915649051Z	+13:43	ISO8601_FRAC	ambiguous=false	kind=absolute
+"20010514"	ok	2001-05-14T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"20011204T091221Z"	ok	2001-12-04T09:12:21.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"2002-03-03T01:51:38Z"	ok	2002-03-03T01:51:38.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"2002-03-21 05:30:55 PM"	ok	2002-03-21T17:30:55.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"2002-06-26T17:50:36-01:37"	ok	2002-06-26T19:27:36.000000000Z	-01:37	RFC3339	ambiguous=false	kind=absolute
+"2002-W04-7"	ok	2002-01-27T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"2003-02"	ok	2003-02-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"2003-03-10 04:31:37 UTC"	ok	2003-03-10T04:31:37.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"2003-04-24"	ok	2003-04-24T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"2003-05-12T15:54:52.721832931-09:42"	ok	2003-05-13T01:36:52.721832931Z	-09:42	ISO8601_FRAC	ambiguous=false	kind=absolute
+"2003-09-18T11:40:25.805445594+07:24"	ok	2003-09-18T04:16:25.805445594Z	+07:24	ISO8601_FRAC	ambiguous=false	kind=absolute
+"2003-W25-6"	ok	2003-06-21T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"20031004T132837Z"	ok	2003-10-04T13:28:37.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"2003:02:12"	ok	2003-02-12T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"2004-01-06T09:11:24.764589366+11:24"	ok	2004-01-05T21:47:24.764589366Z	+11:24	ISO8601_FRAC	ambiguous=false	kind=absolute
+"2004-07-16 05:15:25 PM"	ok	2004-07-16T17:15:25.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"2004-07-31"	ok	2004-07-31T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"2004-09-23 14:54:26,884"	ok	2004-09-23T14:54:26.884000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"20041017T182625Z"	ok	2004-10-17T18:26:25.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"2005-08-11T16:07:53.51070327+07:33"	ok	2005-08-11T08:34:53.510703270Z	+07:33	ISO8601_FRAC	ambiguous=false	kind=absolute
+"2005:01:07"	ok	2005-01-07T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"2005:02:17"	ok	2005-02-17T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"2006-03-06T05:48:28-08:12"	ok	2006-03-06T14:00:28.000000000Z	-08:12	RFC3339	ambiguous=false	kind=absolute
+"2006-04-30T23:42:21"	ok	2006-04-30T23:42:21.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"2006-W34"	ok	2006-08-21T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"2006:05:27"	ok	2006-05-27T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"2007:08:20 03:16:06"	ok	2007-08-20T03:16:06.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"2008-02-04 01:28:35 UTC"	ok	2008-02-04T01:28:35.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"2008-03-10T17:04:05Z"	ok	2008-03-10T17:04:05.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"2008:04:05"	ok	2008-04-05T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"2008:11:27"	ok	2008-11-27T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"2009-01-22 02:06:16.738"	ok	2009-01-22T02:06:16.738000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"2009-04-07T17:22:08-07:41"	ok	2009-04-08T01:03:08.000000000Z	-07:41	RFC3339	ambiguous=false	kind=absolute
+"2009-06-17T18:30:03"	ok	2009-06-17T18:30:03.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"2009-358"	ok	2009-12-24T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"20090129"	ok	2009-01-29T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"2010-12-01 14:52:55"	ok	2010-12-01T14:52:55.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"2010-W07-4"	ok	2010-02-18T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"2011-01-05 10:19:19"	ok	2011-01-05T10:19:19.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"2011-065"	ok	2011-03-06T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"2011-08-13"	ok	2011-08-13T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"2011-11-04 06:53:01 UTC"	ok	2011-11-04T06:53:01.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"2011:04:30 00:35:25"	ok	2011-04-30T00:35:25.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"2011:08:21 11:31:15"	ok	2011-08-21T11:31:15.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"2012-02-02T06:55:24.438521807+04:18"	ok	2012-02-02T02:37:24.438521807Z	+04:18	ISO8601_FRAC	ambiguous=false	kind=absolute
+"2012-05-29T07:48:22Z"	ok	2012-05-29T07:48:22.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"2012-06-03 17:23:21.478"	ok	2012-06-03T17:23:21.478000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"2012-07-25T03:41:55.675841582-05:57"	ok	2012-07-25T09:38:55.675841582Z	-05:57	ISO8601_FRAC	ambiguous=false	kind=absolute
+"2012-11-22 01:16:58"	ok	2012-11-22T01:16:58.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"2013-03-05T16:03:39"	ok	2013-03-05T16:03:39.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"2013-12-18 01:25:45.307"	ok	2013-12-18T01:25:45.307000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"2013:05:06"	ok	2013-05-06T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"2013:10:03"	ok	2013-10-03T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"2014-07-13 12:52:08 UTC"	ok	2014-07-13T12:52:08.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"2014-W38"	ok	2014-09-15T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"2015-07-29"	ok	2015-07-29T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"2015-08-22 11:09:14 PM"	ok	2015-08-22T23:09:14.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"2015-09-20 14:16:02.968"	ok	2015-09-20T14:16:02.968000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"2015-W23"	ok	2015-06-01T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"20150827T213605Z"	ok	2015-08-27T21:36:05.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"2016-03-12"	ok	2016-03-12T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"2016-03-25 11:40:08 UTC"	ok	2016-03-25T11:40:08.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"2016-08-11T06:11:02Z"	ok	2016-08-11T06:11:02.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"20160913"	ok	2016-09-13T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"2017-02-15 02:11:39.727"	ok	2017-02-15T02:11:39.727000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"2017-12-22T07:35:51+17:49"	ok	2017-12-21T13:46:51.000000000Z	+17:49	RFC3339	ambiguous=false	kind=absolute
+"20170714T003820Z"	ok	2017-07-14T00:38:20.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"2018-03-03 15:20:51.087"	ok	2018-03-03T15:20:51.087000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"2018-04-23 17:58:03"	ok	2018-04-23T17:58:03.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"2018-08-28 18:42:43 UTC"	ok	2018-08-28T18:42:43.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"2018-11-16T17:48:58.912229778-13:39"	ok	2018-11-17T07:27:58.912229778Z	-13:39	ISO8601_FRAC	ambiguous=false	kind=absolute
+"2018-11-18 04:53:04.359"	ok	2018-11-18T04:53:04.359000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"2019-11-06T21:35:22+11:30"	ok	2019-11-06T10:05:22.000000000Z	+11:30	RFC3339	ambiguous=false	kind=absolute
+"20190629T002320Z"	ok	2019-06-29T00:23:20.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"2020-05-31 08:39:19"	ok	2020-05-31T08:39:19.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"2020-136"	ok	2020-05-15T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"20201205T200344"	ok	2020-12-05T20:03:44.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"2021-10-02 09:30:38 UTC"	ok	2021-10-02T09:30:38.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"20210813T222630"	ok	2021-08-13T22:26:30.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"2022-02-13T11:20:06.716336739+00:28"	ok	2022-02-13T10:52:06.716336739Z	+00:28	ISO8601_FRAC	ambiguous=false	kind=absolute
+"2022-03-04"	ok	2022-03-04T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"2022-11-11"	ok	2022-11-11T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"2022-12-08 10:40:04.182"	ok	2022-12-08T10:40:04.182000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"2022-W08-1"	ok	2022-02-21T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"2022-W50"	ok	2022-12-12T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"2023-02-28"	ok	2023-02-28T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"2023-04-30 23:19:06,319"	ok	2023-04-30T23:19:06.319000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"2023-06-10 01:24:06.401"	ok	2023-06-10T01:24:06.401000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"2023-07-14T14:15:26+16:42"	ok	2023-07-13T21:33:26.000000000Z	+16:42	RFC3339	ambiguous=false	kind=absolute
+"2023-12"	ok	2023-12-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"2024-02-28T23:59:59Z"	ok	2024-02-28T23:59:59.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"2024-02-29"	ok	2024-02-29T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"2024-03-01T00:00:00Z"	ok	2024-03-01T00:00:00.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"2024-03-15"	ok	2024-03-15T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"2024-03-15 10:30:00"	ok	2024-03-15T10:30:00.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"2024-03-15 10:30:00+00"	ok	2024-03-15T10:30:00.000000000Z	+00:00	SQL_DATETIME_TZ_SHORT	ambiguous=false	kind=absolute
+"2024-03-15 10:30:00+05:30"	ok	2024-03-15T05:00:00.000000000Z	+05:30	SQL_DATETIME_TZ	ambiguous=false	kind=absolute
+"2024-03-15 10:30:00.000"	ok	2024-03-15T10:30:00.000000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"2024-03-15 10:30:00.000000"	ok	2024-03-15T10:30:00.000000000Z	+00:00	SQL_DATETIME_FRAC6	ambiguous=false	kind=absolute
+"2024-03-15T10:30:00"	ok	2024-03-15T10:30:00.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"2024-03-15T10:30:00+05:30"	ok	2024-03-15T05:00:00.000000000Z	+05:30	RFC3339	ambiguous=false	kind=absolute
+"2024-03-15T10:30:00-08:00"	ok	2024-03-15T18:30:00.000000000Z	-08:00	RFC3339	ambiguous=false	kind=absolute
+"2024-03-15T10:30:00.123+05:30"	ok	2024-03-15T05:00:00.123000000Z	+05:30	RFC3339_FRAC3_TZ	ambiguous=false	kind=absolute
+"2024-03-15T10:30:00.123456789Z"	ok	2024-03-15T10:30:00.123456789Z	+00:00	RFC3339_NANO	ambiguous=false	kind=absolute
+"2024-03-15T10:30:00Z"	ok	2024-03-15T10:30:00.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"2024-03-24T04:51:19"	ok	2024-03-24T04:51:19.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"2024-06-15 12:00:00.1"	ok	2024-06-15T12:00:00.100000000Z	+00:00	ISO8601_FRAC	ambiguous=false	kind=absolute
+"2024-06-15 12:00:00.123"	ok	2024-06-15T12:00:00.123000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"2024-06-15 12:00:00.123456"	ok	2024-06-15T12:00:00.123456000Z	+00:00	SQL_DATETIME_FRAC6	ambiguous=false	kind=absolute
+"2024-06-15 12:00:00.123456789"	ok	2024-06-15T12:00:00.123456789Z	+00:00	ISO8601_FRAC	ambiguous=false	kind=absolute
+"2024-06-15T12:00:00+00:00"	ok	2024-06-15T12:00:00.000000000Z	+00:00	RFC3339	ambiguous=false	kind=absolute
+"2024-06-15T12:00:00+05:30"	ok	2024-06-15T06:30:00.000000000Z	+05:30	RFC3339	ambiguous=false	kind=absolute
+"2024-06-15T12:00:00+05:53"	ok	2024-06-15T06:07:00.000000000Z	+05:53	RFC3339	ambiguous=false	kind=absolute
+"2024-06-15T12:00:00+14:00"	ok	2024-06-14T22:00:00.000000000Z	+14:00	RFC3339	ambiguous=false	kind=absolute
+"2024-06-15T12:00:00-00:00"	ok	2024-06-15T12:00:00.000000000Z	+00:00	RFC3339	ambiguous=false	kind=absolute
+"2024-06-15T12:00:00-00:44"	ok	2024-06-15T12:44:00.000000000Z	-00:44	RFC3339	ambiguous=false	kind=absolute
+"2024-06-15T12:00:00-12:00"	ok	2024-06-16T00:00:00.000000000Z	-12:00	RFC3339	ambiguous=false	kind=absolute
+"2024-06-15T12:00:00Z"	ok	2024-06-15T12:00:00.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"2024-074"	ok	2024-03-14T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"2024-08-17T14:20:45"	ok	2024-08-17T14:20:45.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"2024-W11"	ok	2024-03-11T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"2024-W11-5"	ok	2024-03-15T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"2024.03.15"	ok	2024-03-15T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"2024.06.15"	ok	2024-06-15T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"2024/03/15"	ok	2024-03-15T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"2024/06/15"	ok	2024-06-15T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"2024/06/15 12:00:00.123"	ok	2024-06-15T12:00:00.123000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"2024/06/15 12:00:00/123"	ok	2024-06-15T12:00:00.123000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"20240122T111729Z"	ok	2024-01-22T11:17:29.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"20240315"	ok	2024-03-15T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"20240315103000"	ok	2024-03-15T10:30:00.000000000Z	+00:00	COMPACT_DATETIME_NOSEP	ambiguous=false	kind=absolute
+"20240315T103000"	ok	2024-03-15T10:30:00.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"20240315T103000Z"	ok	2024-03-15T10:30:00.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"2024:03:02"	ok	2024-03-02T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"2025-02-16 09:55:44"	ok	2025-02-16T09:55:44.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"20250213"	ok	2025-02-13T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"2025:01:08"	ok	2025-01-08T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"2026-02-06 06:23:42 AM"	ok	2026-02-06T06:23:42.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"2026-03-09"	ok	2026-03-09T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"2026-05-22T07:27:46"	ok	2026-05-22T07:27:46.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"2026-11-16 03:12:53.755"	ok	2026-11-16T03:12:53.755000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"2026-12-27T02:05:47+20:18"	ok	2026-12-26T05:47:47.000000000Z	+20:18	RFC3339	ambiguous=false	kind=absolute
+"2026-W04"	ok	2026-01-19T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"2027-05-09 08:08:32.693"	ok	2027-05-09T08:08:32.693000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"2027-08-28 10:31:36"	ok	2027-08-28T10:31:36.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"2028-07-05 13:53:59 UTC"	ok	2028-07-05T13:53:59.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"2029-01"	ok	2029-01-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"2029-04-17 02:58:34,025"	ok	2029-04-17T02:58:34.025000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"2030-05-01 15:09:48"	ok	2030-05-01T15:09:48.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"2030-05-03 16:19:31.576"	ok	2030-05-03T16:19:31.576000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"2030-12-14T12:03:37.797014452+15:00"	ok	2030-12-13T21:03:37.797014452Z	+15:00	ISO8601_FRAC	ambiguous=false	kind=absolute
+"20301209T100126"	ok	2030-12-09T10:01:26.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"2030:05:22"	ok	2030-05-22T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"2031-01-31 04:23:30,199"	ok	2031-01-31T04:23:30.199000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"2031-01-31T22:32:42.18047653-22:51"	ok	2031-02-01T21:23:42.180476530Z	-22:51	ISO8601_FRAC	ambiguous=false	kind=absolute
+"2031-04-13T16:00:22.60575633-18:48"	ok	2031-04-14T10:48:22.605756330Z	-18:48	ISO8601_FRAC	ambiguous=false	kind=absolute
+"2031:01:23"	ok	2031-01-23T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"2032-06-03 04:29:41.818"	ok	2032-06-03T04:29:41.818000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"2032-09-13 12:15:07,001"	ok	2032-09-13T12:15:07.001000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"2032-11-12 20:55:07"	ok	2032-11-12T20:55:07.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"2033-05-08 06:02:04 PM"	ok	2033-05-08T18:02:04.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"2033-07-07 14:11:32"	ok	2033-07-07T14:11:32.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"2033-07-29 09:16:39 AM"	ok	2033-07-29T09:16:39.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"2033-10-24 13:24:32"	ok	2033-10-24T13:24:32.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"2033-11"	ok	2033-11-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"2033-240"	ok	2033-08-28T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"2034-01-01 13:17:41 UTC"	ok	2034-01-01T13:17:41.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"2034-07"	ok	2034-07-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"2034-08-16T09:48:22.07185946-02:08"	ok	2034-08-16T11:56:22.071859460Z	-02:08	ISO8601_FRAC	ambiguous=false	kind=absolute
+"2034-282"	ok	2034-10-09T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"20341001T024942"	ok	2034-10-01T02:49:42.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"2034:11:01"	ok	2034-11-01T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"2036-01-25T07:21:38"	ok	2036-01-25T07:21:38.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"2036-03-10 20:23:11.258"	ok	2036-03-10T20:23:11.258000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"2036-03-26 05:02:06.338"	ok	2036-03-26T05:02:06.338000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"2036-035"	ok	2036-02-04T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"2036-04-06 04:11:33 PM"	ok	2036-04-06T16:11:33.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"2036-12"	ok	2036-12-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"2036-W11"	ok	2036-03-10T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"20360217T080536Z"	ok	2036-02-17T08:05:36.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"20360503"	ok	2036-05-03T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"20360721T062520Z"	ok	2036-07-21T06:25:20.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"2036:01:22"	ok	2036-01-22T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"2037-02-01T04:52:53Z"	ok	2037-02-01T04:52:53.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"2037-08-03 19:36:26.529"	ok	2037-08-03T19:36:26.529000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"2037-12-27T18:12:19"	ok	2037-12-27T18:12:19.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"2038-06-30 10:58:50,835"	ok	2038-06-30T10:58:50.835000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"2038-07-10 15:44:24,473"	ok	2038-07-10T15:44:24.473000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"2038-10-06"	ok	2038-10-06T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"20380321"	ok	2038-03-21T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"2039-07-17 12:23:24 PM"	ok	2039-07-17T12:23:24.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"2041-01-27 17:29:54,012"	ok	2041-01-27T17:29:54.012000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"2041-03-30T04:36:37.322782624-01:24"	ok	2041-03-30T06:00:37.322782624Z	-01:24	ISO8601_FRAC	ambiguous=false	kind=absolute
+"2041-04-04T17:54:23+11:11"	ok	2041-04-04T06:43:23.000000000Z	+11:11	RFC3339	ambiguous=false	kind=absolute
+"2041-05-02"	ok	2041-05-02T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"2041-W09"	ok	2041-02-25T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"20410109"	ok	2041-01-09T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"2041:11:27 14:45:50"	ok	2041-11-27T14:45:50.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"2042-02-19T04:31:53+06:23"	ok	2042-02-18T22:08:53.000000000Z	+06:23	RFC3339	ambiguous=false	kind=absolute
+"2042-271"	ok	2042-09-28T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"2042-W35"	ok	2042-08-25T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"20420912T063801Z"	ok	2042-09-12T06:38:01.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"2043-07-06 09:17:02 AM"	ok	2043-07-06T09:17:02.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"2043-07-30T09:47:14Z"	ok	2043-07-30T09:47:14.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"2044-03-28 05:43:23"	ok	2044-03-28T05:43:23.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"2044-04-17 08:53:22 PM"	ok	2044-04-17T20:53:22.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"2044-10-16 18:12:18 UTC"	ok	2044-10-16T18:12:18.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"20440208T164039Z"	ok	2044-02-08T16:40:39.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"20440408"	ok	2044-04-08T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"2045-06-26 17:04:06"	ok	2045-06-26T17:04:06.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"2045-10-22"	ok	2045-10-22T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"2045-243"	ok	2045-08-31T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"2045:01:05 17:55:09"	ok	2045-01-05T17:55:09.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"2046-06-04 08:55:57 UTC"	ok	2046-06-04T08:55:57.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"2046-12"	ok	2046-12-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"20460907"	ok	2046-09-07T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"2047-003"	ok	2047-01-03T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"2047-08-17 12:54:22 PM"	ok	2047-08-17T12:54:22.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"2047-W19-4"	ok	2047-05-09T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"2047-W41-1"	ok	2047-10-07T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"2047:04:30"	ok	2047-04-30T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"2048-10"	ok	2048-10-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"20490120T174655Z"	ok	2049-01-20T17:46:55.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"2050-01-20T06:26:56-03:51"	ok	2050-01-20T10:17:56.000000000Z	-03:51	RFC3339	ambiguous=false	kind=absolute
+"2050-W30-4"	ok	2050-07-28T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"20501222T205316"	ok	2050-12-22T20:53:16.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"2051-02-15T08:14:48Z"	ok	2051-02-15T08:14:48.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"2051-12-20"	ok	2051-12-20T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"20510913T181037Z"	ok	2051-09-13T18:10:37.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"20520706T202232Z"	ok	2052-07-06T20:22:32.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"2053-01-06 13:09:25,944"	ok	2053-01-06T13:09:25.944000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"2054-06-10T08:07:32"	ok	2054-06-10T08:07:32.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"2054-11-18"	ok	2054-11-18T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"2055-11-08 04:30:59.791"	ok	2055-11-08T04:30:59.791000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"20550220T070821Z"	ok	2055-02-20T07:08:21.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"2056-08-24T23:24:18.314041827+19:03"	ok	2056-08-24T04:21:18.314041827Z	+19:03	ISO8601_FRAC	ambiguous=false	kind=absolute
+"2056-12-30T00:45:06.03525861+00:51"	ok	2056-12-29T23:54:06.035258610Z	+00:51	ISO8601_FRAC	ambiguous=false	kind=absolute
+"2056-W43-6"	ok	2056-10-28T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"2057-W16"	ok	2057-04-16T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"2058-03-17T18:14:08Z"	ok	2058-03-17T18:14:08.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"2058-04-26 16:12:46,497"	ok	2058-04-26T16:12:46.497000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"2058-07-03 22:38:23"	ok	2058-07-03T22:38:23.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"2058-10-04T17:47:38"	ok	2058-10-04T17:47:38.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"2058-W12"	ok	2058-03-18T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"2058-W17-5"	ok	2058-04-26T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"2059-08-08 02:22:53 UTC"	ok	2059-08-08T02:22:53.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"20590328T183025"	ok	2059-03-28T18:30:25.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"2060-04-20T19:51:12"	ok	2060-04-20T19:51:12.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"2060-12-26 12:53:57 AM"	ok	2060-12-26T00:53:57.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"20600211"	ok	2060-02-11T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"2061-05-02T17:23:43+09:10"	ok	2061-05-02T08:13:43.000000000Z	+09:10	RFC3339	ambiguous=false	kind=absolute
+"2061-09-19 22:56:01,225"	ok	2061-09-19T22:56:01.225000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"2061-W07"	ok	2061-02-14T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"2062-04-08T15:35:52.422404814-03:01"	ok	2062-04-08T18:36:52.422404814Z	-03:01	ISO8601_FRAC	ambiguous=false	kind=absolute
+"2062-11-07T14:19:18"	ok	2062-11-07T14:19:18.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"20620217"	ok	2062-02-17T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"2063-06"	ok	2063-06-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"2063-11-24T05:09:07.970641155+19:46"	ok	2063-11-23T09:23:07.970641155Z	+19:46	ISO8601_FRAC	ambiguous=false	kind=absolute
+"2063-12-02T22:10:45.340641716+01:33"	ok	2063-12-02T20:37:45.340641716Z	+01:33	ISO8601_FRAC	ambiguous=false	kind=absolute
+"2063-W16"	ok	2063-04-16T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"20630423T011816Z"	ok	2063-04-23T01:18:16.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"20630606T164808"	ok	2063-06-06T16:48:08.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"2064-03-14 21:52:46 UTC"	ok	2064-03-14T21:52:46.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"2064-05"	ok	2064-05-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"20640712T021716"	ok	2064-07-12T02:17:16.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"2065-08-13 17:34:35,475"	ok	2065-08-13T17:34:35.475000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"2065-12-10T08:14:55Z"	ok	2065-12-10T08:14:55.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"2065-W51-3"	ok	2065-12-16T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"2065-W52"	ok	2065-12-21T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"2066-04-06 01:55:36 PM"	ok	2066-04-06T13:55:36.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"2066-08-28 09:40:17.997"	ok	2066-08-28T09:40:17.997000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"20660219"	ok	2066-02-19T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"2066:05:21 10:59:34"	ok	2066-05-21T10:59:34.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"2067-02-18T14:16:51"	ok	2067-02-18T14:16:51.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"2067-05-22 00:50:36,795"	ok	2067-05-22T00:50:36.795000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"2067-10-12T20:53:46"	ok	2067-10-12T20:53:46.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"2067:09:07"	ok	2067-09-07T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"2068-05-05 23:11:34 UTC"	ok	2068-05-05T23:11:34.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"2068-05-20T03:47:53"	ok	2068-05-20T03:47:53.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"2068-06-15 01:33:02 AM"	ok	2068-06-15T01:33:02.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"2068-10-19T14:59:23"	ok	2068-10-19T14:59:23.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"2068-284"	ok	2068-10-10T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"2068-W16-3"	ok	2068-04-18T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"2068-W21-6"	ok	2068-05-26T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"20681203T231343Z"	ok	2068-12-03T23:13:43.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"2068:07:03"	ok	2068-07-03T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"2069-06-24 08:54:57.857"	ok	2069-06-24T08:54:57.857000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"2069-12-24"	ok	2069-12-24T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"2070-06-03 22:09:42,305"	ok	2070-06-03T22:09:42.305000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"2070-09-04T05:36:43"	ok	2070-09-04T05:36:43.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"2070-309"	ok	2070-11-05T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"2071-04"	ok	2071-04-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"2071:12:10 07:04:00"	ok	2071-12-10T07:04:00.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"2072-01-27"	ok	2072-01-27T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"2072-W20"	ok	2072-05-16T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"2073-07-21 14:12:39,599"	ok	2073-07-21T14:12:39.599000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"2073-10-03 07:48:37 AM"	ok	2073-10-03T07:48:37.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"2073-12-05T09:40:09.069542506-04:53"	ok	2073-12-05T14:33:09.069542506Z	-04:53	ISO8601_FRAC	ambiguous=false	kind=absolute
+"2073-W31"	ok	2073-07-31T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"20740921T091548"	ok	2074-09-21T09:15:48.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"2075-02-21T10:02:07Z"	ok	2075-02-21T10:02:07.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"2075-04-23T06:32:50.804003627-09:32"	ok	2075-04-23T16:04:50.804003627Z	-09:32	ISO8601_FRAC	ambiguous=false	kind=absolute
+"2075-07-07 05:35:08 PM"	ok	2075-07-07T17:35:08.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"2075-09-22T03:22:06Z"	ok	2075-09-22T03:22:06.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"2075:08:08"	ok	2075-08-08T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"2076-10-25 00:32:37.929"	ok	2076-10-25T00:32:37.929000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"20760207T022415"	ok	2076-02-07T02:24:15.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"2077-01-06 14:01:38"	ok	2077-01-06T14:01:38.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"2077-03-16 20:12:01"	ok	2077-03-16T20:12:01.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"2077-04-16T20:47:35Z"	ok	2077-04-16T20:47:35.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"2077-05-15 02:04:27"	ok	2077-05-15T02:04:27.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"2077-06-04T00:56:18"	ok	2077-06-04T00:56:18.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"2077-06-26 08:26:30 PM"	ok	2077-06-26T20:26:30.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"2077-07-22 07:29:52 PM"	ok	2077-07-22T19:29:52.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"2077-08"	ok	2077-08-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"2077-08-19 11:44:04,079"	ok	2077-08-19T11:44:04.079000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"2077-09-17T00:48:38"	ok	2077-09-17T00:48:38.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"20770703T065911"	ok	2077-07-03T06:59:11.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"2077:02:22"	ok	2077-02-22T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"2077:03:20"	ok	2077-03-20T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"2078-03-19 01:40:58 PM"	ok	2078-03-19T13:40:58.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"2078-W34-5"	ok	2078-08-26T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"20780522T044609"	ok	2078-05-22T04:46:09.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"2078:03:06 02:00:34"	ok	2078-03-06T02:00:34.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"2079-02-09 13:48:09,710"	ok	2079-02-09T13:48:09.710000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"2079-10-03 00:10:43,899"	ok	2079-10-03T00:10:43.899000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"2079:03:11 12:29:13"	ok	2079-03-11T12:29:13.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"2080-06-13T04:29:39.239173425-22:58"	ok	2080-06-14T03:27:39.239173425Z	-22:58	ISO8601_FRAC	ambiguous=false	kind=absolute
+"2080-W24-6"	ok	2080-06-15T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"2080:11:01 08:51:21"	ok	2080-11-01T08:51:21.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"2081-08-05"	ok	2081-08-05T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"2081-10-31 04:35:40,351"	ok	2081-10-31T04:35:40.351000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"2081-12-26 22:06:30"	ok	2081-12-26T22:06:30.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"2081-232"	ok	2081-08-20T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"2082-07"	ok	2082-07-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"2082-10-11 01:00:47.172"	ok	2082-10-11T01:00:47.172000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"2082:04:16"	ok	2082-04-16T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"2082:04:21"	ok	2082-04-21T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"2083-11-22T12:07:12"	ok	2083-11-22T12:07:12.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"2083:04:17 17:55:59"	ok	2083-04-17T17:55:59.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"2083:10:09"	ok	2083-10-09T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"2084-016"	ok	2084-01-16T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"2084-08-12 03:09:20"	ok	2084-08-12T03:09:20.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"2084-08-29T00:38:28+13:22"	ok	2084-08-28T11:16:28.000000000Z	+13:22	RFC3339	ambiguous=false	kind=absolute
+"20840517"	ok	2084-05-17T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"2085-02-22 13:17:30"	ok	2085-02-22T13:17:30.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"2085-03-28T00:41:45"	ok	2085-03-28T00:41:45.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"2085-07-26T04:29:03Z"	ok	2085-07-26T04:29:03.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"2085-12-02 12:16:43,783"	ok	2085-12-02T12:16:43.783000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"2085-W02-4"	ok	2085-01-11T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"2085-W27"	ok	2085-07-02T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"2085-W38"	ok	2085-09-17T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"20850101T080512Z"	ok	2085-01-01T08:05:12.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"20850105T183059Z"	ok	2085-01-05T18:30:59.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"2085:01:24 03:11:27"	ok	2085-01-24T03:11:27.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"2086-07-04 19:22:47 UTC"	ok	2086-07-04T19:22:47.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"2086-07-16T18:23:18-19:08"	ok	2086-07-17T13:31:18.000000000Z	-19:08	RFC3339	ambiguous=false	kind=absolute
+"20860606T003619"	ok	2086-06-06T00:36:19.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"2086:09:27"	ok	2086-09-27T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"2086:11:08"	ok	2086-11-08T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"2087-01-10 08:04:05 UTC"	ok	2087-01-10T08:04:05.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"2087-02-24 19:32:32"	ok	2087-02-24T19:32:32.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"2087-08-31 12:16:35.300"	ok	2087-08-31T12:16:35.300000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"2087-09-02T13:52:02.225536504+14:42"	ok	2087-09-01T23:10:02.225536504Z	+14:42	ISO8601_FRAC	ambiguous=false	kind=absolute
+"2087-11-13 10:17:23 PM"	ok	2087-11-13T22:17:23.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"2087-290"	ok	2087-10-17T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"2087-W48"	ok	2087-11-24T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"2088-02-21 20:10:07,592"	ok	2088-02-21T20:10:07.592000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"2088-08-14 11:34:54.430"	ok	2088-08-14T11:34:54.430000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"2088-W53"	ok	2088-12-27T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"20880109"	ok	2088-01-09T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"20880408"	ok	2088-04-08T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"20881111T080612Z"	ok	2088-11-11T08:06:12.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"2089-07-26"	ok	2089-07-26T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"20890331"	ok	2089-03-31T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"20891213T184143Z"	ok	2089-12-13T18:41:43.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"2089:04:22 08:49:11"	ok	2089-04-22T08:49:11.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"2090-02"	ok	2090-02-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"2090-02-24T21:20:02.348017727+19:29"	ok	2090-02-24T01:51:02.348017727Z	+19:29	ISO8601_FRAC	ambiguous=false	kind=absolute
+"2090-04-30T09:15:34+01:48"	ok	2090-04-30T07:27:34.000000000Z	+01:48	RFC3339	ambiguous=false	kind=absolute
+"2090-07-06 01:02:08 AM"	ok	2090-07-06T01:02:08.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"20900116"	ok	2090-01-16T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"20900205T190034Z"	ok	2090-02-05T19:00:34.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"2090:04:21 11:28:25"	ok	2090-04-21T11:28:25.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"2091-04-21T03:29:04Z"	ok	2091-04-21T03:29:04.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"2091-08-30T20:20:21Z"	ok	2091-08-30T20:20:21.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"2091-09-09 23:53:11"	ok	2091-09-09T23:53:11.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"2091-10-22T22:37:17+23:48"	ok	2091-10-21T22:49:17.000000000Z	+23:48	RFC3339	ambiguous=false	kind=absolute
+"2091-11-29 08:28:08 UTC"	ok	2091-11-29T08:28:08.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"2092-01-13T15:20:28.76301352-14:49"	ok	2092-01-14T06:09:28.763013520Z	-14:49	ISO8601_FRAC	ambiguous=false	kind=absolute
+"2092-027"	ok	2092-01-27T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"2092-05-08T10:01:02-10:53"	ok	2092-05-08T20:54:02.000000000Z	-10:53	RFC3339	ambiguous=false	kind=absolute
+"2092-05-27"	ok	2092-05-27T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"2092-W34-6"	ok	2092-08-23T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"2093-01-08 11:46:28.118"	ok	2093-01-08T11:46:28.118000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"2093-10-11T16:25:10Z"	ok	2093-10-11T16:25:10.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"2094-05-21 11:49:36,900"	ok	2094-05-21T11:49:36.900000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"2094-09-21 20:38:14 UTC"	ok	2094-09-21T20:38:14.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"2094-09-27 05:23:26 PM"	ok	2094-09-27T17:23:26.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"2094-11-06T09:04:14-05:57"	ok	2094-11-06T15:01:14.000000000Z	-05:57	RFC3339	ambiguous=false	kind=absolute
+"2094-11-11T11:23:46Z"	ok	2094-11-11T11:23:46.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"2094-11-12T09:41:58+10:25"	ok	2094-11-11T23:16:58.000000000Z	+10:25	RFC3339	ambiguous=false	kind=absolute
+"2094-12"	ok	2094-12-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"2095-01"	ok	2095-01-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"2095-04-30T12:18:25Z"	ok	2095-04-30T12:18:25.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"2095-W06-2"	ok	2095-02-08T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"20950426T200743Z"	ok	2095-04-26T20:07:43.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"2096-04-04T03:19:37.366967496+02:33"	ok	2096-04-04T00:46:37.366967496Z	+02:33	ISO8601_FRAC	ambiguous=false	kind=absolute
+"2096-04-20T08:38:48-00:16"	ok	2096-04-20T08:54:48.000000000Z	-00:16	RFC3339	ambiguous=false	kind=absolute
+"2096-11-11 11:00:00 AM"	ok	2096-11-11T11:00:00.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"2097-01-24 17:15:26"	ok	2097-01-24T17:15:26.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"2097-W38-1"	ok	2097-09-16T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"20970215"	ok	2097-02-15T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"20970318T055315Z"	ok	2097-03-18T05:53:15.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"2098-W25-1"	ok	2098-06-16T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"20981001T144508"	ok	2098-10-01T14:45:08.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"2099-05-11"	ok	2099-05-11T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"2099-12-11 06:17:25.747"	ok	2099-12-11T06:17:25.747000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"2099:09:08 16:12:08"	ok	2099-09-08T16:12:08.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"20:19"	ok	2024-01-01T20:19:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"20:49"	ok	2024-01-01T20:49:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"20:53"	ok	2024-01-01T20:53:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"21 July 1935"	ok	1935-07-21T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"21.08.2025"	ok	2025-08-21T00:00:00.000000000Z	+00:00	NUMERIC_DMY	ambiguous=false	kind=absolute
+"21.11.1966"	ok	1966-11-21T00:00:00.000000000Z	+00:00	NUMERIC_DMY	ambiguous=false	kind=absolute
+"21/Sep/1991:01:04:21 +0000"	ok	1991-09-21T01:04:21.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"2100-07-13T08:52:58Z"	ok	2100-07-13T08:52:58.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"2101-02-07T13:30:24.665222076+07:22"	ok	2101-02-07T06:08:24.665222076Z	+07:22	ISO8601_FRAC	ambiguous=false	kind=absolute
+"2101-02-24T18:51:07Z"	ok	2101-02-24T18:51:07.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"2101-03-15T02:25:32-02:17"	ok	2101-03-15T04:42:32.000000000Z	-02:17	RFC3339	ambiguous=false	kind=absolute
+"2101-10-18T06:43:47.882541096+04:34"	ok	2101-10-18T02:09:47.882541096Z	+04:34	ISO8601_FRAC	ambiguous=false	kind=absolute
+"2101-10-29T11:00:16"	ok	2101-10-29T11:00:16.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"2101-12-13"	ok	2101-12-13T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"21010622T031100Z"	ok	2101-06-22T03:11:00.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"21011209"	ok	2101-12-09T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"2102-02-04 20:42:14,143"	ok	2102-02-04T20:42:14.143000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"2102-10-08 19:44:02 UTC"	ok	2102-10-08T19:44:02.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"2102-12"	ok	2102-12-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"2103-09-06 05:22:24 PM"	ok	2103-09-06T17:22:24.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"2103-12-11"	ok	2103-12-11T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"2104-09-05T02:49:20"	ok	2104-09-05T02:49:20.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"2104-W21-6"	ok	2104-05-24T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"2105-01-04T05:53:11Z"	ok	2105-01-04T05:53:11.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"2105-05-02"	ok	2105-05-02T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"2106-01-04 12:21:50.559"	ok	2106-01-04T12:21:50.559000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"2106-08-11 03:14:34.722"	ok	2106-08-11T03:14:34.722000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"2106-08-29 06:06:43"	ok	2106-08-29T06:06:43.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"2106-10-05T04:31:00"	ok	2106-10-05T04:31:00.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"2106-W32"	ok	2106-08-09T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"2107-04-26T21:25:52-00:03"	ok	2107-04-26T21:28:52.000000000Z	-00:03	RFC3339	ambiguous=false	kind=absolute
+"2107-08-19 14:51:57 UTC"	ok	2107-08-19T14:51:57.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"2107-173"	ok	2107-06-22T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"2107-W13-6"	ok	2107-04-02T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"2108-047"	ok	2108-02-16T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"2108-08-15 23:06:40"	ok	2108-08-15T23:06:40.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"21080101"	ok	2108-01-01T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"21080326T053527"	ok	2108-03-26T05:35:27.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"2108:04:09 16:47:12"	ok	2108-04-09T16:47:12.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"2109-05-12 15:40:56"	ok	2109-05-12T15:40:56.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"2109-287"	ok	2109-10-14T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"2109-W07"	ok	2109-02-11T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"21091022T094213Z"	ok	2109-10-22T09:42:13.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"2110-03-21 17:39:44.910"	ok	2110-03-21T17:39:44.910000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"2110-W34"	ok	2110-08-18T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"21101023T125849Z"	ok	2110-10-23T12:58:49.000000000Z	+00:00	COMPACT_DATETIME_Z	ambiguous=false	kind=absolute
+"2110:10:10 07:15:55"	ok	2110-10-10T07:15:55.000000000Z	+00:00	EXIF_DATETIME_HMS	ambiguous=false	kind=absolute
+"2111-06-17 10:49:36.784"	ok	2111-06-17T10:49:36.784000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"2111-08-16 19:21:19,763"	ok	2111-08-16T19:21:19.763000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"2111-12-10 23:20:34,496"	ok	2111-12-10T23:20:34.496000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"2111-W44-5"	ok	2111-10-30T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"21110715"	ok	2111-07-15T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"2112-01-14 19:55:22,150"	ok	2112-01-14T19:55:22.150000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"2112-06-25T17:40:40"	ok	2112-06-25T17:40:40.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"2112-07-24T13:32:19+08:30"	ok	2112-07-24T05:02:19.000000000Z	+08:30	RFC3339	ambiguous=false	kind=absolute
+"2112-10-20 10:07:35,480"	ok	2112-10-20T10:07:35.480000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"2112-11-30 08:54:00 UTC"	ok	2112-11-30T08:54:00.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"21120919T184959"	ok	2112-09-19T18:49:59.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"2113-06-28T03:22:33Z"	ok	2113-06-28T03:22:33.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"2113-09-14"	ok	2113-09-14T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"2114-01-09T01:29:33+04:53"	ok	2114-01-08T20:36:33.000000000Z	+04:53	RFC3339	ambiguous=false	kind=absolute
+"2114-02"	ok	2114-02-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"2114-08-27T12:10:43+21:06"	ok	2114-08-26T15:04:43.000000000Z	+21:06	RFC3339	ambiguous=false	kind=absolute
+"2114:01:19"	ok	2114-01-19T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"2115-112"	ok	2115-04-22T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"2115-W18"	ok	2115-04-29T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"21150709"	ok	2115-07-09T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"2116-09-13 10:13:14.608"	ok	2116-09-13T10:13:14.608000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"2116-09-15"	ok	2116-09-15T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"2116-10-13 21:51:09 UTC"	ok	2116-10-13T21:51:09.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"2116-10-15T17:06:14"	ok	2116-10-15T17:06:14.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"2116-11"	ok	2116-11-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"2116-W06-7"	ok	2116-02-09T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"2116-W22-7"	ok	2116-05-31T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"21161002"	ok	2116-10-02T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"2117-01"	ok	2117-01-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"2117-02-03 00:22:51 UTC"	ok	2117-02-03T00:22:51.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"2117-145"	ok	2117-05-25T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"2118-01-04T12:51:32"	ok	2118-01-04T12:51:32.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"2118-12-18 03:09:20"	ok	2118-12-18T03:09:20.000000000Z	+00:00	SQL_DATETIME	ambiguous=false	kind=absolute
+"2118-363"	ok	2118-12-29T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"2118-W12-1"	ok	2118-03-21T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"2118-W35"	ok	2118-08-29T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"21180814"	ok	2118-08-14T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"2119-04"	ok	2119-04-01T00:00:00.000000000Z	+00:00	ISO_YEAR_MONTH	ambiguous=false	kind=absolute
+"2119-06-21T06:14:37Z"	ok	2119-06-21T06:14:37.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"2119-09-15 05:11:35 AM"	ok	2119-09-15T05:11:35.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"2119-152"	ok	2119-06-01T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"2119-160"	ok	2119-06-09T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"2119-W47"	ok	2119-11-20T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"2120-W52-1"	ok	2120-12-23T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"21200528T041632"	ok	2120-05-28T04:16:32.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"2121-02-21 16:03:37 UTC"	ok	2121-02-21T16:03:37.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"2121-07-06 22:24:15.721"	ok	2121-07-06T22:24:15.721000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"2121-126"	ok	2121-05-06T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"2121:12:27"	ok	2121-12-27T00:00:00.000000000Z	+00:00	EXIF_DATE	ambiguous=false	kind=absolute
+"2122-02-24 06:13:14 UTC"	ok	2122-02-24T06:13:14.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"2122-046"	ok	2122-02-15T00:00:00.000000000Z	+00:00	ISO_ORDINAL	ambiguous=false	kind=absolute
+"2122-05-01 08:42:02,952"	ok	2122-05-01T08:42:02.952000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"2122-05-01T09:55:08"	ok	2122-05-01T09:55:08.000000000Z	+00:00	ISO8601_DATETIME	ambiguous=false	kind=absolute
+"2122-05-12 03:02:34 UTC"	ok	2122-05-12T03:02:34.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"2122-06-18 12:28:43.543"	ok	2122-06-18T12:28:43.543000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"21220519"	ok	2122-05-19T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"2123-01-26 10:02:21.967"	ok	2123-01-26T10:02:21.967000000Z	+00:00	SQL_DATETIME_FRAC3	ambiguous=false	kind=absolute
+"2123-02-22T18:40:14+00:29"	ok	2123-02-22T18:11:14.000000000Z	+00:29	RFC3339	ambiguous=false	kind=absolute
+"2123-12-06T08:59:34Z"	ok	2123-12-06T08:59:34.000000000Z	+00:00	ISO8601_DATETIME_Z	ambiguous=false	kind=absolute
+"21230907T120938"	ok	2123-09-07T12:09:38.000000000Z	+00:00	COMPACT_DATETIME	ambiguous=false	kind=absolute
+"21231118"	ok	2123-11-18T00:00:00.000000000Z	+00:00	COMPACT_DATE	ambiguous=false	kind=absolute
+"2124-04-23 12:32:46 PM"	ok	2124-04-23T12:32:46.000000000Z	+00:00	SQL_DATETIME_AMPM	ambiguous=false	kind=absolute
+"2124-05-22 18:31:26,945"	ok	2124-05-22T18:31:26.945000000Z	+00:00	SQL_DATETIME_COMMA_FRAC3	ambiguous=false	kind=absolute
+"2124-09-30 05:30:01 UTC"	ok	2124-09-30T05:30:01.000000000Z	+00:00	SQL_DATETIME_TZ_NAME	ambiguous=false	kind=absolute
+"2124-W15-3"	ok	2124-04-12T00:00:00.000000000Z	+00:00	ISO_WEEK_DATE	ambiguous=false	kind=absolute
+"2124-W26"	ok	2124-06-26T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"2126-W10"	ok	2126-03-04T00:00:00.000000000Z	+00:00	ISO_WEEK	ambiguous=false	kind=absolute
+"21:14:34"	ok	2024-01-01T21:14:34.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"21:16:35"	ok	2024-01-01T21:16:35.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"21:40"	ok	2024-01-01T21:40:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"21:47:30"	ok	2024-01-01T21:47:30.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"21:58"	ok	2024-01-01T21:58:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"21:58:17"	ok	2024-01-01T21:58:17.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"22 November 2094"	ok	2094-11-22T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"22.02.2003"	ok	2003-02-22T00:00:00.000000000Z	+00:00	NUMERIC_DMY	ambiguous=false	kind=absolute
+"22/Jun/1940:14:20:50 +0000"	ok	1940-06-22T14:20:50.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"22/Nov/1941:19:25:37 +0000"	ok	1941-11-22T19:25:37.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"22/Sep/1971:04:12:54 +0000"	ok	1971-09-22T04:12:54.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"22:04:07"	ok	2024-01-01T22:04:07.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"22:35:51"	ok	2024-01-01T22:35:51.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"22:37:54"	ok	2024-01-01T22:37:54.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"22:51:42"	ok	2024-01-01T22:51:42.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"23.04.1983"	ok	1983-04-23T00:00:00.000000000Z	+00:00	NUMERIC_DMY	ambiguous=false	kind=absolute
+"23/Apr/2122:21:47:38 +0000"	ok	2122-04-23T21:47:38.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"2399-12-31"	ok	2399-12-31T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"23:06:43"	ok	2024-01-01T23:06:43.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"23:31:50"	ok	2024-01-01T23:31:50.000000000Z	+00:00	TIME_HMS	ambiguous=false	kind=absolute
+"23:32"	ok	2024-01-01T23:32:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"23:49"	ok	2024-01-01T23:49:00.000000000Z	+00:00	TIME_HM	ambiguous=false	kind=absolute
+"24 January 1961"	ok	1961-01-24T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"24/Aug/1974:06:43:49 +0000"	ok	1974-08-24T06:43:49.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"24/Jul/1983:07:28:42 +0000"	ok	1983-07-24T07:28:42.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"24/Nov/2030:02:56:51 +0000"	ok	2030-11-24T02:56:51.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"2400-01-01"	ok	2400-01-01T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"25 April 2057"	ok	2057-04-25T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"25/May/2043:21:19:40 +0000"	ok	2043-05-25T21:19:40.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"26.01.2034"	ok	2034-01-26T00:00:00.000000000Z	+00:00	NUMERIC_DMY	ambiguous=false	kind=absolute
+"26.09.2027"	ok	2027-09-26T00:00:00.000000000Z	+00:00	NUMERIC_DMY	ambiguous=false	kind=absolute
+"26/Apr/2045:21:37:14 +0000"	ok	2045-04-26T21:37:14.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"27 February 1997"	ok	1997-02-27T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"27 November 1976"	ok	1976-11-27T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"27.03.1969"	ok	1969-03-27T00:00:00.000000000Z	+00:00	NUMERIC_DMY	ambiguous=false	kind=absolute
+"27.04.2103"	ok	2103-04-27T00:00:00.000000000Z	+00:00	NUMERIC_DMY	ambiguous=false	kind=absolute
+"27/Sep/2014:11:52:13 +0000"	ok	2014-09-27T11:52:13.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"28 August 2025"	ok	2025-08-28T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"28 June 2063"	ok	2063-06-28T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"28.01.1979"	ok	1979-01-28T00:00:00.000000000Z	+00:00	NUMERIC_DMY	ambiguous=false	kind=absolute
+"28.10.2000"	ok	2000-10-28T00:00:00.000000000Z	+00:00	NUMERIC_DMY	ambiguous=false	kind=absolute
+"28.12.1962"	ok	1962-12-28T00:00:00.000000000Z	+00:00	NUMERIC_DMY	ambiguous=false	kind=absolute
+"29 November 2101"	ok	2101-11-29T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"29.12.1962"	ok	1962-12-29T00:00:00.000000000Z	+00:00	NUMERIC_DMY	ambiguous=false	kind=absolute
+"3 April 1995"	ok	1995-04-03T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"3 February 1928"	ok	1928-02-03T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"3 July 2118"	ok	2118-07-03T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"3/15/2024"	ok	2024-03-15T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"3/15/2024 10:30:00 AM"	ok	2024-03-15T10:30:00.000000000Z	+00:00	NUMERIC_MDY_TIME	ambiguous=false	kind=absolute
+"3/15/24"	ok	2024-03-15T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"30 October 2063"	ok	2063-10-30T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"30.06.2120"	ok	2120-06-30T00:00:00.000000000Z	+00:00	NUMERIC_DMY	ambiguous=false	kind=absolute
+"31 January 2094"	ok	2094-01-31T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"31 March 2001"	ok	2001-03-31T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"31 March 2119"	ok	2119-03-31T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"31/12/00"	ok	2000-12-31T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"31/12/68"	ok	2068-12-31T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"31/12/69"	ok	1969-12-31T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"31/12/70"	ok	1970-12-31T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"31/12/99"	ok	1999-12-31T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"4 January 2099"	ok	2099-01-04T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"4 July 2069"	ok	2069-07-04T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"5 December 2124"	ok	2124-12-05T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"68-12-31"	ok	2068-12-31T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"69-12-31"	ok	1969-12-31T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"7 June 1951"	ok	1951-06-07T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"7 September 2059"	ok	2059-09-07T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"70-1-17"	ok	1970-01-17T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"70-12-31"	ok	1970-12-31T00:00:00.000000000Z	+00:00	NUMERIC_MDY	ambiguous=false	kind=absolute
+"70/01/1 00"	nomatch
+"8 May 2076"	ok	2076-05-08T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"9 December 2023"	ok	2023-12-09T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"9 June 1950"	ok	1950-06-09T00:00:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"9999-12-31"	ok	9999-12-31T00:00:00.000000000Z	+00:00	ISO8601_DATE	ambiguous=false	kind=absolute
+"Apr 14, 1968"	ok	1968-04-14T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Apr 25, 1952"	ok	1952-04-25T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Apr 4, 2105"	ok	2105-04-04T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"April 2, 1999"	ok	1999-04-02T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"April 6, 1951"	ok	1951-04-06T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Aug 17, 2070"	ok	2070-08-17T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Aug 25, 1965"	ok	1965-08-25T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Aug 31, 2092"	ok	2092-08-31T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Aug 8, 2035"	ok	2035-08-08T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"August 11, 1928"	ok	1928-08-11T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"August 15, 2088"	ok	2088-08-15T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"August 29, 1957"	ok	1957-08-29T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Dec 18, 2011"	ok	2011-12-18T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Dec 2, 1955"	ok	1955-12-02T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Dec 4, 1977"	ok	1977-12-04T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Dec 6, 2098"	ok	2098-12-06T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"December 15, 2017"	ok	2017-12-15T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"December 26, 1995"	ok	1995-12-26T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"December 3, 1981"	ok	1981-12-03T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Feb 25, 2055"	ok	2055-02-25T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Feb 26, 1932"	ok	1932-02-26T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"February 12, 2084"	ok	2084-02-12T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"February 17, 1960"	ok	1960-02-17T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"February 17, 2073"	ok	2073-02-17T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"February 23, 2004"	ok	2004-02-23T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"February 6, 2057"	ok	2057-02-06T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Fri Apr 10 03:32:40 1936"	ok	1936-04-10T03:32:40.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Fri Aug  7 19:38:04 1981"	ok	1981-08-07T19:38:04.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Fri Dec 19 12:09:15 1941"	ok	1941-12-19T12:09:15.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Fri Jun  9 02:22:58 1978"	ok	1978-06-09T02:22:58.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Fri Jun 14 12:29:37 2097"	ok	2097-06-14T12:29:37.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Fri Mar  5 15:31:55 1976"	ok	1976-03-05T15:31:55.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Fri Mar 15 10:30:00 2024"	ok	2024-03-15T10:30:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Fri Mar 15 10:30:00 EDT 2024"	ok	2024-03-15T14:30:00.000000000Z	-04:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Fri Mar 15 10:30:00 UTC 2024"	ok	2024-03-15T10:30:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Fri, 01 Jun 2125 21:47:20 -0454"	ok	2125-06-02T02:41:20.000000000Z	-04:54	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Fri, 04 Nov 2078 15:07:08 +0253"	ok	2078-11-04T12:14:08.000000000Z	+02:53	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Fri, 07 Jul 2017 20:24:13 UTC"	ok	2017-07-07T20:24:13.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Fri, 11 Apr 2059 04:17:15 UTC"	ok	2059-04-11T04:17:15.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Fri, 15 Mar 2024 10:30:00 +0000"	ok	2024-03-15T10:30:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Fri, 15 Mar 2024 10:30:00 UTC"	ok	2024-03-15T10:30:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Fri, 18 Jan 1980 15:48:33 +1504"	ok	1980-01-18T00:44:33.000000000Z	+15:04	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Fri, 21 Apr 2006 10:20:12 UTC"	ok	2006-04-21T10:20:12.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Fri, 26 Sep 2070 08:44:03 UTC"	ok	2070-09-26T08:44:03.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Fri, 27 Jun 2087 12:58:59 UTC"	ok	2087-06-27T12:58:59.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Fri, 29 Jan 1932 07:14:15 -2303"	ok	1932-01-30T06:17:15.000000000Z	-23:03	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Fri, 29 Sep 2006 23:09:07 +1423"	ok	2006-09-29T08:46:07.000000000Z	+14:23	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Fri, 30 Mar 2114 09:10:25 +0558"	ok	2114-03-30T03:12:25.000000000Z	+05:58	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Friday, 15-Mar-24 10:30:00 UTC"	ok	2024-03-15T10:30:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=true	kind=absolute
+"Jan 11, 1974"	ok	1974-01-11T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Jan 19, 2030"	ok	2030-01-19T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Jan 20, 1959"	ok	1959-01-20T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Jan 26, 2086"	ok	2086-01-26T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Jan 31, 2006"	ok	2006-01-31T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Jan 31, 2046"	ok	2046-01-31T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Jan 4, 1970"	ok	1970-01-04T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"January 21, 2023"	ok	2023-01-21T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"January 25, 2117"	ok	2117-01-25T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Jul 11, 1960"	ok	1960-07-11T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Jul 14, 2101"	ok	2101-07-14T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Jul 17, 2055"	ok	2055-07-17T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"July 15, 1940"	ok	1940-07-15T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"July 3, 1975"	ok	1975-07-03T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"July 9, 1956"	ok	1956-07-09T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"July 9, 1968"	ok	1968-07-09T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Jun 11, 2061"	ok	2061-06-11T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Jun 3, 1995"	ok	1995-06-03T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"June 30, 2034"	ok	2034-06-30T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"June 4, 2101"	ok	2101-06-04T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"June 7, 1937"	ok	1937-06-07T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"MAY A1"	ok	2024-05-01T00:00:00.000000000Z	+00:00	MONTH_DAY	ambiguous=false	kind=absolute
+"MAY00\xc30\xae\x840000 At 0"	nomatch
+"MAY1 00:00! 1000"	ok	1000-05-01T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"MAY1 00:00:00"	ok	2024-05-01T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"MAY1 00:00A+0000"	ok	2024-05-01T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"MAY1 70:00:00"	nomatch
+"MAY10"	ok	2024-05-10T00:00:00.000000000Z	+00:00	MONTH_DAY	ambiguous=true	kind=absolute
+"MAY1010"	ok	1010-05-01T00:00:00.000000000Z	+00:00	MONTH_YEAR	ambiguous=false	kind=absolute
+"MAY1AAA"	ok	2024-05-01T00:00:00.000000000Z	+00:00	MONTH_DAY	ambiguous=false	kind=absolute
+"MAY70"	ok	1970-05-01T00:00:00.000000000Z	+00:00	MONTH_YEAR	ambiguous=false	kind=absolute
+"MAr A1AAA"	ok	2024-03-01T00:00:00.000000000Z	+00:00	MONTH_DAY	ambiguous=false	kind=absolute
+"MArAA1MAY"	ok	2024-05-01T00:00:00.000000000Z	+00:00	DAY_MONTH	ambiguous=false	kind=absolute
+"Mar 14, 2051"	ok	2051-03-14T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Mar 15"	ok	2024-03-15T00:00:00.000000000Z	+00:00	MONTH_DAY	ambiguous=true	kind=absolute
+"Mar 15 10:30:00"	ok	2024-03-15T10:30:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=true	kind=absolute
+"Mar 15, 2024"	ok	2024-03-15T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"March 13, 2037"	ok	2037-03-13T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"March 15, 2024"	ok	2024-03-15T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"March 15, 2113"	ok	2113-03-15T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"March 20, 2124"	ok	2124-03-20T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"March 2024"	ok	2024-03-01T00:00:00.000000000Z	+00:00	MONTH_YEAR	ambiguous=false	kind=absolute
+"March 4, 1973"	ok	1973-03-04T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"March 9, 2077"	ok	2077-03-09T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"May 16, 2056"	ok	2056-05-16T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"May 19, 2090"	ok	2090-05-19T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"May 26, 1950"	ok	1950-05-26T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"May 30, 1968"	ok	1968-05-30T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"May 7, 2017"	ok	2017-05-07T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Mon Mar 19 11:14:55 2046"	ok	2046-03-19T11:14:55.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Mon May  6 14:05:58 1963"	ok	1963-05-06T14:05:58.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Mon May 30 20:43:28 2061"	ok	2061-05-30T20:43:28.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Mon Oct  9 16:26:03 2045"	ok	2045-10-09T16:26:03.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Mon, 02 Oct 2028 22:58:47 UTC"	ok	2028-10-02T22:58:47.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Mon, 05 Mar 2096 05:45:16 UTC"	ok	2096-03-05T05:45:16.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Mon, 07 Mar 1966 02:24:53 -0602"	ok	1966-03-07T08:26:53.000000000Z	-06:02	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Mon, 08 Jan 1934 23:43:19 UTC"	ok	1934-01-08T23:43:19.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Mon, 11 Feb 2115 19:08:28 UTC"	ok	2115-02-11T19:08:28.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Mon, 15 Jul 1996 17:18:44 +2332"	ok	1996-07-14T17:46:44.000000000Z	+23:32	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Mon, 16 Nov 2122 21:48:22 UTC"	ok	2122-11-16T21:48:22.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Mon, 17 Jan 1949 18:36:18 -1346"	ok	1949-01-18T08:22:18.000000000Z	-13:46	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Mon, 18 Jan 1965 21:04:46 -0409"	ok	1965-01-19T01:13:46.000000000Z	-04:09	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Mon, 20 Mar 1950 12:02:54 -0045"	ok	1950-03-20T12:47:54.000000000Z	-00:45	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Mon, 22 Dec 2003 17:03:13 +0256"	ok	2003-12-22T14:07:13.000000000Z	+02:56	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Mon, 22 May 2124 05:09:50 -1755"	ok	2124-05-22T23:04:50.000000000Z	-17:55	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Mon, 22 Nov 2027 22:35:56 -0816"	ok	2027-11-23T06:51:56.000000000Z	-08:16	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Mon, 23 May 1983 17:29:59 -1727"	ok	1983-05-24T10:56:59.000000000Z	-17:27	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Mon, 29 May 2062 16:48:21 UTC"	ok	2062-05-29T16:48:21.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Nov 11, 2061"	ok	2061-11-11T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Nov 17, 1946"	ok	1946-11-17T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Nov 29, 2093"	ok	2093-11-29T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Nov 3, 1960"	ok	1960-11-03T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Nov 30, 1932"	ok	1932-11-30T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"November 23, 1956"	ok	1956-11-23T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"November 24, 2001"	ok	2001-11-24T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"November 28, 1993"	ok	1993-11-28T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"November 5, 1995"	ok	1995-11-05T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Oct 14, 1949"	ok	1949-10-14T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Oct 16, 1951"	ok	1951-10-16T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Oct 21, 1986"	ok	1986-10-21T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Oct 25, 1995"	ok	1995-10-25T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"October 1, 1935"	ok	1935-10-01T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"October 7, 1989"	ok	1989-10-07T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Sat Jun  3 17:04:59 2006"	ok	2006-06-03T17:04:59.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Sat Jun 23 07:17:28 2108"	ok	2108-06-23T07:17:28.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Sat Oct 29 15:28:25 2044"	ok	2044-10-29T15:28:25.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Sat Sep 13 02:15:51 2104"	ok	2104-09-13T02:15:51.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Sat, 02 Oct 2049 04:52:19 UTC"	ok	2049-10-02T04:52:19.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Sat, 07 Mar 2071 16:39:14 UTC"	ok	2071-03-07T16:39:14.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Sat, 09 Feb 2047 08:10:49 UTC"	ok	2047-02-09T08:10:49.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Sat, 15 Apr 1967 04:34:12 -0122"	ok	1967-04-15T05:56:12.000000000Z	-01:22	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Sat, 16 Sep 1972 09:27:03 +0322"	ok	1972-09-16T06:05:03.000000000Z	+03:22	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Sat, 25 Dec 2083 16:58:00 UTC"	ok	2083-12-25T16:58:00.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Sat, 25 Mar 1939 03:30:24 UTC"	ok	1939-03-25T03:30:24.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Sat, 27 Feb 2100 19:32:25 -2202"	ok	2100-02-28T17:34:25.000000000Z	-22:02	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Sat, 27 Jun 2099 08:08:31 -0218"	ok	2099-06-27T10:26:31.000000000Z	-02:18	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Sep 1, 2031"	ok	2031-09-01T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Sep 22, 1963"	ok	1963-09-22T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Sep 3, 2035"	ok	2035-09-03T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"September 18, 1960"	ok	1960-09-18T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"September 26, 2107"	ok	2107-09-26T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"September 29, 2067"	ok	2067-09-29T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"September 29, 2069"	ok	2069-09-29T00:00:00.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Sun Aug 17 18:22:18 2053"	ok	2053-08-17T18:22:18.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Sun Aug 25 08:24:15 1946"	ok	1946-08-25T08:24:15.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Sun Jul  6 10:58:21 1958"	ok	1958-07-06T10:58:21.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Sun Mar 14 08:47:14 2032"	ok	2032-03-14T08:47:14.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Sun Nov  2 14:49:28 2087"	ok	2087-11-02T14:49:28.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Sun Sep  4 21:48:50 1927"	ok	1927-09-04T21:48:50.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Sun, 02 Nov 1952 02:13:07 -1942"	ok	1952-11-02T21:55:07.000000000Z	-19:42	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Sun, 03 Dec 2017 01:54:50 -1319"	ok	2017-12-03T15:13:50.000000000Z	-13:19	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Sun, 04 Jul 1976 16:26:44 UTC"	ok	1976-07-04T16:26:44.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Sun, 05 Jun 1983 15:37:26 UTC"	ok	1983-06-05T15:37:26.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Sun, 07 Apr 1940 22:17:55 +0136"	ok	1940-04-07T20:41:55.000000000Z	+01:36	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Sun, 09 Feb 2048 10:15:25 -1452"	ok	2048-02-10T01:07:25.000000000Z	-14:52	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Sun, 12 Feb 2068 11:08:52 -0730"	ok	2068-02-12T18:38:52.000000000Z	-07:30	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Sun, 13 Sep 2026 04:44:06 +0018"	ok	2026-09-13T04:26:06.000000000Z	+00:18	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Sun, 16 Oct 1960 11:30:34 -1911"	ok	1960-10-17T06:41:34.000000000Z	-19:11	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Sun, 17 Jul 1960 22:35:35 UTC"	ok	1960-07-17T22:35:35.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Sun, 17 Sep 2062 02:10:21 UTC"	ok	2062-09-17T02:10:21.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Sun, 18 Jan 1998 04:31:14 UTC"	ok	1998-01-18T04:31:14.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Sun, 21 Aug 1960 22:47:10 -0850"	ok	1960-08-22T07:37:10.000000000Z	-08:50	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Sun, 21 Feb 1971 11:32:50 UTC"	ok	1971-02-21T11:32:50.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Sun, 23 Mar 2003 20:59:44 UTC"	ok	2003-03-23T20:59:44.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Sun, 24 May 2054 22:35:45 UTC"	ok	2054-05-24T22:35:45.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Sun, 25 Mar 2029 09:35:24 UTC"	ok	2029-03-25T09:35:24.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Sun, 27 Jul 1947 07:49:45 -1327"	ok	1947-07-27T21:16:45.000000000Z	-13:27	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Thu Dec 25 12:40:25 2087"	ok	2087-12-25T12:40:25.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Thu Jan 20 21:38:57 2005"	ok	2005-01-20T21:38:57.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Thu Jul 12 19:53:47 2007"	ok	2007-07-12T19:53:47.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Thu Jun 12 11:26:46 2081"	ok	2081-06-12T11:26:46.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Thu Jun 13 23:32:42 1968"	ok	1968-06-13T23:32:42.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Thu Oct 29 20:31:48 1936"	ok	1936-10-29T20:31:48.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Thu, 01 Sep 1927 21:43:17 UTC"	ok	1927-09-01T21:43:17.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Thu, 03 Oct 2013 22:23:43 UTC"	ok	2013-10-03T22:23:43.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Thu, 04 Jul 2041 00:40:54 UTC"	ok	2041-07-04T00:40:54.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Thu, 04 Sep 1930 04:23:59 UTC"	ok	1930-09-04T04:23:59.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Thu, 08 Jan 2026 09:29:20 UTC"	ok	2026-01-08T09:29:20.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Thu, 17 May 2012 02:26:07 UTC"	ok	2012-05-17T02:26:07.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Thu, 20 Apr 2023 21:48:40 UTC"	ok	2023-04-20T21:48:40.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Thu, 20 Sep 1934 21:02:33 -1417"	ok	1934-09-21T11:19:33.000000000Z	-14:17	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Thu, 21 Dec 2073 19:57:39 -2144"	ok	2073-12-22T17:41:39.000000000Z	-21:44	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Thu, 21 Jun 2108 04:18:06 UTC"	ok	2108-06-21T04:18:06.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Thu, 25 Jul 2058 10:56:21 +2048"	ok	2058-07-24T14:08:21.000000000Z	+20:48	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Thu, 30 Sep 2027 19:32:58 UTC"	ok	2027-09-30T19:32:58.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Tue Apr  7 23:31:31 1981"	ok	1981-04-07T23:31:31.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Tue Apr 16 17:55:04 1968"	ok	1968-04-16T17:55:04.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Tue Apr 18 17:56:17 2028"	ok	2028-04-18T17:56:17.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Tue Aug  3 18:04:26 1999"	ok	1999-08-03T18:04:26.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Tue Aug 14 16:20:52 1979"	ok	1979-08-14T16:20:52.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Tue Dec 12 14:20:22 2102"	ok	2102-12-12T14:20:22.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Tue Jan 29 03:22:30 1980"	ok	1980-01-29T03:22:30.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Tue Nov 23 04:00:43 2094"	ok	2094-11-23T04:00:43.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Tue Oct  1 14:46:56 1929"	ok	1929-10-01T14:46:56.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Tue Oct  6 16:11:28 2015"	ok	2015-10-06T16:11:28.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Tue, 03 May 2044 03:59:41 -0906"	ok	2044-05-03T13:05:41.000000000Z	-09:06	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Tue, 05 Apr 2033 20:06:11 UTC"	ok	2033-04-05T20:06:11.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Tue, 07 Jun 1955 13:43:58 +1052"	ok	1955-06-07T02:51:58.000000000Z	+10:52	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Tue, 10 Sep 1963 13:24:41 UTC"	ok	1963-09-10T13:24:41.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Tue, 15 Jan 2097 05:21:49 -1737"	ok	2097-01-15T22:58:49.000000000Z	-17:37	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Tue, 15 Oct 2120 03:25:09 UTC"	ok	2120-10-15T03:25:09.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Tue, 19 Jul 2072 10:38:52 +1005"	ok	2072-07-19T00:33:52.000000000Z	+10:05	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Tue, 28 Apr 2020 11:29:27 UTC"	ok	2020-04-28T11:29:27.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Wed Dec  1 16:23:44 1943"	ok	1943-12-01T16:23:44.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Wed Jan 20 04:12:47 2077"	ok	2077-01-20T04:12:47.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Wed Mar 16 16:36:59 1983"	ok	1983-03-16T16:36:59.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Wed Nov  7 07:44:24 2046"	ok	2046-11-07T07:44:24.000000000Z	+00:00	MONTH_DAY_YEAR	ambiguous=false	kind=absolute
+"Wed, 02 Jan 1957 18:42:47 UTC"	ok	1957-01-02T18:42:47.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Wed, 05 Feb 1930 01:14:22 +1924"	ok	1930-02-04T05:50:22.000000000Z	+19:24	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Wed, 11 Jun 1997 19:50:51 +1042"	ok	1997-06-11T09:08:51.000000000Z	+10:42	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Wed, 15 Jan 1947 21:52:34 -1325"	ok	1947-01-16T11:17:34.000000000Z	-13:25	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Wed, 18 Aug 1948 00:32:31 -1721"	ok	1948-08-18T17:53:31.000000000Z	-17:21	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Wed, 20 Nov 2080 04:31:58 UTC"	ok	2080-11-20T04:31:58.000000000Z	+00:00	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"Wed, 24 Jul 1996 03:38:02 -2243"	ok	1996-07-25T02:21:02.000000000Z	-22:43	DAY_MONTH_YEAR	ambiguous=false	kind=absolute
+"dEC0000A\xbe\xc2\xd0 At 0"	nomatch
+"mAI1MAr"	ok	2024-03-01T00:00:00.000000000Z	+00:00	DAY_MONTH	ambiguous=false	kind=absolute
+"mAY1MAr"	nomatch
+"\xcaMAY"	nomatch
