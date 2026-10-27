@@ -279,6 +279,7 @@ Each is deliberate.
 |---|---|
 | `zig build test` | The full suite, including every row of the Go library's golden corpus (`testdata/golden.txt`, 1,377 inputs) and every example in this README, format table included |
 | `tools/oracle.sh` | Runs the Go library and this port side by side: 33,186 public-API answers under nine option sets, including a first row's layout reused on 3,522 other rows, and 124,068 natural-language answers across every locale. All identical. |
+| `tools/fuzz.sh` | Zig's fuzzer on four properties: any bytes parse without tripping a safety check, to a time that round-trips through RFC 3339 and that the result's layout re-reads; a layout reused on another input refuses it or agrees with detection; a primed `Parser` agrees with `parseWith`; the fast path agrees with the interpreter. `zig build test` replays their seeds: the Go library's fuzz seeds and crashers, the golden corpus and every format's example |
 | Unicode tables | Lowercasing and word boundaries match Go's `unicode` package on all 1,114,112 code points |
 | Deliberate breaks | Each feature's tests were run against seeded bugs, and every bug that could change an answer was caught |
 
@@ -292,6 +293,8 @@ zig build test          # unit, golden corpus and README tests
 zig build fmt-check     # formatting
 zig build vet           # zigvet, github.com/kmoneil/zigvet
 zig build docs          # API documentation into zig-out/docs
+zig build fuzz          # replay the fuzz seeds alone
+tools/fuzz.sh [LIMIT]   # fuzz them, LIMIT runs each (default 1M), failing on a find
 zig build locales       # regenerate src/locale/ from the Go repository's tables
 zig build unicode       # regenerate src/unicode_data.zig (needs go)
 tools/oracle.sh         # diff against the Go library (needs go and a Go checkout)

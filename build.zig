@@ -40,6 +40,15 @@ pub fn build(b: *std.Build) void {
     const test_step = b.step("test", "Run tests");
     test_step.dependOn(&run_mod_tests.step);
 
+    // The fuzz targets alone. `zig build fuzz` replays their seeds, and
+    // tools/fuzz.sh runs them under the fuzzer with --fuzz.
+    const fuzz_tests = b.addTest(.{
+        .root_module = test_mod,
+        .filters = &.{"fuzz:"},
+    });
+    const fuzz_step = b.step("fuzz", "Replay the fuzz seeds (tools/fuzz.sh to fuzz)");
+    fuzz_step.dependOn(&b.addRunArtifact(fuzz_tests).step);
+
     // API documentation, from the doc comments, into zig-out/docs.
     const docs_obj = b.addObject(.{ .name = "dateparsa", .root_module = mod });
     const install_docs = b.addInstallDirectory(.{

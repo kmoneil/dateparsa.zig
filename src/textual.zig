@@ -205,6 +205,9 @@ fn trimSpace(s: []const u8) []const u8 {
     while (end > start) {
         var lead = end - 1;
         while (lead > start and s[lead] & 0xc0 == 0x80) lead -= 1;
+        // A tail that is not one whole sequence is U+FFFD to Go, not space.
+        const n = std.unicode.utf8ByteSequenceLength(s[lead]) catch break;
+        if (lead + n != end) break;
         const cp = std.unicode.utf8Decode(s[lead..end]) catch break;
         if (!isSpace(cp)) break;
         end = lead;
@@ -870,4 +873,14 @@ test "trimSpace trims what Go's strings.TrimSpace trims" {
     try std.testing.expectEqualStrings("x\u{a0}y", trimSpace("x\u{a0}y"));
     try std.testing.expectEqualStrings("", trimSpace(" \u{2009} "));
     try std.testing.expectEqualStrings("\xffx", trimSpace(" \xffx"));
+    // A broken tail is U+FFFD to Go, which is not space, so trimming stops.
+    // Each of these once decoded a sequence its lead byte does not start.
+    try std.testing.expectEqualStrings("x\x7f\x84", trimSpace("x\x7f\x84 "));
+    try std.testing.expectEqualStrings("a\x80", trimSpace("a\x80"));
+    try std.testing.expectEqualStrings("\xe0\x80", trimSpace("\xe0\x80"));
+    try std.testing.expectEqualStrings("x\xe2\x80\x83\x80", trimSpace("x\xe2\x80\x83\x80"));
+    try std.testing.expectEqualStrings("\x80\x80\x80\x80\x80", trimSpace("\x80\x80\x80\x80\x80"));
+    // A lone byte is not the code point of the same number: 0x85 is not NEL.
+    try std.testing.expectEqualStrings("\x85", trimSpace("\x85"));
+    try std.testing.expectEqualStrings("\xa0", trimSpace("\xa0 "));
 }

@@ -14,7 +14,7 @@ const base: dp.DateTime = .{ .year = 2024, .month = 6, .day = 15, .hour = 12 };
 const skip = [_]struct { input: []const u8, reason: []const u8 }{};
 
 /// Go's strconv.Unquote for the escapes %q writes.
-fn unquote(out: []u8, q: []const u8) ![]u8 {
+pub fn unquote(out: []u8, q: []const u8) ![]u8 {
     if (q.len < 2 or q[0] != '"' or q[q.len - 1] != '"') return error.NotQuoted;
     const body = q[1 .. q.len - 1];
     var w: usize = 0;
