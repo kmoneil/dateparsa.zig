@@ -12,6 +12,7 @@ const compile = @import("compile.zig");
 const formats = @import("formats.zig");
 const signature = @import("signature.zig");
 const trie = @import("trie.zig");
+const ambiguity = @import("ambiguity.zig");
 
 const Field = compile.Field;
 const FieldKind = compile.FieldKind;
@@ -87,10 +88,6 @@ const prebuilt = blk: {
 
 /// The format s is written in, or null when no detector recognises it.
 pub fn detect(s: []const u8, cfg: Config) ?Result {
-    // Read by the ambiguity resolution and the textual detector, which are
-    // not ported yet.
-    _ = cfg;
-
     // Nothing longer can be described, and the fallbacks are linear in the
     // input: refusing here bounds the work as well as the answer.
     if (s.len > compile.max_describable_len) return null;
@@ -106,15 +103,152 @@ pub fn detect(s: []const u8, cfg: Config) ?Result {
     // refused when a skipped run holds a word that changes the date.
     const index = hit orelse {
         if (detectIso8601Frac(s)) |r| return r;
-        // Not yet ported: variable-width numeric dates ("3/15/2024") here.
+        if (ambiguity.detectVariableNumeric(s, cfg)) |r| return r;
         if (detectGoTimeString(s)) |r| return r;
         if (detectDatePlusTz(s)) |r| return r;
         return null;
     };
-    // Not yet ported: NUMERIC_SEP ("03/15/2024") is ambiguous by signature
-    // and is resolved by value and preference.
-    if (formats.table[index].ambiguous) return null;
+    // NUMERIC_SEP ("03/15/2024") is ambiguous by signature and is resolved
+    // by value and preference.
+    if (formats.table[index].ambiguous) return ambiguity.resolve(s, cfg);
     return .{ .def = prebuilt[index] };
+}
+
+fn isLetter(c: u8) bool {
+    return std.ascii.isAlphabetic(c);
+}
+
+fn byOffset(_: void, a: Field, b: Field) bool {
+    return a.offset < b.offset;
+}
+
+/// Appends a field of kind at s[off..off+len], refusing a position a field
+/// cannot hold.
+const BuildError = error{ TooManyFields, OutOfRange };
+
+fn appendAt(def: *Def, kind: FieldKind, off: usize, len: usize) BuildError!void {
+    try def.append(.{
+        .kind = kind,
+        .offset = std.math.cast(u8, off) orelse return error.OutOfRange,
+        .len = std.math.cast(u8, len) orelse return error.OutOfRange,
+    });
+}
+
+/// Appends the fields of a time at or after from: HH:MM, then :SS and a
+/// fraction, then AM/PM or a zone. Punctuation, colons and an "at " before
+/// it are stepped over and left for coverGaps. Reports whether a time was
+/// found; when it was not, or it cannot be described, def is unchanged.
+pub fn appendTimeComponent(def: *Def, s: []const u8, from: usize) bool {
+    const start = def.len;
+    appendTime(def, s, from) catch {
+        def.len = start;
+        return false;
+    };
+    return def.len > start;
+}
+
+fn appendTime(def: *Def, s: []const u8, from: usize) (BuildError || error{NoTime})!void {
+    var i = from;
+    while (i < s.len and (s[i] == ' ' or s[i] == ',' or s[i] == '\t' or s[i] == ':')) i += 1;
+    if (i + 3 <= s.len and std.ascii.eqlIgnoreCase(s[i..][0..3], "at ")) i += 3;
+    if (!(i + 5 <= s.len and isDigit(s[i]) and isDigit(s[i + 1]) and s[i + 2] == ':' and
+        isDigit(s[i + 3]) and isDigit(s[i + 4]))) return error.NoTime;
+    const hour_at = def.len;
+    try appendAt(def, .hour24, i, 2);
+    try appendAt(def, .minute2, i + 3, 2);
+    var j = i + 5;
+    if (j + 3 <= s.len and s[j] == ':' and isDigit(s[j + 1]) and isDigit(s[j + 2])) {
+        try appendAt(def, .second2, j + 1, 2);
+        j += 3;
+        if (j + 1 < s.len and s[j] == '.') {
+            var frac_end = j + 1;
+            while (frac_end < s.len and isDigit(s[frac_end])) frac_end += 1;
+            // Wider than a nanosecond: no time at all, so the coverage check
+            // refuses the input rather than reading part of it.
+            if (frac_end - (j + 1) > compile.max_frac_digits) return error.NoTime;
+            if (frac_end > j + 1) {
+                try appendAt(def, .frac_sec, j + 1, frac_end - (j + 1));
+                j = frac_end;
+            }
+        }
+    }
+    while (j < s.len and s[j] == ' ') j += 1;
+    try appendTimeSuffix(def, s, j, hour_at);
+}
+
+/// AM/PM, Z, a numeric offset, or a zone name at j. AM/PM is tried first or
+/// it would read as a zone name, and turns the hour into a 12-hour field.
+fn appendTimeSuffix(def: *Def, s: []const u8, j: usize, hour_at: usize) BuildError!void {
+    if (j >= s.len) return;
+    if (j + 2 <= s.len) {
+        const c0 = s[j] | 0x20;
+        const c1 = s[j + 1] | 0x20;
+        if ((c0 == 'a' or c0 == 'p') and c1 == 'm' and (j + 2 == s.len or !isLetter(s[j + 2]))) {
+            if (def.buf[hour_at].kind == .hour24) def.buf[hour_at].kind = .hour12;
+            return appendAt(def, .ampm, j, 2);
+        }
+    }
+    if (s[j] == 'Z' and (j + 1 == s.len or !isLetter(s[j + 1]))) return appendAt(def, .tz_z, j, 1);
+    if ((s[j] == '+' or s[j] == '-') and s.len - j >= 5) {
+        const len: usize = if (s.len - j >= 6 and s[j + 3] == ':') 6 else 5;
+        return appendAt(def, .tz_offset, j, len);
+    }
+    if (isLetter(s[j])) {
+        var end = j;
+        while (end < s.len and isLetter(s[end])) end += 1;
+        // "GMT+0100": the offset decides the instant, so the name is skipped.
+        const rest = s.len - end;
+        if (rest >= 5 and (s[end] == '+' or s[end] == '-')) {
+            const len: usize = if (rest >= 6 and s[end + 3] == ':') 6 else 5;
+            try appendZoneNameSkip(def, s, j, end);
+            return appendAt(def, .tz_offset, end, len);
+        }
+        return appendAt(def, .tz_name, j, end - j);
+    }
+}
+
+/// Skips the name in front of an offset. Letters only: a word piece would
+/// hold a space, and "  Z" in its place moves where detection looks behind
+/// a time. Three letters or more take any letters of that width ("GMT"
+/// reuses for "EST"); a shorter name is held byte for byte, since a lone
+/// 'Z' or "am" there means something.
+fn appendZoneNameSkip(def: *Def, s: []const u8, off: usize, end: usize) BuildError!void {
+    var at = off;
+    while (at < end) {
+        if (end - at >= 3) {
+            try appendAt(def, .skip, at, end - at);
+            def.buf[def.len - 1].aux = compile.auxClass(.alpha);
+            at = end;
+        } else {
+            try appendAt(def, .skip, at, 1);
+            def.buf[def.len - 1].aux = s[at];
+            at += 1;
+        }
+    }
+}
+
+/// Covers every byte no field reads with skips, then puts the fields back
+/// in input order, which the executor's offset delta relies on. Detectors
+/// that find their fields by scanning call this last.
+pub fn coverGaps(def: *Def, s: []const u8) error{ TooManyFields, OutOfRange }!void {
+    std.debug.assert(s.len <= compile.max_describable_len);
+    var covered: std.StaticBitSet(compile.max_describable_len) = .empty;
+    for (def.fields()) |f| {
+        const w: usize = compile.fixedWidth(f.kind) orelse f.len;
+        const lo = @min(f.offset, s.len);
+        covered.setRangeValue(.{ .start = lo, .end = @min(lo + w, s.len) }, true);
+    }
+    var i: usize = 0;
+    while (i < s.len) {
+        if (covered.isSet(i)) {
+            i += 1;
+            continue;
+        }
+        const start = i;
+        while (i < s.len and !covered.isSet(i)) i += 1;
+        try appendSkip(def, s, start, i - start);
+    }
+    std.sort.insertion(Field, def.buf[0..def.len], {}, byOffset);
 }
 
 fn field(kind: FieldKind, offset: u8, len: u8) Field {
@@ -337,12 +471,12 @@ test {
 test "every structured format's example detects as that format" {
     for (formats.table, formats.examples) |e, ex| {
         const r = detect(ex[1], .{}) orelse {
-            // NUMERIC_SEP waits on ambiguity resolution.
-            if (e.ambiguous) continue;
             std.debug.print("{s}: \"{s}\" not detected\n", .{ e.name, ex[1] });
             return error.TestUnexpectedResult;
         };
-        try std.testing.expectEqualStrings(e.name, r.def.name);
+        // NUMERIC_SEP is resolved by value: "03/15/2024" is month first.
+        const want = if (e.ambiguous) "NUMERIC_MDY" else e.name;
+        try std.testing.expectEqualStrings(want, r.def.name);
         try std.testing.expect(!r.ambiguous());
     }
 }
@@ -509,6 +643,22 @@ const field_corpus = [_][]const u8{
     "1 MAY",
     "MAY 1",
     "2024:03:15",
+    // Go's C9 shapes: zero-padded and over-wide parts, where a field's len
+    // and the width its op reads once disagreed.
+    "020/01/2024",
+    "3/015/2024",
+    "020/1/0000",
+    "0020/1/2024",
+    "1/2/003",
+    "013/1/2",
+    "003/1/2",
+    "1/0002/3",
+    "0001/02/03",
+    "17/11/0000",
+    "1/1/1",
+    "12/12/12",
+    "123/1/2024",
+    "1/234/2024",
     "2014:04:08 22:05:13",
     "171113 14:14:20",
 };
@@ -533,7 +683,8 @@ test "every detected format describes each byte once, in order, at its op's widt
         }
         for (count[0..s.len]) |c| try std.testing.expectEqual(1, c);
     }
-    try std.testing.expect(detected >= 25);
+    // Everything but the textual rows, whose detector is not ported yet.
+    try std.testing.expect(detected >= 32);
 }
 
 test "detect, compile and execute never trip a safety check" {

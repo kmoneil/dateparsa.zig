@@ -19,5 +19,6 @@ test {
     _ = @import("fast.zig");
     _ = @import("trie.zig");
     _ = @import("detect.zig");
+    _ = @import("ambiguity.zig");
     _ = @import("formats.zig");
 }
