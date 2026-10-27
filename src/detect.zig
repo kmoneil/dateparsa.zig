@@ -69,6 +69,9 @@ pub const Result = struct {
     /// "25/12/2024" needed none, but "01/02/2024" has its shape. A layout
     /// cannot answer ambiguity for the next row, only say it can arise.
     prone: bool = false,
+    /// The formats.table entry a trie hit returned, whose compiled layout
+    /// can be shared rather than compiled again.
+    trie_index: ?u8 = null,
 
     pub fn ambiguous(r: *const Result) bool {
         return r.ambiguity != .none;
@@ -127,7 +130,7 @@ fn detectFormat(s: []const u8, cfg: Config) ?Result {
     // NUMERIC_SEP ("03/15/2024") is ambiguous by signature and is resolved
     // by value and preference.
     if (formats.table[index].ambiguous) return ambiguity.resolve(s, cfg);
-    return .{ .def = prebuilt[index] };
+    return .{ .def = prebuilt[index], .trie_index = index };
 }
 
 fn isLetter(c: u8) bool {

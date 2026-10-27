@@ -25,5 +25,6 @@ test {
     _ = @import("epoch.zig");
     _ = @import("unicode.zig");
     _ = @import("natural.zig");
+    _ = @import("Layout.zig");
     _ = @import("formats.zig");
 }
