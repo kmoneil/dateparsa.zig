@@ -132,6 +132,33 @@ fn tableProblem(comptime entries: []const Format) ?[]const u8 {
     return null;
 }
 
+/// The class a literal accepts when it sits at a signature position of class
+/// cc. problem() refuses a literal on a digit, so that case never arises.
+pub fn litClassOf(cc: CharClass) compile.LitClass {
+    return switch (cc) {
+        .letter => .letter,
+        .sep => .sep,
+        .space => .space,
+        .colon => .colon,
+        .special => .special,
+        .digit => unreachable,
+    };
+}
+
+/// e's fields with each literal's aux stamped from the class of the
+/// signature position it sits at. The table leaves aux zero (any non-digit)
+/// so the class and the signature cannot drift apart; this is what the trie
+/// hands the compiler. The class is what keeps a reused layout honest:
+/// TIME_HMS and NUMERIC_SEP are both DD?DD?DD, and a layout detected from
+/// "20-1-00" must not read "10:01:00".
+pub fn stampedFields(comptime e: Format) [e.fields.len]Field {
+    var out = e.fields[0..e.fields.len].*;
+    for (&out) |*f| {
+        if (f.kind == .literal) f.aux = compile.auxFor(litClassOf(e.sig[f.offset]));
+    }
+    return out;
+}
+
 comptime {
     @setEvalBranchQuota(100_000);
     for (table) |e| if (problem(e)) |p| @compileError(p);
@@ -632,7 +659,8 @@ pub const table = [_]Format{
 };
 
 /// One input per entry, in table order: each one's signature is the entry's.
-const examples = [_]struct { []const u8, []const u8 }{
+/// Test data, shared with the executor's round-trip tests.
+pub const examples = [_]struct { []const u8, []const u8 }{
     .{ "ISO8601_DATE", "2024-03-15" },
     .{ "ISO8601_DATETIME", "2024-03-15T10:30:00" },
     .{ "ISO8601_DATETIME_Z", "2024-03-15T10:30:00Z" },
