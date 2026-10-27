@@ -22,5 +22,6 @@ test {
     _ = @import("ambiguity.zig");
     _ = @import("locale.zig");
     _ = @import("textual.zig");
+    _ = @import("epoch.zig");
     _ = @import("formats.zig");
 }
