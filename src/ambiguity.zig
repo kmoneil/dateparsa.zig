@@ -256,8 +256,7 @@ pub fn readings(r: *const Result) Readings {
     return switch (r.ambiguity) {
         .none => .{},
         .field_order, .year_position => fieldOrderReadings(r),
-        // Produced only by the textual detector, which brings its readings.
-        .day_or_year => .{},
+        .day_or_year => dayOrYearReadings(r),
     };
 }
 
@@ -347,6 +346,102 @@ fn numericLabel(fields: []const Field, slots: [3]Slot, order: [3]Role) []const u
     }
     unreachable; // every order of three roles is in labels
 }
+
+/// "March 15" is the 15th of March or March 2015: the number read as the
+/// day, and the same bytes read as a two-digit year. With a two-digit year
+/// already written the two numbers swap roles, so "01MAY10" is the 1st of
+/// May 2010 or the 10th of May 2001; re-kinding the day alone would offer a
+/// reading with two years and no day.
+fn dayOrYearReadings(r: *const Result) Readings {
+    const fields = r.def.fields();
+    var day_at: ?usize = null;
+    var month_at: ?usize = null;
+    var year_at: ?usize = null;
+    for (fields, 0..) |f, i| switch (f.kind) {
+        .day2 => day_at = i,
+        .month_name => month_at = i,
+        .year2 => year_at = i,
+        else => {},
+    };
+    const d = day_at orelse return .{};
+    const m = month_at orelse return .{};
+
+    var alt = r.def;
+    alt.buf[d].kind = .year2;
+    if (year_at) |y| alt.buf[y].kind = .day2;
+    const label = textualLabel(fields, m, d, year_at);
+    const alt_label = textualLabel(fields, m, year_at, d);
+    alt.name = alt_label;
+
+    var out: Readings = .{};
+    out.buf[0] = .{ .def = r.def, .label = label };
+    out.buf[1] = .{ .def = alt, .label = alt_label };
+    out.len = 2;
+    return out;
+}
+
+const LabelPart = enum { MONTH, DAY, YEAR };
+
+const PartAt = struct { offset: u8, part: LabelPart };
+
+fn partByOffset(_: void, a: PartAt, b: PartAt) bool {
+    return a.offset < b.offset;
+}
+
+/// The parts a reading has, in the order the input writes them, joined:
+/// "MONTH_DAY", "YEAR_MONTH_DAY". Built from offsets rather than the format
+/// name, which counts numbers and can disagree with the reading offered.
+fn textualLabel(fields: []const Field, month_at: usize, day_at: ?usize, year_at: ?usize) []const u8 {
+    var parts: [3]PartAt = undefined;
+    var n: usize = 0;
+    parts[n] = .{ .offset = fields[month_at].offset, .part = .MONTH };
+    n += 1;
+    if (day_at) |i| {
+        parts[n] = .{ .offset = fields[i].offset, .part = .DAY };
+        n += 1;
+    }
+    if (year_at) |i| {
+        parts[n] = .{ .offset = fields[i].offset, .part = .YEAR };
+        n += 1;
+    }
+    std.sort.insertion(PartAt, parts[0..n], {}, partByOffset);
+    var order: [3]?LabelPart = .{ null, null, null };
+    for (parts[0..n], 0..) |p, i| order[i] = p.part;
+    for (textual_labels) |l| {
+        if (std.mem.eql(?LabelPart, &l.order, &order)) return l.text;
+    }
+    unreachable; // every ordered subset holding the month is in the table
+}
+
+const TextualLabel = struct { order: [3]?LabelPart, text: []const u8 };
+
+/// Every ordering of MONTH with DAY, YEAR or both, as comptime strings.
+const textual_labels = blk: {
+    const orders = [_][3]?LabelPart{
+        .{ .MONTH, null, null },
+        .{ .MONTH, .DAY, null },
+        .{ .DAY, .MONTH, null },
+        .{ .MONTH, .YEAR, null },
+        .{ .YEAR, .MONTH, null },
+        .{ .MONTH, .DAY, .YEAR },
+        .{ .MONTH, .YEAR, .DAY },
+        .{ .DAY, .MONTH, .YEAR },
+        .{ .DAY, .YEAR, .MONTH },
+        .{ .YEAR, .MONTH, .DAY },
+        .{ .YEAR, .DAY, .MONTH },
+    };
+    var out: [orders.len]TextualLabel = undefined;
+    for (orders, 0..) |o, i| {
+        var text: []const u8 = "";
+        for (o) |p| {
+            const part = p orelse break;
+            if (text.len > 0) text = text ++ "_";
+            text = text ++ @tagName(part);
+        }
+        out[i] = .{ .order = o, .text = text };
+    }
+    break :blk out;
+};
 
 const Label = struct { order: [3]Role, two_digit: bool, text: []const u8 };
 

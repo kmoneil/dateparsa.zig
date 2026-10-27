@@ -13,6 +13,8 @@ const formats = @import("formats.zig");
 const signature = @import("signature.zig");
 const trie = @import("trie.zig");
 const ambiguity = @import("ambiguity.zig");
+const textual = @import("textual.zig");
+const locale = @import("locale.zig");
 
 const Field = compile.Field;
 const FieldKind = compile.FieldKind;
@@ -76,6 +78,9 @@ pub const Result = struct {
 pub const Config = struct {
     prefer_day_first: bool = false,
     prefer_year_first: bool = false,
+    /// Locales whose month names and relative words detection reads,
+    /// besides English.
+    locales: locale.LocaleSet = .{},
 };
 
 /// The Def each trie entry hands back, literals stamped with their class.
@@ -88,6 +93,15 @@ const prebuilt = blk: {
 
 /// The format s is written in, or null when no detector recognises it.
 pub fn detect(s: []const u8, cfg: Config) ?Result {
+    const r = detectFormat(s, cfg) orelse return null;
+    // A format whose skipped runs hold a word that decides the answer has
+    // not described the input, it has discarded part of it: "first monday
+    // of march 2024" is not the 1st of March.
+    if (textual.skipRunCarriesMeaning(s, r.def.fields(), cfg.locales)) return null;
+    return r;
+}
+
+fn detectFormat(s: []const u8, cfg: Config) ?Result {
     // Nothing longer can be described, and the fallbacks are linear in the
     // input: refusing here bounds the work as well as the answer.
     if (s.len > compile.max_describable_len) return null;
@@ -97,10 +111,12 @@ pub fn detect(s: []const u8, cfg: Config) ?Result {
 
     const sig = signature.scan(s);
     const hit = trie.lookup(&sig);
-    // Not yet ported, in cascade order: when the trie misses and the input
-    // holds a letter (sig.has_letter or signature.hasLetterPastSignature),
-    // the textual-month detector runs here, and every answer it gives is
-    // refused when a skipped run holds a word that changes the date.
+    // After the trie, so that "2024-03-15 10:30:00 UTC" is the trie's. The
+    // letter can sit past the bytes scan classified: a date behind 64 bytes
+    // of padding once went to natural language and lost its year.
+    if (hit == null and (sig.has_letter or signature.hasLetterPastSignature(s))) {
+        if (textual.detectTextual(s, cfg)) |r| return r;
+    }
     const index = hit orelse {
         if (detectIso8601Frac(s)) |r| return r;
         if (ambiguity.detectVariableNumeric(s, cfg)) |r| return r;
@@ -264,7 +280,7 @@ fn lit(s: []const u8, off: u8) Field {
 
 /// Covers s[off..off+len] with skips, one per piece compile.skipRun cuts
 /// and none longer than a field can say.
-fn appendSkip(
+pub fn appendSkip(
     d: *Def,
     s: []const u8,
     off: usize,
@@ -683,8 +699,8 @@ test "every detected format describes each byte once, in order, at its op's widt
         }
         for (count[0..s.len]) |c| try std.testing.expectEqual(1, c);
     }
-    // Everything but the textual rows, whose detector is not ported yet.
-    try std.testing.expect(detected >= 32);
+    // The numeric and textual rows; what is left is natural language.
+    try std.testing.expect(detected >= 47);
 }
 
 test "detect, compile and execute never trip a safety check" {
