@@ -17,5 +17,7 @@ test {
     _ = @import("signature.zig");
     _ = @import("compile.zig");
     _ = @import("fast.zig");
+    _ = @import("trie.zig");
+    _ = @import("detect.zig");
     _ = @import("formats.zig");
 }

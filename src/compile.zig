@@ -103,6 +103,11 @@ pub const max_frac_digits = 9;
 /// name and a monotonic reading: at most 33 + 24 bytes.
 pub const max_tail_len = 64;
 
+/// The longest input any program describes: a field starts at byte 255 at
+/// the latest and runs 255 bytes at most. Detection refuses a longer input
+/// before running any detector, which bounds the work as well as the answer.
+pub const max_describable_len = 2 * 255;
+
 pub const Error = error{NoMatch};
 
 /// An instruction's operation: one per field kind, with the same name, plus
@@ -269,6 +274,45 @@ pub fn litAccepts(aux: u16, c: u8) bool {
     if (aux == 0) return !isDigit(c);
     if (aux < aux_class_base) return c == aux;
     return lit_class_set[c] & @as(u8, @truncate(aux)) != 0;
+}
+
+/// What a piece of a run of words may hold: letters, spaces and tabs, and
+/// bytes that are not printable ASCII.
+const words_mask = classBit(.alpha) | classBit(.space) | classBit(.nonprinting);
+
+/// One piece of a skipped run s[off..end]: how many bytes a single skip
+/// describes, and the aux that holds a reused layout to what those bytes
+/// were. The caller covers the rest of the run with further calls. A piece
+/// is decided by the byte it starts with:
+///
+///   a letter       it, and the letters, spaces, tabs and non-printing
+///                  bytes after it ("Mon ", "th", "Miércoles")
+///   non-printing   it, and the non-printing bytes after it ("年", "é")
+///   a digit        the digits, with aux 0, which refuses them on reuse
+///   anything else  that byte, repeated (" ", ",", "--")
+///
+/// Words give up their exact bytes because the weekday a column's first row
+/// skipped is not its second row's; everything else is held byte for byte,
+/// since one aux over ", " took " +" and read a zone offset as a year.
+pub fn skipRun(s: []const u8, off: usize, end: usize) struct { len: usize, aux: u16 } {
+    if (end > s.len or off >= end) return .{ .len = 0, .aux = 0 };
+    const run = s[off..end];
+    const c = run[0];
+    var n: usize = 1;
+    if (isDigit(c)) {
+        while (n < run.len and isDigit(run[n])) n += 1;
+        return .{ .len = n, .aux = 0 };
+    }
+    if (lit_class_set[c] & classBit(.alpha) != 0) {
+        while (n < run.len and lit_class_set[run[n]] & words_mask != 0) n += 1;
+        return .{ .len = n, .aux = aux_class_base | words_mask };
+    }
+    if (lit_class_set[c] & classBit(.nonprinting) != 0) {
+        while (n < run.len and lit_class_set[run[n]] & classBit(.nonprinting) != 0) n += 1;
+        return .{ .len = n, .aux = auxClass(.nonprinting) };
+    }
+    while (n < run.len and run[n] == c) n += 1;
+    return .{ .len = n, .aux = c };
 }
 
 /// The width a field of kind k reads when a separator can be fused onto it,
@@ -1283,4 +1327,31 @@ test "execute refuses a byte described by nothing or by two fields" {
         .{ .op = .month2, .offset = 1, .len = 2 },
     });
     try expectError(error.NoMatch, overlap.execute("112"));
+}
+
+test "skipRun cuts a run into the pieces its bytes allow" {
+    const Piece = struct { []const u8, usize, u16 };
+    const cases = [_]Piece{
+        .{ "Mon 15", 4, aux_class_base | words_mask }, // a word and the space after it
+        .{ "Miércoles,", 10, aux_class_base | words_mask }, // é is two bytes inside the word
+        .{ "年04", 3, auxClass(.nonprinting) },
+        .{ "\x00\x01x", 2, auxClass(.nonprinting) },
+        .{ ", 2024", 1, ',' },
+        .{ "  15", 2, ' ' },
+        .{ "--x", 2, '-' },
+        .{ " \t", 1, ' ' }, // a space and a tab are different bytes outside a word
+        .{ "12ab", 2, 0 },
+    };
+    for (cases) |c| {
+        errdefer std.debug.print("skipRun(\"{s}\")\n", .{c[0]});
+        const piece = skipRun(c[0], 0, c[0].len);
+        try expectEqual(c[1], piece.len);
+        try expectEqual(c[2], piece.aux);
+    }
+    try expectEqual(0, skipRun("abc", 2, 2).len);
+    try expectEqual(0, skipRun("abc", 0, 4).len);
+    // A word piece accepts another word's letters but not a '+' or a digit.
+    const word = skipRun("Mon", 0, 3).aux;
+    try std.testing.expect(litAccepts(word, 'T') and litAccepts(word, ' '));
+    try std.testing.expect(!litAccepts(word, '+') and !litAccepts(word, '7'));
 }
