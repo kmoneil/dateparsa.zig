@@ -14,6 +14,7 @@
 const std = @import("std");
 const DateTime = @import("DateTime.zig");
 const fast = @import("fast.zig");
+const locale = @import("locale.zig");
 
 /// What one field of a format reads.
 pub const FieldKind = enum(u8) {
@@ -351,6 +352,9 @@ pub const Program = struct {
     /// slot is tz_z_or_offset, whose 'Z' form is narrower than its offset.
     width: u16 = 0,
     width_alt: u16 = 0,
+    /// The locales whose month names a month_name field accepts besides
+    /// English: the ones detection searched, and no others.
+    locales: locale.LocaleSet = .{},
 
     pub fn isFast(p: *const Program) bool {
         return p.width != 0;
@@ -365,6 +369,7 @@ pub const Program = struct {
 pub const Config = struct {
     base_year: i32 = 0,
     offset_seconds: i32 = 0,
+    locales: locale.LocaleSet = .{},
 };
 
 /// Compiles fields (in input order, as formats.problem requires) into a
@@ -375,7 +380,11 @@ pub fn compile(fields: []const Field, config: Config) error{TooManyFields}!Progr
     // Counts fields, not the instructions fusion leaves, so the limit is one
     // a caller can derive from the format they wrote.
     if (fields.len > max_instructions) return error.TooManyFields;
-    var p: Program = .{ .base_year = config.base_year, .offset_seconds = config.offset_seconds };
+    var p: Program = .{
+        .base_year = config.base_year,
+        .offset_seconds = config.offset_seconds,
+        .locales = config.locales,
+    };
     var i: usize = 0;
     while (i < fields.len) : (i += 1) {
         const f = fields[i];
@@ -522,7 +531,7 @@ fn interpret(p: *const Program, s: []const u8) Error!DateTime {
                 // The month was resolved at detection; the input must still
                 // name it, or a reused layout answers with the month it was
                 // built from.
-                if (!monthNameMatches(s, off, inst.len, inst.aux)) return error.NoMatch;
+                if (!monthNameMatches(s, off, inst.len, inst.aux, p.locales)) return error.NoMatch;
                 r.month = @intCast(inst.aux);
             },
             .day2 => {
@@ -833,9 +842,16 @@ const english_months = [12][]const []const u8{
 /// Whether s[off..off+len] names month, as a whole word: a letter either
 /// side is a refusal, a digit or punctuation is not ("MAY10" is accepted).
 /// Only the one month the instruction names is checked, so a mismatch is a
-/// refusal, never a different month. English only until the locale tables
-/// land; then the program's locale set decides which other spellings count.
-pub fn monthNameMatches(s: []const u8, off: usize, len: usize, month: u16) bool {
+/// refusal, never a different month. English always counts; another
+/// locale's spellings count when locales holds it, so a layout accepts the
+/// locales detection searched and no others.
+pub fn monthNameMatches(
+    s: []const u8,
+    off: usize,
+    len: usize,
+    month: u16,
+    locales: locale.LocaleSet,
+) bool {
     if (month < 1 or month > 12 or len == 0 or off + len > s.len) return false;
     if (off > 0 and isWordChar(s[off - 1])) return false;
     if (off + len < s.len and isWordChar(s[off + len])) return false;
@@ -843,7 +859,7 @@ pub fn monthNameMatches(s: []const u8, off: usize, len: usize, month: u16) bool 
     for (english_months[month - 1]) |want| {
         if (std.ascii.eqlIgnoreCase(got, want)) return true;
     }
-    return false;
+    return locale.matchesMonth(got, @intCast(month), locales);
 }
 
 const formats = @import("formats.zig");
@@ -1109,13 +1125,19 @@ test "monthNameMatches requires a whole word" {
         .{ "Apr", 0, false },
     };
     for (cases) |c| {
-        std.testing.expectEqual(c[2], monthNameMatches(c[0], c[1], 3, 3)) catch |err| {
+        std.testing.expectEqual(c[2], monthNameMatches(c[0], c[1], 3, 3, .{})) catch |err| {
             std.debug.print("monthNameMatches(\"{s}\", {d})\n", .{ c[0], c[1] });
             return err;
         };
     }
-    try std.testing.expect(monthNameMatches("sept. 1", 0, 4, 9));
-    try std.testing.expect(!monthNameMatches("Mar", 0, 3, 13));
+    try std.testing.expect(monthNameMatches("sept. 1", 0, 4, 9, .{}));
+    try std.testing.expect(!monthNameMatches("Mar", 0, 3, 13, .{}));
+    // Another locale's spelling counts only when the program carries it.
+    if (locale.lookup("fr")) |fr| {
+        try std.testing.expect(!monthNameMatches("15 mars", 3, 4, 3, .{}));
+        try std.testing.expect(monthNameMatches("15 mars", 3, 4, 3, locale.only(fr)));
+        try std.testing.expect(!monthNameMatches("15 mars", 3, 4, 4, locale.only(fr)));
+    }
 }
 
 test "every structured format round-trips its example" {

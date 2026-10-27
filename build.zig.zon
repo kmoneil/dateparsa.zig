@@ -73,6 +73,8 @@
         "build.zig.zon",
         "src",
         "LICENSE",
+        // The CLDR licence has to travel with the locale data in src/locale.
+        "NOTICE",
         "README.md",
     },
 }
