@@ -23,5 +23,7 @@ test {
     _ = @import("locale.zig");
     _ = @import("textual.zig");
     _ = @import("epoch.zig");
+    _ = @import("unicode.zig");
+    _ = @import("natural.zig");
     _ = @import("formats.zig");
 }

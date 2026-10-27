@@ -62,4 +62,12 @@ pub fn build(b: *std.Build) void {
     run_gen.addArgs(&.{ go_locale_dir, "src/locale" });
     const locales_step = b.step("locales", "Regenerate src/locale/*.zig from the Go locale data");
     locales_step.dependOn(&run_gen.step);
+
+    // Regenerates src/unicode_data.zig from Go's unicode package, so that
+    // natural-language lowercasing and word boundaries match the Go original.
+    // A developer step needing `go` on PATH; the output is committed.
+    const unicode_gen = b.addSystemCommand(&.{ "go", "run", "tools/unicode_gen.go", "src/unicode_data.zig" });
+    unicode_gen.setCwd(b.path("."));
+    const unicode_step = b.step("unicode", "Regenerate src/unicode_data.zig from Go's unicode tables");
+    unicode_step.dependOn(&unicode_gen.step);
 }
