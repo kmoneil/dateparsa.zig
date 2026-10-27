@@ -283,8 +283,15 @@ Each is deliberate.
 | Unicode tables | Lowercasing and word boundaries match Go's `unicode` package on all 1,114,112 code points |
 | Deliberate breaks | Each feature's tests were run against seeded bugs, and every bug that could change an answer was caught |
 
-Performance numbers will land with the benchmarks; until they are measured on a
-named machine against the Go version, this README makes no speed claims.
+## Performance
+
+Measured against the Go library on one machine, by the Go library's own
+benchmarks: reusing a layout takes 0.6 to 0.8 of Go's time, and the first
+parse of a structured date is mostly at or under Go's. Natural language,
+misses and a textual date with locales configured are slower, 1.3 to 3.2
+times Go. [docs/PERF.md](docs/PERF.md) has
+the table, how it is measured, and why a number from it means nothing on
+another machine.
 
 ## Development
 
@@ -294,6 +301,8 @@ zig build fmt-check     # formatting
 zig build vet           # zigvet, github.com/kmoneil/zigvet
 zig build docs          # API documentation into zig-out/docs
 zig build fuzz          # replay the fuzz seeds alone
+zig build bench         # the benchmarks (-- -bench NAME -count N -benchtime MS)
+tools/bench.sh          # against the Go library, on this machine (needs go)
 tools/fuzz.sh [LIMIT]   # fuzz them, LIMIT runs each (default 1M), failing on a find
 zig build locales       # regenerate src/locale/ from the Go repository's tables
 zig build unicode       # regenerate src/unicode_data.zig (needs go)

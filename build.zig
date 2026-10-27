@@ -49,6 +49,32 @@ pub fn build(b: *std.Build) void {
     const fuzz_step = b.step("fuzz", "Replay the fuzz seeds (tools/fuzz.sh to fuzz)");
     fuzz_step.dependOn(&b.addRunArtifact(fuzz_tests).step);
 
+    // The Go library's benchmark matrix on this port, always ReleaseFast;
+    // tools/bench.sh runs it against the Go benchmarks.
+    const bench_lib = b.createModule(.{
+        .root_source_file = b.path("src/root.zig"),
+        .target = target,
+        .optimize = .ReleaseFast,
+    });
+    bench_lib.addOptions("build_options", options);
+    const bench_exe = b.addExecutable(.{
+        .name = "bench",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("bench/main.zig"),
+            .target = target,
+            .optimize = .ReleaseFast,
+            .imports = &.{.{ .name = "dateparsa", .module = bench_lib }},
+        }),
+    });
+    const run_bench = b.addRunArtifact(bench_exe);
+    run_bench.addPassthruArgs();
+    // A measurement, not a build product: never served from the cache.
+    run_bench.has_side_effects = true;
+    const bench_step = b.step("bench", "Run the benchmarks (-- -count N -benchtime MS -bench NAME)");
+    bench_step.dependOn(&run_bench.step);
+    const install_bench = b.step("bench-install", "Install the benchmark binary, for tools/bench.sh");
+    install_bench.dependOn(&b.addInstallArtifact(bench_exe, .{}).step);
+
     // API documentation, from the doc comments, into zig-out/docs.
     const docs_obj = b.addObject(.{ .name = "dateparsa", .root_module = mod });
     const install_docs = b.addInstallDirectory(.{
@@ -60,7 +86,7 @@ pub fn build(b: *std.Build) void {
     docs_step.dependOn(&install_docs.step);
 
     const fmt = b.addFmt(.{
-        .paths = &.{ b.path("build.zig"), b.path("src"), b.path("tools") },
+        .paths = &.{ b.path("build.zig"), b.path("src"), b.path("tools"), b.path("bench") },
         .check = true,
     });
     const fmt_step = b.step("fmt-check", "Check source formatting");
@@ -68,7 +94,7 @@ pub fn build(b: *std.Build) void {
 
     // zigvet (github.com/kmoneil/zigvet) must be on PATH. Run from the build
     // root with relative paths so its findings print as src/x.zig:line:col.
-    const vet = b.addSystemCommand(&.{ "zigvet", "src", "tools", "build.zig" });
+    const vet = b.addSystemCommand(&.{ "zigvet", "src", "tools", "bench", "build.zig" });
     vet.setCwd(b.path("."));
     const vet_step = b.step("vet", "Check sources with zigvet");
     vet_step.dependOn(&vet.step);
