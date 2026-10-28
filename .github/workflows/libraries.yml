@@ -74,15 +74,17 @@ jobs:
             esac
           done
           dir=$(ls -d dateparsa-*-"$PLATFORM")
-          echo "LIB=$PWD/$dir" >> "$GITHUB_ENV"
+          # PKG, not LIB: on Windows LIB is the MSVC linker's library path, and
+          # clang trusts it over finding Visual Studio itself.
+          echo "PKG=$PWD/$dir" >> "$GITHUB_ENV"
           find "$dir" | sort
       - name: static and shared, on Linux and macOS
         if: runner.os != 'Windows'
         run: |
-          flags="-std=c11 -Wall -Wextra -Werror -pedantic -I$LIB/include"
-          cc $flags test/c_api.c "$LIB/lib/libdateparsa.a" -o c_api_static
+          flags="-std=c11 -Wall -Wextra -Werror -pedantic -I$PKG/include"
+          cc $flags test/c_api.c "$PKG/lib/libdateparsa.a" -o c_api_static
           ./c_api_static
-          cc $flags test/c_api.c -L"$LIB/lib" -ldateparsa -Wl,-rpath,"$LIB/lib" -o c_api_shared
+          cc $flags test/c_api.c -L"$PKG/lib" -ldateparsa -Wl,-rpath,"$PKG/lib" -o c_api_shared
           ./c_api_shared
       # The DLL through its import library, dateparsa.lib, with the DLL on
       # PATH; then the static library, dateparsa_static.lib.
@@ -90,8 +92,8 @@ jobs:
         if: runner.os == 'Windows'
         run: |
           command -v clang >/dev/null || export PATH="/c/Program Files/LLVM/bin:$PATH"
-          flags="-std=c11 -Wall -Wextra -Werror -pedantic -I$LIB/include"
-          clang $flags test/c_api.c "$LIB/lib/dateparsa.lib" -o c_api_shared.exe
-          PATH="$LIB/bin:$PATH" ./c_api_shared.exe
-          clang $flags test/c_api.c "$LIB/lib/dateparsa_static.lib" -o c_api_static.exe
+          flags="-std=c11 -Wall -Wextra -Werror -pedantic -I$PKG/include"
+          clang $flags test/c_api.c "$PKG/lib/dateparsa.lib" -o c_api_shared.exe
+          PATH="$PKG/bin:$PATH" ./c_api_shared.exe
+          clang $flags test/c_api.c "$PKG/lib/dateparsa_static.lib" -o c_api_static.exe
           ./c_api_static.exe
