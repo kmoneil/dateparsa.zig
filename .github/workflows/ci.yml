@@ -69,6 +69,20 @@ jobs:
       - name: zig build test
         run: zig build test --summary all
 
+  # Layouts' format strings in the tools that read them: Python's strptime,
+  # Go's time.Parse and Java's DateTimeFormatter, all on the runner image.
+  format-strings:
+    name: format strings
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+      - name: versions
+        run: python3 --version && go version && java -version
+      - name: tools/format_check.sh
+        run: tools/format_check.sh
+
   # The libraries a release attaches, for every platform, each linked and
   # run by its own platform's C compiler: see libraries.yml.
   libraries:

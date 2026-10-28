@@ -22,6 +22,13 @@ the difference. Before 1.0 a breaking change is a minor bump.
   `dateparsa_column_summarize`.
 - `Layout.dateOrder()`: the order a numeric layout reads year, month and day
   in.
+- `Layout.formatString(dialect, detected_from, writer)`: a detected format as
+  another tool's format string, in strftime (C, Python, pandas, Ruby), Go or
+  Java (also Kotlin and Spark) form, such as `%d/%m/%Y %H:%M`. A field a
+  dialect cannot spell is `error.Unsupported`, never a string that reads
+  something else. Every example in the format table is checked in Python, Go
+  and Java by `tools/format_check.sh`. In C: `dateparsa_format_string` and
+  the new status `DATEPARSA_UNSUPPORTED`.
 
 ## [0.2.1] - 2026-10-28
 

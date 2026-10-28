@@ -134,6 +134,26 @@ static void settle_a_column(void) {
     CHECK(report.fits == ((1u << DATEPARSA_ORDER_MONTH_FIRST) | (1u << DATEPARSA_ORDER_DAY_FIRST)));
 }
 
+static void format_strings(void) {
+    dateparsa_result r;
+    char buf[DATEPARSA_FORMAT_STRING_MAX];
+    size_t n = 0;
+    CHECK(dateparsa_parse(S("13/02/2024 10:30"), NULL, &r) == DATEPARSA_OK);
+    CHECK(dateparsa_format_string(&r.layout, DATEPARSA_DIALECT_STRFTIME, S("13/02/2024 10:30"), buf, sizeof buf, &n) == DATEPARSA_OK);
+    CHECK(strcmp(buf, "%d/%m/%Y %H:%M") == 0 && n == strlen(buf));
+    CHECK(dateparsa_format_string(&r.layout, DATEPARSA_DIALECT_GO, S("13/02/2024 10:30"), buf, sizeof buf, NULL) == DATEPARSA_OK);
+    CHECK(strcmp(buf, "02/01/2006 15:04") == 0);
+    CHECK(dateparsa_format_string(&r.layout, DATEPARSA_DIALECT_JAVA, S("13/02/2024 10:30"), buf, sizeof buf, &n) == DATEPARSA_OK);
+    CHECK(strcmp(buf, "dd/MM/yyyy HH:mm") == 0);
+    CHECK(dateparsa_format_string(&r.layout, DATEPARSA_DIALECT_JAVA, S("13/02/2024 10:30"), buf, n, &n) == DATEPARSA_BUFFER_TOO_SMALL);
+
+    dateparsa_options base = {0};
+    dateparsa_datetime t = {2024, 3, 15, 12, 0, 0, 0, 0};
+    base.base_time = &t;
+    CHECK(dateparsa_parse(S("December 23rd"), &base, &r) == DATEPARSA_OK);
+    CHECK(dateparsa_format_string(&r.layout, DATEPARSA_DIALECT_STRFTIME, S("December 23rd"), buf, sizeof buf, &n) == DATEPARSA_UNSUPPORTED);
+}
+
 static void natural_language(void) {
     dateparsa_datetime base = {2024, 3, 15, 12, 0, 0, 0, 0};
     dateparsa_options o = {0};
@@ -239,6 +259,7 @@ int main(void) {
     parse_a_column();
     ambiguity();
     settle_a_column();
+    format_strings();
     natural_language();
     locales();
     zones_and_timestamps();

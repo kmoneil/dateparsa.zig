@@ -288,6 +288,21 @@ pub fn build(b: *std.Build) void {
         const step = b.step(o[0], "Answer a Go oracle file with this port (see tools/oracle.sh)");
         step.dependOn(&run_exe.step);
     }
+
+    // The format strings layouts give, for tools/format_check.sh to try in
+    // Python, Go and Java.
+    const format_strings = b.addExecutable(.{
+        .name = "format-strings",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tools/format_strings.zig"),
+            .target = target,
+            .optimize = .ReleaseSafe,
+            .imports = &.{.{ .name = "dateparsa", .module = mod }},
+        }),
+    });
+    const run_format_strings = b.addRunArtifact(format_strings);
+    run_format_strings.has_side_effects = true;
+    b.step("format-strings", "Print each example's format string in every dialect (tools/format_check.sh)").dependOn(&run_format_strings.step);
 }
 
 /// The platforms a release carries libdateparsa for. macOS from 13, the

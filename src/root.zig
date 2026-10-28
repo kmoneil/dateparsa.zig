@@ -278,6 +278,7 @@ test {
     _ = @import("formats.zig");
     _ = @import("Parser.zig");
     _ = @import("Column.zig");
+    _ = @import("format_string.zig");
     _ = @import("FlexTime.zig");
     _ = @import("api_test.zig");
     _ = @import("golden_test.zig");
