@@ -195,6 +195,31 @@ day first, and the two leave only day first. ISO dates, month names, timestamps
 and words have no say. `Column` does the same one value at a time, for a column
 you stream, keeping only counts.
 
+### Hand the format to another tool
+
+A detected layout can be spelled as the format string another tool takes:
+strftime (C, Python, pandas, Ruby), Go's reference time, or Java's
+`DateTimeFormatter` (Java, Kotlin, Spark). Detect once, then pass the format to
+whatever reads the column next.
+
+```zig
+const sample = "13/02/2024 10:30";
+const r = try dateparsa.parse(sample);
+var buf: [128]u8 = undefined;
+var w: std.Io.Writer = .fixed(&buf);
+try r.layout.formatString(.strftime, sample, &w); // %d/%m/%Y %H:%M
+// .go gives 02/01/2006 15:04, .java gives dd/MM/yyyy HH:mm
+```
+
+Pass the value the layout was detected from: a layout keeps no input bytes, and
+the string spells that value's separators and words. A field a dialect cannot
+spell is `error.Unsupported`, never a string that reads something else: an
+ordinal suffix (`23rd`) in any dialect, an ISO week date outside strftime, a
+fraction past microseconds or a zone name other than UTC or GMT in strftime.
+`tools/format_check.sh` parses every example in the format table with the
+string each dialect gets, in Python, Go and Java, and checks they read what
+dateparsa read.
+
 ### Natural language
 
 ```zig
@@ -313,8 +338,9 @@ It is the same library and keeps the same promises: nothing allocates, every
 struct is yours, and a zeroed `dateparsa_options` is the default. Strings go in
 as pointer and length; the labels and messages that come back are static and
 not NUL-terminated. `dateparsa_parser` is the column cache,
-`dateparsa_column` settles a column's order, and `dateparsa_layout`, the
-reusable format, copies like any struct. What a C
+`dateparsa_column` settles a column's order, `dateparsa_format_string` spells a
+layout for strftime, Go or Java, and `dateparsa_layout`, the reusable format,
+copies like any struct. What a C
 caller passes in is checked rather than trusted: a base time that is no date,
 an offset of a day or more, a locale bit the build left out, a `NULL` where a
 pointer is needed, or a layout the library never filled in is
@@ -379,9 +405,10 @@ Each is deliberate.
 |---|---|
 | `zig build test` | The full suite, including every row of the Go library's golden corpus (`testdata/golden.txt`, 1,377 inputs) and every example in this README, format table included |
 | `tools/oracle.sh` | Runs the Go library and this port side by side: 33,186 public-API answers under nine option sets, including a first row's layout reused on 3,522 other rows, and 124,068 natural-language answers across every locale. All identical. |
-| `tools/fuzz.sh` | Zig's fuzzer on eight properties: any bytes parse without tripping a safety check, to a time that round-trips through RFC 3339 and that the result's layout re-reads; a layout reused on another input refuses it or agrees with detection; a primed `Parser` agrees with `parseWith`; the fast path agrees with the interpreter; any JSON `FlexTime` reads is a valid time whose RFC 3339 reads back to it; `FlexTime`'s caches agree with cold ones; each field order a column's values are said to fit is the order their preferences read, and a column's options read every value that fits its order in it; and the C API refuses exactly the options it must, whatever a C struct holds, and otherwise answers as `parseWith` does. `zig build test` replays their seeds: the Go library's fuzz seeds and crashers, the golden corpus and every format's example |
+| `tools/fuzz.sh` | Zig's fuzzer on eight properties: any bytes parse without tripping a safety check, to a time that round-trips through RFC 3339 and that the result's layout re-reads, and whose format string in every dialect is spelled or refused; a layout reused on another input refuses it or agrees with detection; a primed `Parser` agrees with `parseWith`; the fast path agrees with the interpreter; any JSON `FlexTime` reads is a valid time whose RFC 3339 reads back to it; `FlexTime`'s caches agree with cold ones; each field order a column's values are said to fit is the order their preferences read, and a column's options read every value that fits its order in it; and the C API refuses exactly the options it must, whatever a C struct holds, and otherwise answers as `parseWith` does. `zig build test` replays their seeds: the Go library's fuzz seeds and crashers, the golden corpus and every format's example |
 | CI | Every pull request runs formatting, zigvet and `zig build test` on Linux, macOS and Windows, in every optimize mode, and with only `en` or only `fr,de` compiled in. The fuzzer runs 50K times a target after each merge and 10M a night, from a corpus kept between runs; a find opens an issue |
 | C API | `zig build test` also checks `include/dateparsa.h` against the exports field by field, calls through the header on every golden row under five option sets and down the corpus with a parser, runs `test/c_api.c` against the static library on every platform CI covers, and compiles the header as C++ |
+| `tools/format_check.sh` | Every example in the format table, and variants of it, parsed with the format string each dialect gets, by Python's `strptime`, Go's `time.Parse` and Java's `DateTimeFormatter`: 155 format strings, each reading the fields it sets as dateparsa does |
 | Unicode tables | Lowercasing and word boundaries match Go's `unicode` package on all 1,114,112 code points |
 | Deliberate breaks | Each feature's tests were run against seeded bugs, and every bug that could change an answer was caught |
 
@@ -403,6 +430,7 @@ zig build vet           # zigvet, github.com/kmoneil/zigvet
 zig build docs          # API documentation into zig-out/docs
 zig build lib           # libdateparsa and its C header into zig-out (-Dlinkage=dynamic)
 tools/dist.sh           # every release platform's library, archived into zig-out/dist
+tools/format_check.sh   # format strings, parsed by Python, Go and Java (needs all three)
 zig build fuzz          # replay the fuzz seeds alone
 zig build bench         # the benchmarks (-- -bench NAME -count N -benchtime MS)
 tools/bench.sh          # against the Go library, on this machine (needs go)

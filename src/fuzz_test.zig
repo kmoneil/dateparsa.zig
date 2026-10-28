@@ -3,8 +3,9 @@
 //! Each holds a property, not only "does not crash":
 //!
 //! - parseWith on any bytes trips no safety check and answers a valid time;
-//!   its layout re-reads the input it came from to that time, and the time
-//!   written as RFC 3339 parses back to itself.
+//!   its layout re-reads the input it came from to that time, the time
+//!   written as RFC 3339 parses back to itself, and the layout's format
+//!   string in every dialect is spelled or refused, never misaligned.
 //! - A layout detected from one input either refuses another or agrees with
 //!   detecting that input afresh: the property Parser depends on.
 //! - A Parser primed with one input agrees with parseWith on the next.
@@ -109,6 +110,16 @@ fn parseOne(_: void, smith: *Smith) anyerror!void {
     try expect(@abs(r.time.offset_seconds) < 24 * 3600);
     if (r.layout.source == .program) try expectEqual(r.time, try r.layout.parse(s));
     try roundTrip(r.time);
+    // Its format string, in every dialect, is spelled or refused: the value
+    // a layout came from always lines up with its fields.
+    for ([_]dp.Layout.Dialect{ .strftime, .go, .java }) |d| {
+        var fmt_buf: [1024]u8 = undefined;
+        var w: std.Io.Writer = .fixed(&fmt_buf);
+        r.layout.formatString(d, s, &w) catch |err| switch (err) {
+            error.Unsupported => {},
+            else => return err,
+        };
+    }
 }
 
 fn reuseOne(_: void, smith: *Smith) anyerror!void {

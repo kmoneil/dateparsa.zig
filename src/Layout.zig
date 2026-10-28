@@ -24,6 +24,7 @@ const compile = @import("compile.zig");
 const detect = @import("detect.zig");
 const formats = @import("formats.zig");
 const signature = @import("signature.zig");
+const format_string = @import("format_string.zig");
 
 const Layout = @This();
 
@@ -95,6 +96,19 @@ pub fn dateOrder(l: *const Layout) ?Order {
     if (std.mem.eql(u8, &roles, "DMY")) return .day_first;
     if (std.mem.eql(u8, &roles, "YMD")) return .year_first;
     return null;
+}
+
+/// The tools formatString spells a format for.
+pub const Dialect = format_string.Dialect;
+
+/// The format this layout reads, spelled as another tool's format string,
+/// into w: "%d/%m/%Y %H:%M" for strftime, "02/01/2006 15:04" for Go,
+/// "dd/MM/yyyy HH:mm" for Java. detected_from is the value the layout was
+/// detected from: a layout keeps no input bytes, and the string spells that
+/// value's separators and words. error.Unsupported when the dialect cannot
+/// spell a field, such as an ordinal suffix ("23rd").
+pub fn formatString(l: *const Layout, dialect: Dialect, detected_from: []const u8, w: *std.Io.Writer) format_string.Error!void {
+    return format_string.write(l, dialect, detected_from, w);
 }
 
 /// Whether the rest of a column can be parsed with this layout: false for
