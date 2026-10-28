@@ -1,0 +1,165 @@
+# Coverage-guided fuzzing of the targets in src/fuzz_test.zig, kept off the
+# pull-request path on purpose.
+#
+# The regression half already runs on every pull request: `zig build test`
+# in ci.yml replays every target's seeds, deterministically. What is left is
+# discovery, and discovery scales with cumulative CPU time against a corpus
+# that persists, not with the length of any one run. So this runs briefly
+# after each merge to main, against the code that just changed, and at
+# length every night, each run starting from the corpus the last one kept.
+#
+# A find opens an issue, or comments on the one already open, and keeps the
+# input. It blocks nothing: a find is usually about code the last pull
+# request never touched, and a red on somebody's unrelated merge teaches
+# people to press re-run.
+name: fuzz
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    # 06:41 UTC. Off the hour, because every cron in the world runs on it,
+    # and a queued runner is a shorter fuzz run.
+    - cron: "41 6 * * *"
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: Runs per fuzz target, as zig build --fuzz takes it (20K, 2M)
+        required: false
+        default: 5M
+
+permissions:
+  contents: read
+
+# One run at a time, so two never race to save the corpus. A run that finds
+# one in progress waits for it rather than cancelling it.
+concurrency:
+  group: fuzz
+  cancel-in-progress: false
+
+jobs:
+  fuzz:
+    name: fuzz
+    runs-on: ubuntu-latest
+    # `--fuzz=N` runs each of the seven targets N times. On an M-series Mac,
+    # 2M each took 12 minutes (2026-10-28), so the nightly 5M is about 30
+    # there and is expected to take two or three times that on a runner.
+    # Re-size it from the first nights' timings.
+    timeout-minutes: 180
+    # actions: read finds and downloads the corpus an earlier run kept.
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+
+      # The corpus is kept as an artifact rather than in the cache, which
+      # evicts the least recently used entry first: the corpus, read once a
+      # night. setup-zig points the Zig cache at
+      # .zig-cache in the workspace, and the fuzzer keeps one directory per
+      # target under .zig-cache/f, named by a hash of the test's name, so a
+      # corpus outlives code changes. The newest from this branch or main is
+      # the one restored.
+      - name: Restore the fuzz corpus
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          set -o pipefail
+          id=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=fuzz-corpus&per_page=100" --jq '
+            [.artifacts[] | select(.expired | not)
+              | select(.workflow_run.head_branch == env.BRANCH or .workflow_run.head_branch == "main")]
+            | sort_by(.created_at) | last | .id // empty')
+          if [ -z "$id" ]; then
+            echo "No fuzz-corpus artifact yet: this run starts from the seeds alone"
+            exit 0
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$id/zip" > "$RUNNER_TEMP/corpus.zip"
+          mkdir -p .zig-cache/f
+          unzip -q -o "$RUNNER_TEMP/corpus.zip" -d .zig-cache/f
+          echo "Restored artifact $id: $(find .zig-cache/f -type f | wc -l) files"
+
+      # tools/fuzz.sh fails the step on a find, which `zig build --fuzz` alone
+      # does not (it exits 0), and prints the failing input in hex.
+      - name: Coverage-guided fuzzing
+        env:
+          LIMIT: ${{ inputs.limit || (github.event_name == 'push' && '50K' || '5M') }}
+        run: |
+          set -o pipefail
+          tools/fuzz.sh "$LIMIT" 2>&1 | tee fuzz.log
+
+      # 30 days, so a corpus outlasts a few nights without a run. Only the
+      # targets' directories: in<N> is the fuzzer's input buffer and crash
+      # its (empty) record of a failing one.
+      - name: Save the fuzz corpus
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fuzz-corpus
+          path: |
+            .zig-cache/f
+            !.zig-cache/f/in*
+            !.zig-cache/f/crash
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 30
+
+      # The input buffers hold what each target was running when it failed:
+      # a 20-byte header whose last u32 is the length, then the input. The
+      # log has the same inputs decoded by tools/fuzz.sh.
+      - name: Keep the failing input
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fuzz-failure
+          path: |
+            fuzz.log
+            .zig-cache/f/in*
+          include-hidden-files: true
+          if-no-files-found: ignore
+
+  report:
+    name: report a find
+    needs: fuzz
+    if: failure()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      # One open issue at a time: a target that keeps failing comments on it
+      # every run rather than opening one a night.
+      - name: open or update the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SHA: ${{ github.sha }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          open=$(gh issue list --repo "$GITHUB_REPOSITORY" --label fuzz --state open \
+            --json number --jq '.[0].number // empty')
+          if [ -n "$open" ]; then
+            gh issue comment "$open" --repo "$GITHUB_REPOSITORY" \
+              --body "Fuzzing failed again ($EVENT) on $SHA: $RUN"
+            exit 0
+          fi
+          gh issue create --repo "$GITHUB_REPOSITORY" \
+            --title "fuzz: a fuzz target found a failing input" \
+            --label fuzz \
+            --body "$(printf '%s\n' \
+              "Fuzzing ($EVENT) failed on $SHA." \
+              "" \
+              "Run: $RUN" \
+              "" \
+              "The fuzz step's log prints the failing input in hex: each string the" \
+              "target's Smith read is a four-byte little-endian length and its bytes," \
+              "then the options byte as eight. The run's fuzz-failure artifact keeps" \
+              "the log and the fuzzer's input buffers." \
+              "" \
+              "Add the input's strings to the seeds in src/fuzz_test.zig first, so" \
+              "\`zig build test\` reproduces it, then fix what it found." \
+              "" \
+              "If the job ran out of time or failed before fuzzing, there is no input:" \
+              "the log says which.")"

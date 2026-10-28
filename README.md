@@ -8,6 +8,7 @@ CSV imports, log lines, third-party APIs, user-typed strings: dateparsa works ou
 the format, parses the value, and hands you a compiled layout that reads the
 rest of the column with no detection and no allocation.
 
+[![CI](https://github.com/kmoneil/dateparsa.zig/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/kmoneil/dateparsa.zig/actions/workflows/ci.yml)
 [![Zig 0.17.0](https://img.shields.io/badge/Zig-0.17.0-f7a41d?logo=zig&logoColor=white)](https://ziglang.org/download/)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![Allocations: none](https://img.shields.io/badge/allocations-none-2ea44f)](#design)
@@ -313,6 +314,7 @@ Each is deliberate.
 | `zig build test` | The full suite, including every row of the Go library's golden corpus (`testdata/golden.txt`, 1,377 inputs) and every example in this README, format table included |
 | `tools/oracle.sh` | Runs the Go library and this port side by side: 33,186 public-API answers under nine option sets, including a first row's layout reused on 3,522 other rows, and 124,068 natural-language answers across every locale. All identical. |
 | `tools/fuzz.sh` | Zig's fuzzer on six properties: any bytes parse without tripping a safety check, to a time that round-trips through RFC 3339 and that the result's layout re-reads; a layout reused on another input refuses it or agrees with detection; a primed `Parser` agrees with `parseWith`; the fast path agrees with the interpreter; any JSON `FlexTime` reads is a valid time whose RFC 3339 reads back to it; and `FlexTime`'s caches agree with cold ones. `zig build test` replays their seeds: the Go library's fuzz seeds and crashers, the golden corpus and every format's example |
+| CI | Every pull request runs formatting, zigvet and `zig build test` on Linux, macOS and Windows, in every optimize mode, and with only `en` or only `fr,de` compiled in. The fuzzer runs 50K times a target after each merge and 5M a night, from a corpus kept between runs; a find opens an issue |
 | Unicode tables | Lowercasing and word boundaries match Go's `unicode` package on all 1,114,112 code points |
 | Deliberate breaks | Each feature's tests were run against seeded bugs, and every bug that could change an answer was caught |
 

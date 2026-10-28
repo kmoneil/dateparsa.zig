@@ -1,0 +1,15 @@
+# Keeps the pinned GitHub Actions current. The workflows pin each action to a
+# commit SHA with its version in a trailing comment, the form Dependabot reads
+# and rewrites. dateparsa has no other dependencies.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    # Grouped: an action bump changes what CI does, and four pull requests
+    # for four actions, each needing a branch current with main, means
+    # merging one makes the rest out of date.
+    groups:
+      actions:
+        patterns: ["*"]

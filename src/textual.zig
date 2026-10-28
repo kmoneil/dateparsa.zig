@@ -1057,5 +1057,7 @@ test "the word matcher finds what scanning finds" {
             checked += 1;
         };
     }
-    try std.testing.expect(checked > 100_000);
+    // At least the golden corpus against English, however few locales the
+    // build compiled in.
+    try std.testing.expect(checked > 1000 * english.len);
 }

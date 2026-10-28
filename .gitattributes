@@ -1,0 +1,3 @@
+# Tests compare text byte for byte and read testdata/golden.txt line by line;
+# keep LF on every platform, Windows checkouts included.
+* text=auto eol=lf

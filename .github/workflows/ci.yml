@@ -1,0 +1,112 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# The workflow only reads the repository.
+permissions:
+  contents: read
+
+# A newer push to a pull request supersedes its older runs.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Every job name here is a required status check in the `main` ruleset;
+# renaming one means updating the ruleset in the same change.
+#
+# setup-zig is given no version: it installs build.zig.zon's
+# minimum_zig_version, so the pin lives in one place.
+jobs:
+  check:
+    name: format, lint, docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+      - name: zig fmt
+        run: zig build fmt-check
+      # zigvet is a released binary, not a package (see build.zig). Pinned
+      # with its checksum, so a new zigvet release cannot fail an unchanged
+      # commit; bump the version and the sum together.
+      - name: install zigvet
+        env:
+          ZIGVET_VERSION: v0.12.0
+          ZIGVET_SHA256: de88ffac9ac5081dd75202a632a4ab4038b2f8ff03881dcb266245f5636031f8
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/zigvet" \
+            "https://github.com/kmoneil/zigvet/releases/download/${ZIGVET_VERSION}/zigvet-linux-amd64"
+          echo "${ZIGVET_SHA256}  $RUNNER_TEMP/zigvet" | sha256sum --check --strict
+          chmod +x "$RUNNER_TEMP/zigvet"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+      - name: zigvet over src, tools, bench and build.zig
+        run: zig build vet
+      - name: API documentation
+        run: zig build docs
+      # Nothing else builds the benchmark program, so it would rot unseen
+      # until the next tools/bench.sh.
+      - name: the benchmark compiles
+        run: zig build bench-install
+
+  # The unit tests, the golden corpus, the README's examples and every fuzz
+  # target's seeds, replayed.
+  test:
+    name: test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+      - name: zig build test
+        run: zig build test --summary all
+
+  # A package that depends on this one builds it in its own mode, so the
+  # tests run in every release mode too, with the safety checks off in two.
+  release-modes:
+    name: release (${{ matrix.optimize }})
+    strategy:
+      fail-fast: false
+      matrix:
+        optimize: [ReleaseSafe, ReleaseFast, ReleaseSmall]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          # One cache per mode, so the legs do not race to save one key.
+          cache-key: ${{ matrix.optimize }}
+      - name: zig build test
+        env:
+          OPTIMIZE: ${{ matrix.optimize }}
+        run: zig build test "-Doptimize=$OPTIMIZE" --summary all
+
+  # -Dlocales trims the compiled-in locales. The tests skip what a trimmed
+  # build cannot read, and must still pass: English alone, and two of the
+  # twenty.
+  locales:
+    name: locales (${{ matrix.locales }})
+    strategy:
+      fail-fast: false
+      matrix:
+        locales: [en, "fr,de"]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          # By index: a cache key cannot hold the comma in "fr,de".
+          cache-key: locales-${{ strategy.job-index }}
+      - name: zig build test
+        env:
+          LOCALES: ${{ matrix.locales }}
+        run: zig build test "-Dlocales=$LOCALES" --summary all
