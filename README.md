@@ -53,7 +53,7 @@ does something differently, it is on purpose and [listed below](#differences-fro
 ## Install
 
 ```sh
-zig fetch --save git+https://github.com/kmoneil/dateparsa.zig
+zig fetch --save git+https://github.com/kmoneil/dateparsa.zig#v0.1.0
 ```
 
 Then in `build.zig`:
@@ -67,7 +67,8 @@ const dateparsa = b.dependency("dateparsa", .{
 exe.root_module.addImport("dateparsa", dateparsa.module("dateparsa"));
 ```
 
-Requires Zig 0.17.0.
+Requires Zig 0.17.0. What changed in each release is in
+[CHANGELOG.md](CHANGELOG.md).
 
 ## How it works
 
