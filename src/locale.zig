@@ -66,6 +66,15 @@ const available = .{
     .{ "zh", @import("locale/zh.zig") },
 };
 
+/// The tag of every locale there is, compiled in or not, in tag order: what
+/// the C API numbers its locale bits by, so a bit means the same locale in
+/// every build.
+pub const every_tag: [available.len][]const u8 = blk: {
+    var tags: [available.len][]const u8 = undefined;
+    for (available, 0..) |a, i| tags[i] = a[0];
+    break :blk tags;
+};
+
 /// Whether -Dlocales asks for tag. A tag the option names that no locale
 /// has is a compile error, not a silently smaller build.
 fn wanted(comptime tag: []const u8) bool {

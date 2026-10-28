@@ -257,6 +257,38 @@ values from a database row or anything else already typed, and
 `FlexTime.fromValueWith(&parser, value)` reads strings with your `Options`,
 strict mode included.
 
+### From C and other languages
+
+`zig build lib` builds `libdateparsa` (static, or shared with
+`-Dlinkage=dynamic`) into `zig-out/lib` and its header,
+[`include/dateparsa.h`](include/dateparsa.h), into `zig-out/include`. Anything
+that can call C can use it: Python through `ctypes`, Rust, Go through cgo,
+Swift, C#.
+
+```c
+#include "dateparsa.h"
+
+dateparsa_result r;
+if (dateparsa_parse("2024-03-15 10:30:00", 19, NULL, &r) == DATEPARSA_OK) {
+    // r.time.year 2024, r.unix_seconds 1710498600, "%.*s" of r.label: SQL_DATETIME
+    dateparsa_datetime next;
+    if (r.reusable)
+        dateparsa_layout_parse(&r.layout, "2024-04-20 08:00:00", 19, &next); // no detection
+}
+```
+
+It is the same library and keeps the same promises: nothing allocates, every
+struct is yours, and a zeroed `dateparsa_options` is the default. Strings go in
+as pointer and length; the labels and messages that come back are static and
+not NUL-terminated. `dateparsa_parser` is the column cache, and
+`dateparsa_layout`, the reusable format, copies like any struct. What a C
+caller passes in is checked rather than trusted: a base time that is no date,
+an offset of a day or more, a locale bit the build left out, a `NULL` where a
+pointer is needed, or a layout the library never filled in is
+`DATEPARSA_INVALID_ARGUMENT`, and `diagnostics.message` says which. Build with
+`-Doptimize=ReleaseFast` for speed and `-Dtarget` for the oldest system you ship
+to, such as `-Dtarget=aarch64-macos.13.0`.
+
 ## Formats
 
 | Family | Examples |
@@ -314,8 +346,9 @@ Each is deliberate.
 |---|---|
 | `zig build test` | The full suite, including every row of the Go library's golden corpus (`testdata/golden.txt`, 1,377 inputs) and every example in this README, format table included |
 | `tools/oracle.sh` | Runs the Go library and this port side by side: 33,186 public-API answers under nine option sets, including a first row's layout reused on 3,522 other rows, and 124,068 natural-language answers across every locale. All identical. |
-| `tools/fuzz.sh` | Zig's fuzzer on six properties: any bytes parse without tripping a safety check, to a time that round-trips through RFC 3339 and that the result's layout re-reads; a layout reused on another input refuses it or agrees with detection; a primed `Parser` agrees with `parseWith`; the fast path agrees with the interpreter; any JSON `FlexTime` reads is a valid time whose RFC 3339 reads back to it; and `FlexTime`'s caches agree with cold ones. `zig build test` replays their seeds: the Go library's fuzz seeds and crashers, the golden corpus and every format's example |
+| `tools/fuzz.sh` | Zig's fuzzer on seven properties: any bytes parse without tripping a safety check, to a time that round-trips through RFC 3339 and that the result's layout re-reads; a layout reused on another input refuses it or agrees with detection; a primed `Parser` agrees with `parseWith`; the fast path agrees with the interpreter; any JSON `FlexTime` reads is a valid time whose RFC 3339 reads back to it; `FlexTime`'s caches agree with cold ones; and the C API refuses exactly the options it must, whatever a C struct holds, and otherwise answers as `parseWith` does. `zig build test` replays their seeds: the Go library's fuzz seeds and crashers, the golden corpus and every format's example |
 | CI | Every pull request runs formatting, zigvet and `zig build test` on Linux, macOS and Windows, in every optimize mode, and with only `en` or only `fr,de` compiled in. The fuzzer runs 50K times a target after each merge and 10M a night, from a corpus kept between runs; a find opens an issue |
+| C API | `zig build test` also checks `include/dateparsa.h` against the exports field by field, calls through the header on every golden row under five option sets and down the corpus with a parser, runs `test/c_api.c` against the static library on every platform CI covers, and compiles the header as C++ |
 | Unicode tables | Lowercasing and word boundaries match Go's `unicode` package on all 1,114,112 code points |
 | Deliberate breaks | Each feature's tests were run against seeded bugs, and every bug that could change an answer was caught |
 
@@ -335,6 +368,7 @@ zig build test          # unit, golden corpus and README tests
 zig build fmt-check     # formatting
 zig build vet           # zigvet, github.com/kmoneil/zigvet
 zig build docs          # API documentation into zig-out/docs
+zig build lib           # libdateparsa and its C header into zig-out (-Dlinkage=dynamic)
 zig build fuzz          # replay the fuzz seeds alone
 zig build bench         # the benchmarks (-- -bench NAME -count N -benchtime MS)
 tools/bench.sh          # against the Go library, on this machine (needs go)

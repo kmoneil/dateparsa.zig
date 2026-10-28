@@ -10,7 +10,18 @@ the difference. Before 1.0 a breaking change is a minor bump.
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- A C interface, for every language that can call C. `zig build lib` builds
+  `libdateparsa`, static or with `-Dlinkage=dynamic` shared, and installs
+  `include/dateparsa.h`. It covers `parse`, `detect`, layout reuse, `Parser`,
+  strict mode and its diagnostics, locales by bit or by BCP 47 tag, RFC 3339
+  output and Unix seconds, and allocates nothing: every struct is the
+  caller's. What a C caller passes in is checked, not trusted: a base time
+  that is no date, an offset of a day or more, a base year more than
+  999,999,999 from year 0, a locale bit the build left out, a `NULL`, or a
+  layout or parser the library never filled in is
+  `DATEPARSA_INVALID_ARGUMENT`.
 
 ## [0.1.0] - 2026-10-28
 

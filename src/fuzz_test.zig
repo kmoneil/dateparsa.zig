@@ -13,6 +13,9 @@
 //!   writes reads back to that time.
 //! - What FlexTime reads, through std.json or fromValue, does not depend on
 //!   what it read before: its per-thread cache agrees with a cold one.
+//! - The C API refuses exactly the options it must, whatever a C caller's
+//!   struct holds, and otherwise answers as parseWith does; a base time at
+//!   the edge of what it allows trips no safety check inside.
 //!
 //! The seeds are the Go targets' seeds and committed crashers, every format's
 //! example and every row of the golden corpus.
@@ -21,6 +24,8 @@ const std = @import("std");
 const dp = @import("root.zig");
 const formats = @import("formats.zig");
 const golden = @import("golden_test.zig");
+const c = @import("c_api.zig");
+const locale = @import("locale.zig");
 
 const Allocator = std.mem.Allocator;
 const Smith = std.testing.Smith;
@@ -223,6 +228,137 @@ fn flexValueOne(_: void, smith: *Smith) anyerror!void {
     try expectEqual(cold, try warm);
 }
 
+/// The C options a params string asks for, as raw as a C caller's struct.
+/// Its bytes overwrite, from the front, a little-endian record whose
+/// default is the golden base time and every other default: a switches
+/// byte (1 no base time, 2 day first, 4 year first, 8 future, 16 strict),
+/// the base year, timezone_offset, the locale bits, the base offset, then
+/// the base month, day, hour, minute, second and nanosecond.
+const c_record_len = 26;
+
+const c_record_default: [c_record_len]u8 = blk: {
+    var r: [c_record_len]u8 = @splat(0);
+    std.mem.writeInt(i32, r[1..5], base.year, .little);
+    r[17] = base.month;
+    r[18] = base.day;
+    r[19] = base.hour;
+    break :blk r;
+};
+
+fn cOptions(params: []const u8, base_time: *c.DateTime) c.Options {
+    var r = c_record_default;
+    const n = @min(params.len, r.len);
+    @memcpy(r[0..n], params[0..n]);
+    base_time.* = .{
+        .year = std.mem.readInt(i32, r[1..5], .little),
+        .offset_seconds = std.mem.readInt(i32, r[13..17], .little),
+        .month = r[17],
+        .day = r[18],
+        .hour = r[19],
+        .minute = r[20],
+        .second = r[21],
+        .nanosecond = std.mem.readInt(u32, r[22..26], .little),
+    };
+    return .{
+        .base_time = if (r[0] & 1 == 0) base_time else null,
+        .timezone_offset = std.mem.readInt(i32, r[5..9], .little),
+        .locales = std.mem.readInt(u32, r[9..13], .little),
+        .prefer_day_first = r[0] & 2,
+        .prefer_year_first = r[0] & 4,
+        .prefer_future = r[0] & 8,
+        .strict = r[0] & 16,
+    };
+}
+
+/// What the C API must make of o, worked out apart from src/c_api.zig: the
+/// Zig options, or null where it must refuse.
+fn cExpected(o: *const c.Options) ?dp.Options {
+    var opts: dp.Options = .{
+        .timezone_offset = o.timezone_offset,
+        .prefer_day_first = o.prefer_day_first != 0,
+        .prefer_year_first = o.prefer_year_first != 0,
+        .prefer_future = o.prefer_future != 0,
+        .strict = o.strict != 0,
+    };
+    if (o.base_time) |b| {
+        const t: dp.DateTime = .{
+            .year = b.year,
+            .month = b.month,
+            .day = b.day,
+            .hour = b.hour,
+            .minute = b.minute,
+            .second = b.second,
+            .nanosecond = b.nanosecond,
+            .offset_seconds = b.offset_seconds,
+        };
+        if (!t.isValid() or @abs(t.offset_seconds) >= 86_400 or @abs(t.year) > 999_999_999) return null;
+        opts.base_time = t;
+    }
+    if (@abs(o.timezone_offset) >= 86_400) return null;
+    const Backing = @typeInfo(dp.LocaleSet).@"struct".backing_integer.?;
+    var set: Backing = 0;
+    for (0..32) |i| {
+        if ((o.locales >> @intCast(i)) & 1 == 0) continue;
+        if (i >= locale.every_tag.len) return null;
+        set |= @bitCast(dp.localeSet(locale.every_tag[i]) orelse return null);
+    }
+    opts.locales = @bitCast(set);
+    return opts;
+}
+
+fn cOne(_: void, smith: *Smith) anyerror!void {
+    var buf: [max_input]u8 = undefined;
+    var params_buf: [max_input]u8 = undefined;
+    const s = input(smith, &buf);
+    var base_time: c.DateTime = undefined;
+    var o = cOptions(input(smith, &params_buf), &base_time);
+    var diag: c.Diagnostics = undefined;
+    o.diagnostics = &diag;
+    errdefer std.debug.print("input \"{f}\"\nC options {any}\nbase time {any}\n", .{ std.zig.fmtString(s), o, base_time });
+
+    var r: c.Result = undefined;
+    const got = c.dateparsa_parse(s.ptr, s.len, &o, &r);
+    const opts = cExpected(&o) orelse {
+        try expectEqual(c.Status.invalid_argument, got);
+        try expect(diag.message_len > 0);
+        return;
+    };
+    const want = dp.parseWith(s, opts) catch |err| {
+        try expectEqual(@as(c.Status, switch (err) {
+            error.NoMatch => .no_match,
+            error.Ambiguous => .ambiguous,
+            error.NoBaseTime => .no_base_time,
+        }), got);
+        return;
+    };
+    try expectEqual(c.Status.ok, got);
+    const t = want.time;
+    try expectEqual(c.DateTime{
+        .year = t.year,
+        .month = t.month,
+        .day = t.day,
+        .hour = t.hour,
+        .minute = t.minute,
+        .second = t.second,
+        .nanosecond = t.nanosecond,
+        .offset_seconds = t.offset_seconds,
+    }, r.time);
+    try expectEqual(t.toEpoch().seconds, r.unix_seconds);
+    try expectEqual(want.ambiguous, r.ambiguous);
+    try std.testing.expectEqualStrings(want.layout.label, r.label[0..r.label_len]);
+    if (want.layout.source == .program) {
+        var again: c.DateTime = undefined;
+        try expectEqual(c.Status.ok, c.dateparsa_layout_parse(&r.layout, s.ptr, s.len, &again));
+        try expectEqual(r.time, again);
+    }
+    // What a result holds can be handed back in.
+    var text: [c.rfc3339_max]u8 = undefined;
+    var unix: i64 = 0;
+    try expectEqual(c.Status.ok, c.dateparsa_format_rfc3339(&r.time, &text, text.len, null));
+    try expectEqual(c.Status.ok, c.dateparsa_to_unix(&r.time, &unix));
+    try expectEqual(r.unix_seconds, unix);
+}
+
 /// Go's FuzzParse and FuzzDetect seeds and committed crashers, and inputs
 /// past the length bounds.
 const singles = [_][]const u8{
@@ -415,6 +551,50 @@ fn jsonSeeds(arena: Allocator) ![]const []const u8 {
     return out.items;
 }
 
+/// A params string for cOptions: the switches byte, the base year, the
+/// timezone offset and the locale bits; the rest of the record stays the
+/// golden base time's.
+fn cParams(arena: Allocator, switches: u8, year: i32, tz: i32, locales: u32) ![]const u8 {
+    const out = try arena.alloc(u8, 13);
+    out[0] = switches;
+    std.mem.writeInt(i32, out[1..5], year, .little);
+    std.mem.writeInt(i32, out[5..9], tz, .little);
+    std.mem.writeInt(u32, out[9..13], locales, .little);
+    return out;
+}
+
+/// Every single seed with the default options, then inputs against the
+/// edges of the options the C API allows, and just past them.
+fn cSeeds(arena: Allocator) ![]const []const u8 {
+    var out: std.ArrayList([]const u8) = .empty;
+    for (singles) |s| try out.append(arena, try seed(arena, &.{s}));
+    for (formats.examples) |ex| try out.append(arena, try seed(arena, &.{ex[1]}));
+    const far = 999_999_999;
+    const fr = 1 << 6;
+    const edges = [_]struct { []const u8, u8, i32, i32, u32 }{
+        .{ "in 999999 years", 0, far, 0, 0 },
+        .{ "999999 years ago", 0, -far, 0, 0 },
+        .{ "999999 months ago", 0, -far, 0, 0 },
+        .{ "in 999999 weeks", 0, far, 0, 0 },
+        .{ "next friday", 8, far, 0, 0 },
+        .{ "last monday", 0, -far, 0, 0 },
+        .{ "end of month", 0, far, 0, 0 },
+        .{ "beginning of year", 0, -far, 0, 0 },
+        .{ "December 23rd", 0, far, 0, 0 },
+        .{ "10:30", 0, -far, 0, 0 },
+        .{ "today", 0, far + 1, 0, 0 },
+        .{ "today", 0, -far - 1, 0, 0 },
+        .{ "2024-03-15 10:30:00", 0, 2024, 86_399, 0 },
+        .{ "2024-03-15 10:30:00", 0, 2024, -86_400, 0 },
+        .{ "15 mars 2024", 0, 2024, 0, fr },
+        .{ "15 mars 2024", 0, 2024, 0, 1 << 20 },
+        .{ "01/02/03", 16, 2024, 0, 0 },
+        .{ "3 days ago", 1, 2024, 0, 0 },
+    };
+    for (edges) |e| try out.append(arena, try seed(arena, &.{ e[0], try cParams(arena, e[1], e[2], e[3], e[4]) }));
+    return out.items;
+}
+
 /// The JSON pairs, then every pair as two strings.
 fn jsonPairSeeds(arena: Allocator) ![]const []const u8 {
     var out: std.ArrayList([]const u8) = .empty;
@@ -463,6 +643,12 @@ test "fuzz: FlexTime's fromValue cache agrees with a cold one" {
     var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
     defer arena.deinit();
     try std.testing.fuzz({}, flexValueOne, .{ .corpus = try pairSeeds(arena.allocator()) });
+}
+
+test "fuzz: the C API refuses what it must and otherwise answers as parseWith" {
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    try std.testing.fuzz({}, cOne, .{ .corpus = try cSeeds(arena.allocator()) });
 }
 
 test seed {
