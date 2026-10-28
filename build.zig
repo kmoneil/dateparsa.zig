@@ -41,10 +41,14 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_mod_tests.step);
 
     // The fuzz targets alone. `zig build fuzz` replays their seeds, and
-    // tools/fuzz.sh runs them under the fuzzer with --fuzz.
+    // tools/fuzz.sh runs them under the fuzzer with --fuzz. Always the LLVM
+    // backend: the self-hosted x86_64 one, the Debug default there, emits no
+    // coverage instrumentation, and the fuzzer refuses to run blind
+    // ("corrupted coverage file ...: pcs_len was zero").
     const fuzz_tests = b.addTest(.{
         .root_module = test_mod,
         .filters = &.{"fuzz:"},
+        .use_llvm = true,
     });
     const fuzz_step = b.step("fuzz", "Replay the fuzz seeds (tools/fuzz.sh to fuzz)");
     fuzz_step.dependOn(&b.addRunArtifact(fuzz_tests).step);

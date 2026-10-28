@@ -19,9 +19,12 @@ cd "$(dirname "$0")/.."
 log=$(mktemp)
 trap 'rm -f "$log" "$log.status"' EXIT
 
+# The status is caught rather than left to set -e, which would end the
+# group before it is written.
 {
-    zig build fuzz --fuzz="$limit" 2>&1
-    echo $? >"$log.status"
+    status=0
+    zig build fuzz --fuzz="$limit" 2>&1 || status=$?
+    echo "$status" >"$log.status"
 } | tee "$log"
 
 status=$(cat "$log.status")
