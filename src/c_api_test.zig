@@ -61,6 +61,10 @@ test "the header lays out every type as the library does" {
         try expectEqual(@backingInt(o), @field(h, "DATEPARSA_ORDER_" ++ upper(@tagName(o))));
     }
     try expectEqual(c.rfc3339_max, h.DATEPARSA_RFC3339_MAX);
+    try expectEqual(c.format_string_max, h.DATEPARSA_FORMAT_STRING_MAX);
+    inline for (comptime std.enums.values(dp.Layout.Dialect)) |d| {
+        try expectEqual(@backingInt(d), @field(h, "DATEPARSA_DIALECT_" ++ upper(@tagName(d))));
+    }
     inline for (comptime std.enums.values(c.Status)) |v| {
         try expectEqual(@backingInt(v), @field(h, "DATEPARSA_" ++ upper(@tagName(v))));
     }
@@ -227,6 +231,49 @@ test "through the header, a column reports what Column does" {
     try expectEqual(status(h.DATEPARSA_INVALID_ARGUMENT), status(h.dateparsa_column_init(null, null)));
     const bad: h.dateparsa_options = .{ .timezone_offset = 86_400 };
     try expectEqual(status(h.DATEPARSA_INVALID_ARGUMENT), status(h.dateparsa_column_init(&zeroed, &bad)));
+}
+
+test "through the header, format strings are the ones Layout gives, on every golden row" {
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    const inputs = try goldenInputs(arena.allocator());
+    var spelled: usize = 0;
+    for (inputs) |s| {
+        var r: h.dateparsa_result = undefined;
+        const o: h.dateparsa_options = .{ .base_time = &golden_base };
+        if (h.dateparsa_parse(s.ptr, s.len, &o, &r) != h.DATEPARSA_OK) continue;
+        const want_layout = (try dp.parseWith(s, .{ .base_time = toZig(golden_base) })).layout;
+        inline for (comptime std.enums.values(dp.Layout.Dialect)) |d| {
+            errdefer std.debug.print("\"{f}\" {t}\n", .{ std.zig.fmtString(s), d });
+            var buf: [h.DATEPARSA_FORMAT_STRING_MAX]u8 = undefined;
+            var n: usize = 0;
+            const got = status(h.dateparsa_format_string(&r.layout, @backingInt(d), s.ptr, s.len, &buf, buf.len, &n));
+            var want_buf: [1024]u8 = undefined;
+            var w: std.Io.Writer = .fixed(&want_buf);
+            if (want_layout.formatString(d, s, &w)) |_| {
+                try expectEqual(status(h.DATEPARSA_OK), got);
+                try expectEqualStrings(w.buffered(), buf[0..n]);
+                try expectEqual(0, buf[n]);
+                spelled += 1;
+            } else |err| try expectEqual(status(switch (err) {
+                error.Unsupported => h.DATEPARSA_UNSUPPORTED,
+                else => h.DATEPARSA_INVALID_ARGUMENT,
+            }), got);
+        }
+    }
+    try expect(spelled > 1000);
+
+    var r: h.dateparsa_result = undefined;
+    try expectEqual(status(h.DATEPARSA_OK), status(h.dateparsa_parse("13/02/2024", 10, null, &r)));
+    var buf: [16]u8 = undefined;
+    var n: usize = 0;
+    try expectEqual(status(h.DATEPARSA_OK), status(h.dateparsa_format_string(&r.layout, h.DATEPARSA_DIALECT_JAVA, "13/02/2024", 10, &buf, buf.len, &n)));
+    try expectEqualStrings("dd/MM/yyyy", buf[0..n]);
+    try expectEqual(status(h.DATEPARSA_BUFFER_TOO_SMALL), status(h.dateparsa_format_string(&r.layout, h.DATEPARSA_DIALECT_JAVA, "13/02/2024", 10, &buf, n, &n)));
+    try expectEqual(status(h.DATEPARSA_INVALID_ARGUMENT), status(h.dateparsa_format_string(&r.layout, 3, "13/02/2024", 10, &buf, buf.len, &n)));
+    try expectEqual(status(h.DATEPARSA_INVALID_ARGUMENT), status(h.dateparsa_format_string(&r.layout, 0, "2024-02-13", 10, &buf, buf.len, &n)));
+    var zeroed = std.mem.zeroes(h.dateparsa_layout);
+    try expectEqual(status(h.DATEPARSA_INVALID_ARGUMENT), status(h.dateparsa_format_string(&zeroed, 0, "13/02/2024", 10, &buf, buf.len, &n)));
 }
 
 test "what crosses in is checked, and a refusal says why" {

@@ -80,6 +80,25 @@ test "settle a column's order" {
     try expect(quiet.voted == 0 and quiet.order == null);
 }
 
+test "hand the format to another tool" {
+    const sample = "13/02/2024 10:30";
+    const r = try dateparsa.parse(sample);
+    var buf: [128]u8 = undefined;
+    var w: std.Io.Writer = .fixed(&buf);
+    try r.layout.formatString(.strftime, sample, &w);
+    try expectEqualStrings("%d/%m/%Y %H:%M", w.buffered());
+    w.end = 0;
+    try r.layout.formatString(.go, sample, &w);
+    try expectEqualStrings("02/01/2006 15:04", w.buffered());
+    w.end = 0;
+    try r.layout.formatString(.java, sample, &w);
+    try expectEqualStrings("dd/MM/yyyy HH:mm", w.buffered());
+
+    const base: dateparsa.DateTime = .{ .year = 2024, .month = 3, .day = 15 };
+    const ordinal = try dateparsa.parseWith("December 23rd", .{ .base_time = base });
+    try std.testing.expectError(error.Unsupported, ordinal.layout.formatString(.strftime, "December 23rd", &w));
+}
+
 test "natural language, against an explicit base time" {
     const base: dateparsa.DateTime = .{ .year = 2024, .month = 3, .day = 15, .hour = 12 };
 

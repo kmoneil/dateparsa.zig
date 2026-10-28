@@ -21,6 +21,7 @@ pub const Status = enum(c_int) {
     no_base_time = 3,
     invalid_argument = 4,
     buffer_too_small = 5,
+    unsupported = 6,
 };
 
 pub const DateTime = extern struct {
@@ -109,6 +110,11 @@ pub const Result = extern struct {
 /// The longest RFC 3339 form, its NUL included: an 11-character year,
 /// nanoseconds, and an offset.
 pub const rfc3339_max = 48;
+
+/// The longest format string, its NUL included. A program has at most 24
+/// instructions over at most 255 bytes: fields of at most 9 bytes, and text
+/// Java's quoting at most doubles, comes to under 800.
+pub const format_string_max = 1024;
 
 /// What a blob holds. The magic number tells a layout or parser the library
 /// filled in from a zeroed or stale one.
@@ -214,6 +220,39 @@ pub export fn dateparsa_layout_label(layout: ?*const LayoutBlob, len: ?*usize) [
     const label = if (loadLayout(layout)) |l| l.label else "";
     if (len) |n| n.* = label.len;
     return label.ptr;
+}
+
+pub export fn dateparsa_format_string(
+    layout: ?*const LayoutBlob,
+    dialect: c_int,
+    detected_from: ?[*]const u8,
+    from_len: usize,
+    buf: ?[*]u8,
+    cap: usize,
+    len: ?*usize,
+) Status {
+    const l = loadLayout(layout) orelse return .invalid_argument;
+    const d: dp.Layout.Dialect = switch (dialect) {
+        0 => .strftime,
+        1 => .go,
+        2 => .java,
+        else => return .invalid_argument,
+    };
+    const s = bytes(detected_from, from_len) orelse return .invalid_argument;
+    var scratch: [format_string_max - 1]u8 = undefined;
+    var w: std.Io.Writer = .fixed(&scratch);
+    l.formatString(d, s, &w) catch |err| return switch (err) {
+        error.Unsupported => .unsupported,
+        error.NotDetectedFrom => .invalid_argument,
+        error.WriteFailed => unreachable, // format_string_max holds the longest
+    };
+    const text = w.buffered();
+    if (cap < text.len + 1) return .buffer_too_small;
+    const dst = buf orelse return .invalid_argument;
+    @memcpy(dst[0..text.len], text);
+    dst[text.len] = 0;
+    if (len) |n| n.* = text.len;
+    return .ok;
 }
 
 pub export fn dateparsa_parser_init(parser: ?*ParserBlob, options: ?*const Options) Status {

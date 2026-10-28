@@ -41,7 +41,10 @@ typedef enum dateparsa_status {
      * The diagnostics message, when asked for, says which. */
     DATEPARSA_INVALID_ARGUMENT = 4,
     /* The output buffer is too small; nothing was written. */
-    DATEPARSA_BUFFER_TOO_SMALL = 5
+    DATEPARSA_BUFFER_TOO_SMALL = 5,
+    /* The format string dialect cannot spell one of the format's fields,
+     * such as an ordinal suffix ("23rd"). */
+    DATEPARSA_UNSUPPORTED = 6
 } dateparsa_status;
 
 /* What sort of time a result is. */
@@ -82,6 +85,19 @@ typedef enum dateparsa_kind {
 
 /* The longest dateparsa_format_rfc3339 writes, its NUL included. */
 #define DATEPARSA_RFC3339_MAX 48
+
+/* The tools dateparsa_format_string spells a format for. */
+typedef enum dateparsa_dialect {
+    /* strftime and strptime: C, Python, pandas, Ruby. "%Y-%m-%d %H:%M:%S" */
+    DATEPARSA_DIALECT_STRFTIME = 0,
+    /* Go's reference time. "2006-01-02 15:04:05" */
+    DATEPARSA_DIALECT_GO = 1,
+    /* Java's DateTimeFormatter, also Kotlin and Spark. "yyyy-MM-dd HH:mm:ss" */
+    DATEPARSA_DIALECT_JAVA = 2
+} dateparsa_dialect;
+
+/* The longest dateparsa_format_string writes, its NUL included. */
+#define DATEPARSA_FORMAT_STRING_MAX 1024
 
 /*
  * A civil date and time with a fixed UTC offset. One passed in must be a
@@ -266,6 +282,17 @@ bool dateparsa_layout_reusable(const dateparsa_layout *layout);
 
 /* layout's format name, its length into *len. */
 const char *dateparsa_layout_label(const dateparsa_layout *layout, size_t *len);
+
+/* layout's format as a dateparsa_dialect's format string, into buf with a
+ * terminating NUL and its length into *len (len may be NULL): "%d/%m/%Y
+ * %H:%M" for strftime. detected_from is the value layout was detected from:
+ * a layout keeps no input bytes, and the string spells that value's
+ * separators and words. DATEPARSA_UNSUPPORTED when the dialect cannot spell
+ * a field; DATEPARSA_INVALID_ARGUMENT when detected_from does not line up
+ * with the layout's fields. DATEPARSA_FORMAT_STRING_MAX always fits. */
+dateparsa_status dateparsa_format_string(const dateparsa_layout *layout, int dialect,
+                                         const char *detected_from, size_t from_len,
+                                         char *buf, size_t cap, size_t *len);
 
 /* A parser reading every value with options, whose diagnostics pointer it
  * keeps for every later call. */
