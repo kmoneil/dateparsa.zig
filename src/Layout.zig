@@ -60,6 +60,43 @@ pub fn fromDetection(r: *const detect.Result, config: compile.Config) error{TooM
     };
 }
 
+/// The order a numeric date writes its year, month and day in.
+pub const Order = enum {
+    /// "03/04/2024" is the 4th of March.
+    month_first,
+    /// "03/04/2024" is the 3rd of April.
+    day_first,
+    /// "24/03/04" is the 4th of March 2024.
+    year_first,
+};
+
+/// The order this layout reads a numeric date's fields in, or null when it
+/// reads no such date: a month name, a week or ordinal date, a time alone,
+/// a timestamp or natural language.
+pub fn dateOrder(l: *const Layout) ?Order {
+    if (l.source != .program) return null;
+    var roles: [3]u8 = undefined;
+    var n: usize = 0;
+    // The program reads its fields in input order.
+    for (l.program.insts[0..l.program.n]) |inst| {
+        const role: u8 = switch (inst.op) {
+            .year4, .year2 => 'Y',
+            .month2, .month1or2 => 'M',
+            .day2, .day1or2, .day_space_pad => 'D',
+            .month_name, .iso_week, .iso_week_day, .ordinal_day => return null,
+            else => continue,
+        };
+        if (n == roles.len) return null;
+        roles[n] = role;
+        n += 1;
+    }
+    if (n != roles.len) return null;
+    if (std.mem.eql(u8, &roles, "MDY")) return .month_first;
+    if (std.mem.eql(u8, &roles, "DMY")) return .day_first;
+    if (std.mem.eql(u8, &roles, "YMD")) return .year_first;
+    return null;
+}
+
 /// Whether the rest of a column can be parsed with this layout: false for
 /// the sentinels and for formats resolved per value.
 pub fn reusable(l: *const Layout) bool {

@@ -25,6 +25,9 @@ pub const DateTime = @import("DateTime.zig");
 pub const Layout = @import("Layout.zig");
 /// Parses a column, reusing the first value's layout where it can.
 pub const Parser = @import("Parser.zig");
+/// Settles which order a column writes its numeric dates in (month, day or
+/// year first) from all of its values, where one value cannot.
+pub const Column = @import("Column.zig");
 /// A date-time field for std.json: reads a string in any format, a Unix
 /// timestamp or null, and writes RFC 3339.
 pub const FlexTime = @import("FlexTime.zig");
@@ -125,6 +128,12 @@ pub fn localeSet(tag: []const u8) ?LocaleSet {
 /// s parsed with the default options: English, UTC, no base time.
 pub fn parse(s: []const u8) ParseError!Result {
     return parseWith(s, .{});
+}
+
+/// What a column's values say about the order its numeric dates are
+/// written in, and the options that read the column in that order.
+pub fn detectColumn(values: []const []const u8, opts: Options) Column.Report {
+    return Column.detect(values, opts);
 }
 
 /// The layout s is written in, without its time.
@@ -268,6 +277,7 @@ test {
     _ = @import("Layout.zig");
     _ = @import("formats.zig");
     _ = @import("Parser.zig");
+    _ = @import("Column.zig");
     _ = @import("FlexTime.zig");
     _ = @import("api_test.zig");
     _ = @import("golden_test.zig");

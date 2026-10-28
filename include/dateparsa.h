@@ -183,6 +183,55 @@ typedef union dateparsa_parser {
     void *align_ptr_;
 } dateparsa_parser;
 
+/* The order a numeric date writes its year, month and day in. */
+typedef enum dateparsa_order {
+    /* Nothing settled it, or the values contradict each other evenly. */
+    DATEPARSA_ORDER_NONE = -1,
+    /* "03/04/2024" is the 4th of March. */
+    DATEPARSA_ORDER_MONTH_FIRST = 0,
+    /* "03/04/2024" is the 3rd of April. */
+    DATEPARSA_ORDER_DAY_FIRST = 1,
+    /* "24/03/04" is the 4th of March 2024. */
+    DATEPARSA_ORDER_YEAR_FIRST = 2
+} dateparsa_order;
+
+/*
+ * Settles which order a column writes its numeric dates in, from all of its
+ * values where one cannot: one "13/02/2024" anywhere means day first for all
+ * of it. Opaque, like dateparsa_parser, and used by one thread at a time.
+ */
+#define DATEPARSA_COLUMN_SIZE 256
+typedef union dateparsa_column {
+    unsigned char bytes[DATEPARSA_COLUMN_SIZE];
+    uint64_t align_u64_;
+    void *align_ptr_;
+} dateparsa_column;
+
+/* What a column's values say about its order. */
+typedef struct dateparsa_column_report {
+    /* A dateparsa_order: the one order every value with a say fits, or, when
+     * none fits them all, the one the fewest contradict. */
+    int32_t order;
+    /* Bit (1 << order) for each order every value with a say fits; 0 when
+     * they contradict each other. */
+    uint32_t fits;
+    /* Set these in your options to read the column in order; both false
+     * when order is DATEPARSA_ORDER_NONE. */
+    bool prefer_day_first;
+    bool prefer_year_first;
+    /* Values added; values with a say (a format whose field order is
+     * decided per value); values that did not parse; values with a say that
+     * order does not fit. */
+    uint64_t values;
+    uint64_t voted;
+    uint64_t failed;
+    uint64_t conflicts;
+    /* The index of the value after which order was the only one left, and
+     * of the first value order does not fit; -1 for none. */
+    int64_t settled_by;
+    int64_t first_conflict;
+} dateparsa_column_report;
+
 /* The library's version, as in its build.zig.zon ("0.1.0"): static,
  * NUL-terminated. */
 const char *dateparsa_version(void);
@@ -232,6 +281,19 @@ dateparsa_status dateparsa_parser_parse(dateparsa_parser *parser,
 
 /* Forgets the cached layout. */
 void dateparsa_parser_reset(dateparsa_parser *parser);
+
+/* A column with no values yet, read with options (strict mode and the
+ * diagnostics pointer set aside). */
+dateparsa_status dateparsa_column_init(dateparsa_column *column,
+                                       const dateparsa_options *options);
+
+/* Notes what input says about the column's order. */
+dateparsa_status dateparsa_column_add(dateparsa_column *column,
+                                      const char *input, size_t len);
+
+/* What the values added so far say, into *out. */
+dateparsa_status dateparsa_column_summarize(const dateparsa_column *column,
+                                            dateparsa_column_report *out);
 
 /* time written as RFC 3339 ("2024-03-15T10:30:00.123Z") into buf, with a
  * terminating NUL, its length without the NUL into *len. A year outside

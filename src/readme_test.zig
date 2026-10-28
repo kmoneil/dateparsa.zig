@@ -57,6 +57,29 @@ test "ambiguity is reported, never hidden" {
     try expectEqualStrings("DD/MM/YYYY", diag.slice()[1].label);
 }
 
+test "settle a column's order" {
+    const column = [_][]const u8{ "01/02/2024", "05/06/2024", "13/02/2024", "03/04/2024" };
+    const report = dateparsa.detectColumn(&column, .{});
+    try expectEqual(dateparsa.Layout.Order.day_first, report.order.?);
+    try expectEqual(2, report.settled_by.?);
+    try expectEqual(0, report.conflicts);
+
+    var p = dateparsa.Parser.init(report.options);
+    try expect(report.options.prefer_day_first);
+    const first = try p.parse(column[0]);
+    try expectEqual(dateparsa.DateTime{ .year = 2024, .month = 2, .day = 1 }, first.time);
+
+    // The claims after the example.
+    const open = dateparsa.detectColumn(&.{ "01/02/2024", "03/04/2024" }, .{});
+    try expect(open.order == null and open.fits.month_first and open.fits.day_first and !open.fits.year_first);
+    const clash = dateparsa.detectColumn(&.{ "13/02/2024", "02/13/2024", "14/02/2024" }, .{});
+    try expect(clash.order.? == .day_first and clash.conflicts == 1 and clash.first_conflict.? == 1);
+    const yy = dateparsa.detectColumn(&.{ "13/02/03", "05/06/31" }, .{});
+    try expectEqual(dateparsa.Layout.Order.day_first, yy.order.?);
+    const quiet = dateparsa.detectColumn(&.{ "2024-03-15", "March 5, 2024", "1710504800" }, .{});
+    try expect(quiet.voted == 0 and quiet.order == null);
+}
+
 test "natural language, against an explicit base time" {
     const base: dateparsa.DateTime = .{ .year = 2024, .month = 3, .day = 15, .hour = 12 };
 

@@ -108,6 +108,32 @@ static void ambiguity(void) {
     CHECK(diag.interpretations[1].time.month == 2);
 }
 
+static void settle_a_column(void) {
+    const char *column[] = {"01/02/2024", "05/06/2024", "13/02/2024", "03/04/2024"};
+    dateparsa_column col;
+    dateparsa_column_report report;
+    CHECK(dateparsa_column_init(&col, NULL) == DATEPARSA_OK);
+    for (size_t i = 0; i < sizeof column / sizeof column[0]; i++)
+        CHECK(dateparsa_column_add(&col, column[i], strlen(column[i])) == DATEPARSA_OK);
+    CHECK(dateparsa_column_summarize(&col, &report) == DATEPARSA_OK);
+    CHECK(report.order == DATEPARSA_ORDER_DAY_FIRST && report.settled_by == 2);
+    CHECK(report.fits == (1u << DATEPARSA_ORDER_DAY_FIRST) && report.conflicts == 0);
+    CHECK(report.prefer_day_first && !report.prefer_year_first);
+    CHECK(report.values == 4 && report.voted == 4 && report.failed == 0);
+
+    /* Read with the report's preference, every value is day first. */
+    dateparsa_options o = {0};
+    dateparsa_result r;
+    o.prefer_day_first = report.prefer_day_first;
+    CHECK(dateparsa_parse(S("01/02/2024"), &o, &r) == DATEPARSA_OK && r.time.month == 2);
+
+    CHECK(dateparsa_column_init(&col, NULL) == DATEPARSA_OK);
+    CHECK(dateparsa_column_add(&col, S("01/02/2024")) == DATEPARSA_OK);
+    CHECK(dateparsa_column_summarize(&col, &report) == DATEPARSA_OK);
+    CHECK(report.order == DATEPARSA_ORDER_NONE && report.settled_by == -1);
+    CHECK(report.fits == ((1u << DATEPARSA_ORDER_MONTH_FIRST) | (1u << DATEPARSA_ORDER_DAY_FIRST)));
+}
+
 static void natural_language(void) {
     dateparsa_datetime base = {2024, 3, 15, 12, 0, 0, 0, 0};
     dateparsa_options o = {0};
@@ -212,6 +238,7 @@ int main(void) {
     reuse_the_layout();
     parse_a_column();
     ambiguity();
+    settle_a_column();
     natural_language();
     locales();
     zones_and_timestamps();

@@ -45,7 +45,8 @@ jobs:
     # seven targets (369K runs in 191 s, then 3.53M in 427 s, both with the
     # build), price the runner at about 13K runs a second after about 160 s
     # building with LLVM: the nightly 10M was about 90 minutes, and with the
-    # C API's target, eight, is about 100, against a 180-minute timeout.
+    # C API's and Column's targets, nine, is about 115, against a 180-minute
+    # timeout.
     # Re-size it if the nights drift from that.
     timeout-minutes: 180
     # actions: read finds and downloads the corpus an earlier run kept.

@@ -62,6 +62,7 @@ pub const Options = extern struct {
 
 pub const layout_size = 256;
 pub const parser_size = 384;
+pub const column_size = 256;
 
 pub const LayoutBlob = extern union {
     bytes: [layout_size]u8,
@@ -73,6 +74,25 @@ pub const ParserBlob = extern union {
     bytes: [parser_size]u8,
     align_u64_: u64,
     align_ptr_: ?*anyopaque,
+};
+
+pub const ColumnBlob = extern union {
+    bytes: [column_size]u8,
+    align_u64_: u64,
+    align_ptr_: ?*anyopaque,
+};
+
+pub const ColumnReport = extern struct {
+    order: i32,
+    fits: u32,
+    prefer_day_first: bool,
+    prefer_year_first: bool,
+    values: u64,
+    voted: u64,
+    failed: u64,
+    conflicts: u64,
+    settled_by: i64,
+    first_conflict: i64,
 };
 
 pub const Result = extern struct {
@@ -103,12 +123,19 @@ const ParserState = struct {
     diagnostics: ?*Diagnostics,
 };
 
+const ColumnState = struct {
+    magic: u64,
+    column: dp.Column,
+};
+
 const layout_magic: u64 = 0x6470_6c61_796f_7574; // "dplayout"
 const parser_magic: u64 = 0x6470_7061_7273_6572; // "dpparser"
+const column_magic: u64 = 0x6470_636f_6c75_6d6e; // "dpcolumn"
 
 comptime {
     assert(@sizeOf(LayoutState) <= layout_size and @alignOf(LayoutState) <= @alignOf(LayoutBlob));
     assert(@sizeOf(ParserState) <= parser_size and @alignOf(ParserState) <= @alignOf(ParserBlob));
+    assert(@sizeOf(ColumnState) <= column_size and @alignOf(ColumnState) <= @alignOf(ColumnBlob));
 }
 
 /// An offset must be under a day either way, as every real zone is.
@@ -220,6 +247,44 @@ pub export fn dateparsa_parser_reset(parser: ?*ParserBlob) void {
     const blob = parser orelse return;
     const st = parserState(blob);
     if (st.magic == parser_magic) st.parser.reset();
+}
+
+pub export fn dateparsa_column_init(column: ?*ColumnBlob, options: ?*const Options) Status {
+    const o = options orelse &Options{};
+    const blob = column orelse return refuse(o.diagnostics, "column is NULL");
+    blob.* = .{ .bytes = @splat(0) };
+    const zo = toZig(o) catch |err| return refuse(o.diagnostics, refusal(err));
+    columnState(blob).* = .{ .magic = column_magic, .column = .init(zo) };
+    return .ok;
+}
+
+pub export fn dateparsa_column_add(column: ?*ColumnBlob, input: ?[*]const u8, len: usize) Status {
+    const blob = column orelse return .invalid_argument;
+    const st = columnState(blob);
+    if (st.magic != column_magic) return .invalid_argument;
+    st.column.add(bytes(input, len) orelse return .invalid_argument);
+    return .ok;
+}
+
+pub export fn dateparsa_column_summarize(column: ?*const ColumnBlob, out: ?*ColumnReport) Status {
+    const blob = column orelse return .invalid_argument;
+    const st: *const ColumnState = @ptrCast(@alignCast(&blob.bytes));
+    if (st.magic != column_magic) return .invalid_argument;
+    const report = out orelse return .invalid_argument;
+    const r = st.column.report();
+    report.* = .{
+        .order = if (r.order) |o| @backingInt(o) else -1,
+        .fits = @as(u3, @bitCast(r.fits)),
+        .prefer_day_first = r.order != null and r.options.prefer_day_first,
+        .prefer_year_first = r.order != null and r.options.prefer_year_first,
+        .values = r.values,
+        .voted = r.voted,
+        .failed = r.failed,
+        .conflicts = r.conflicts,
+        .settled_by = if (r.settled_by) |i| @intCast(i) else -1,
+        .first_conflict = if (r.first_conflict) |i| @intCast(i) else -1,
+    };
+    return .ok;
 }
 
 pub export fn dateparsa_format_rfc3339(time: ?*const DateTime, buf: ?[*]u8, cap: usize, len: ?*usize) Status {
@@ -369,6 +434,10 @@ fn loadLayout(blob: ?*const LayoutBlob) ?*const dp.Layout {
 }
 
 fn parserState(blob: *ParserBlob) *ParserState {
+    return @ptrCast(@alignCast(&blob.bytes));
+}
+
+fn columnState(blob: *ColumnBlob) *ColumnState {
     return @ptrCast(@alignCast(&blob.bytes));
 }
 

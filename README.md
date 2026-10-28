@@ -169,6 +169,32 @@ name beside a bare number asks the same kind of question: `March 15` is the
 15th or March 2015, and `01MAY10` is 1 May 2010 or 10 May 2001. Strict mode
 offers every reading that is a real date, the preferred one first.
 
+### Settle a column's order
+
+One value often cannot say which part is the month: `01/02/2024` reads either
+way, and `parse` takes the preferences' guess. A column usually can. One
+`13/02/2024` anywhere in it means day first for all of it.
+
+```zig
+const column = [_][]const u8{ "01/02/2024", "05/06/2024", "13/02/2024", "03/04/2024" };
+const report = dateparsa.detectColumn(&column, .{});
+// report.order        .day_first
+// report.settled_by   2, the index of "13/02/2024"
+// report.conflicts    0
+
+var p = dateparsa.Parser.init(report.options); // prefer_day_first is set
+const first = try p.parse(column[0]); // the 1st of February
+```
+
+When nothing in the column settles it, `report.order` is null and
+`report.fits` says which orders are left. When values contradict each other
+(`13/02/2024` beside `02/13/2024`), it is the order the fewest contradict, and
+`conflicts` and `first_conflict` say how many and where. Two-digit years narrow
+it together: `13/02/03` is day first or year first, `05/06/31` month first or
+day first, and the two leave only day first. ISO dates, month names, timestamps
+and words have no say. `Column` does the same one value at a time, for a column
+you stream, keeping only counts.
+
 ### Natural language
 
 ```zig
@@ -286,8 +312,9 @@ if (dateparsa_parse("2024-03-15 10:30:00", 19, NULL, &r) == DATEPARSA_OK) {
 It is the same library and keeps the same promises: nothing allocates, every
 struct is yours, and a zeroed `dateparsa_options` is the default. Strings go in
 as pointer and length; the labels and messages that come back are static and
-not NUL-terminated. `dateparsa_parser` is the column cache, and
-`dateparsa_layout`, the reusable format, copies like any struct. What a C
+not NUL-terminated. `dateparsa_parser` is the column cache,
+`dateparsa_column` settles a column's order, and `dateparsa_layout`, the
+reusable format, copies like any struct. What a C
 caller passes in is checked rather than trusted: a base time that is no date,
 an offset of a day or more, a locale bit the build left out, a `NULL` where a
 pointer is needed, or a layout the library never filled in is
@@ -352,7 +379,7 @@ Each is deliberate.
 |---|---|
 | `zig build test` | The full suite, including every row of the Go library's golden corpus (`testdata/golden.txt`, 1,377 inputs) and every example in this README, format table included |
 | `tools/oracle.sh` | Runs the Go library and this port side by side: 33,186 public-API answers under nine option sets, including a first row's layout reused on 3,522 other rows, and 124,068 natural-language answers across every locale. All identical. |
-| `tools/fuzz.sh` | Zig's fuzzer on seven properties: any bytes parse without tripping a safety check, to a time that round-trips through RFC 3339 and that the result's layout re-reads; a layout reused on another input refuses it or agrees with detection; a primed `Parser` agrees with `parseWith`; the fast path agrees with the interpreter; any JSON `FlexTime` reads is a valid time whose RFC 3339 reads back to it; `FlexTime`'s caches agree with cold ones; and the C API refuses exactly the options it must, whatever a C struct holds, and otherwise answers as `parseWith` does. `zig build test` replays their seeds: the Go library's fuzz seeds and crashers, the golden corpus and every format's example |
+| `tools/fuzz.sh` | Zig's fuzzer on eight properties: any bytes parse without tripping a safety check, to a time that round-trips through RFC 3339 and that the result's layout re-reads; a layout reused on another input refuses it or agrees with detection; a primed `Parser` agrees with `parseWith`; the fast path agrees with the interpreter; any JSON `FlexTime` reads is a valid time whose RFC 3339 reads back to it; `FlexTime`'s caches agree with cold ones; each field order a column's values are said to fit is the order their preferences read, and a column's options read every value that fits its order in it; and the C API refuses exactly the options it must, whatever a C struct holds, and otherwise answers as `parseWith` does. `zig build test` replays their seeds: the Go library's fuzz seeds and crashers, the golden corpus and every format's example |
 | CI | Every pull request runs formatting, zigvet and `zig build test` on Linux, macOS and Windows, in every optimize mode, and with only `en` or only `fr,de` compiled in. The fuzzer runs 50K times a target after each merge and 10M a night, from a corpus kept between runs; a find opens an issue |
 | C API | `zig build test` also checks `include/dateparsa.h` against the exports field by field, calls through the header on every golden row under five option sets and down the corpus with a parser, runs `test/c_api.c` against the static library on every platform CI covers, and compiles the header as C++ |
 | Unicode tables | Lowercasing and word boundaries match Go's `unicode` package on all 1,114,112 code points |
