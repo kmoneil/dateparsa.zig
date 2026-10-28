@@ -1,0 +1,97 @@
+# libdateparsa as a release ships it. tools/dist.sh builds every platform's
+# archive on one Linux runner; then each runner OS unpacks its own platform's
+# archive and links test/c_api.c against it, static and shared, with the C
+# compiler it already has (gcc on Linux, clang on macOS and Windows), and runs
+# it. No Zig on that side: it is what a C programmer downloading a release
+# does.
+#
+# ci.yml calls this on every change, so a tag never finds a platform that does
+# not build or link. release.yml calls it on the tagged commit and attaches
+# the `libraries` artifact it uploads.
+name: libraries
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # No cache: what is attached to a release is built from nothing it did
+      # not make, and this job is what builds it.
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        with:
+          use-cache: false
+      - name: tools/dist.sh
+        run: tools/dist.sh
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: libraries
+          path: |
+            zig-out/dist/*.tar.gz
+            zig-out/dist/*.zip
+            zig-out/dist/SHA256SUMS
+          retention-days: 7
+          if-no-files-found: error
+
+  verify:
+    name: verify (${{ matrix.os }})
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, platform: x86_64-linux }
+          - { os: macos-latest, platform: aarch64-macos }
+          - { os: windows-latest, platform: x86_64-windows }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: libraries
+          path: dist
+      - name: unpack this platform's archive
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          cd dist
+          if command -v sha256sum >/dev/null 2>&1; then sha256sum -c SHA256SUMS; else shasum -a 256 -c SHA256SUMS; fi
+          for a in dateparsa-*-"$PLATFORM".*; do
+            case "$a" in
+              *.zip) unzip -q "$a" ;;
+              *) tar -xzf "$a" ;;
+            esac
+          done
+          dir=$(ls -d dateparsa-*-"$PLATFORM")
+          echo "LIB=$PWD/$dir" >> "$GITHUB_ENV"
+          find "$dir" | sort
+      - name: static and shared, on Linux and macOS
+        if: runner.os != 'Windows'
+        run: |
+          flags="-std=c11 -Wall -Wextra -Werror -pedantic -I$LIB/include"
+          cc $flags test/c_api.c "$LIB/lib/libdateparsa.a" -o c_api_static
+          ./c_api_static
+          cc $flags test/c_api.c -L"$LIB/lib" -ldateparsa -Wl,-rpath,"$LIB/lib" -o c_api_shared
+          ./c_api_shared
+      # The DLL through its import library, dateparsa.lib, with the DLL on
+      # PATH; then the static library, dateparsa_static.lib.
+      - name: static and shared, on Windows
+        if: runner.os == 'Windows'
+        run: |
+          command -v clang >/dev/null || export PATH="/c/Program Files/LLVM/bin:$PATH"
+          flags="-std=c11 -Wall -Wextra -Werror -pedantic -I$LIB/include"
+          clang $flags test/c_api.c "$LIB/lib/dateparsa.lib" -o c_api_shared.exe
+          PATH="$LIB/bin:$PATH" ./c_api_shared.exe
+          clang $flags test/c_api.c "$LIB/lib/dateparsa_static.lib" -o c_api_static.exe
+          ./c_api_static.exe

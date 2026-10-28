@@ -69,34 +69,11 @@ jobs:
       - name: zig build test
         run: zig build test --summary all
 
-  # libdateparsa as a C programmer gets it: built by `zig build lib`, then
-  # test/c_api.c compiled and linked by the runner's own compiler (gcc on
-  # Linux, clang on macOS) against the static library and the shared one.
-  # `zig build test` runs the same program, but links it with Zig.
-  c-library:
-    name: C library (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
-      - name: static
-        run: |
-          zig build lib --prefix "$RUNNER_TEMP/static"
-          cc -std=c11 -Wall -Wextra -Werror -pedantic -I"$RUNNER_TEMP/static/include" \
-            test/c_api.c "$RUNNER_TEMP/static/lib/libdateparsa.a" -o "$RUNNER_TEMP/c_api_static"
-          "$RUNNER_TEMP/c_api_static"
-      - name: shared
-        run: |
-          zig build lib -Dlinkage=dynamic --prefix "$RUNNER_TEMP/shared"
-          cc -std=c11 -Wall -Wextra -Werror -pedantic -I"$RUNNER_TEMP/shared/include" \
-            test/c_api.c -L"$RUNNER_TEMP/shared/lib" -ldateparsa \
-            -Wl,-rpath,"$RUNNER_TEMP/shared/lib" -o "$RUNNER_TEMP/c_api_shared"
-          "$RUNNER_TEMP/c_api_shared"
+  # The libraries a release attaches, for every platform, each linked and
+  # run by its own platform's C compiler: see libraries.yml.
+  libraries:
+    name: libraries
+    uses: ./.github/workflows/libraries.yml
 
   # A package that depends on this one builds it in its own mode, so the
   # tests run in every release mode too, with the safety checks off in two.

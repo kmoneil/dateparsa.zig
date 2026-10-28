@@ -259,11 +259,17 @@ strict mode included.
 
 ### From C and other languages
 
-`zig build lib` builds `libdateparsa` (static, or shared with
-`-Dlinkage=dynamic`) into `zig-out/lib` and its header,
-[`include/dateparsa.h`](include/dateparsa.h), into `zig-out/include`. Anything
-that can call C can use it: Python through `ctypes`, Rust, Go through cgo,
-Swift, C#.
+Each [release](https://github.com/kmoneil/dateparsa.zig/releases) attaches
+`libdateparsa` for Linux, macOS (13 and later) and Windows, on x86_64 and
+arm64: one archive per platform holding the static and the shared library, the
+header [`include/dateparsa.h`](include/dateparsa.h) and the licences, with
+`SHA256SUMS` and build provenance (`gh attestation verify <archive> --repo
+kmoneil/dateparsa.zig`). On Windows the DLL's import library is
+`dateparsa.lib` and the static library `dateparsa_static.lib`. To build it
+yourself, `zig build lib` puts the library (static, or shared with
+`-Dlinkage=dynamic`) in `zig-out/lib` and the header in `zig-out/include`.
+Anything that can call C can use it: Python through `ctypes`, Rust, Go through
+cgo, Swift, C#.
 
 ```c
 #include "dateparsa.h"
@@ -285,9 +291,9 @@ not NUL-terminated. `dateparsa_parser` is the column cache, and
 caller passes in is checked rather than trusted: a base time that is no date,
 an offset of a day or more, a locale bit the build left out, a `NULL` where a
 pointer is needed, or a layout the library never filled in is
-`DATEPARSA_INVALID_ARGUMENT`, and `diagnostics.message` says which. Build with
-`-Doptimize=ReleaseFast` for speed and `-Dtarget` for the oldest system you ship
-to, such as `-Dtarget=aarch64-macos.13.0`.
+`DATEPARSA_INVALID_ARGUMENT`, and `diagnostics.message` says which. Building
+it yourself, use `-Doptimize=ReleaseFast` for speed and `-Dtarget` for the
+oldest system you ship to, such as `-Dtarget=aarch64-macos.13.0`.
 
 ## Formats
 
@@ -369,6 +375,7 @@ zig build fmt-check     # formatting
 zig build vet           # zigvet, github.com/kmoneil/zigvet
 zig build docs          # API documentation into zig-out/docs
 zig build lib           # libdateparsa and its C header into zig-out (-Dlinkage=dynamic)
+tools/dist.sh           # every release platform's library, archived into zig-out/dist
 zig build fuzz          # replay the fuzz seeds alone
 zig build bench         # the benchmarks (-- -bench NAME -count N -benchtime MS)
 tools/bench.sh          # against the Go library, on this machine (needs go)

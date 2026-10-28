@@ -10,7 +10,14 @@ the difference. Before 1.0 a breaking change is a minor bump.
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- Prebuilt `libdateparsa` on every release, for Linux, macOS 13 and later, and
+  Windows, each on x86_64 and arm64: one archive per platform with the static
+  and the shared library, the header and the licences, plus `SHA256SUMS` and
+  build provenance. Before a release publishes them, each runner OS links the
+  C tests against its own platform's archive with the compiler it already
+  has, and runs them.
 
 ## [0.2.0] - 2026-10-28
 
