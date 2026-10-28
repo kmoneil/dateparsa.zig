@@ -22,11 +22,14 @@ pub fn build(b: *std.Build) void {
     options.addOption([]const u8, "version", zon.version);
     mod.addOptions("build_options", options);
 
-    // The C ABI: src/c_api.zig behind include/dateparsa.h.
+    // The C ABI: src/c_api.zig behind include/dateparsa.h. Position
+    // independent, static library too: most C toolchains link executables
+    // as PIE, and gcc on Ubuntu refused the library without it.
     const c_mod = b.createModule(.{
         .root_source_file = b.path("src/c_api.zig"),
         .target = target,
         .optimize = optimize,
+        .pic = true,
     });
     c_mod.addOptions("build_options", options);
 
