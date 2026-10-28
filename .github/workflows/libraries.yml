@@ -57,9 +57,11 @@ jobs:
       fail-fast: false
       matrix:
         # The oldest Python the package supports on one runner, a current one
-        # on the others.
+        # on the others. Linux is 24.04, not latest: setup-python builds 3.9
+        # (the Python Apple's command line tools ship) for 24.04 and not
+        # 26.04, and an older glibc is the stricter test of a manylinux tag.
         include:
-          - { os: ubuntu-latest, platform: x86_64-linux, python: "3.9" }
+          - { os: ubuntu-24.04, platform: x86_64-linux, python: "3.9" }
           - { os: macos-latest, platform: aarch64-macos, python: "3.13" }
           - { os: windows-latest, platform: x86_64-windows, python: "3.13" }
     runs-on: ${{ matrix.os }}
