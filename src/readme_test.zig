@@ -97,6 +97,40 @@ test "zones and timestamps" {
     try expect(!ms.layout.reusable()); // a timestamp has no format to reuse
 }
 
+test "json" {
+    var arena_state: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena_state.deinit();
+    const arena = arena_state.allocator();
+
+    const Event = struct { name: []const u8, at: dateparsa.FlexTime };
+
+    const events = try std.json.parseFromSliceLeaky([]Event, arena,
+        \\[{"name": "a", "at": "March 15, 2024"},
+        \\ {"name": "b", "at": 1710505800123},
+        \\ {"name": "c", "at": null}]
+    , .{});
+    try expectEqual(dateparsa.DateTime{ .year = 2024, .month = 3, .day = 15 }, events[0].at.time.?);
+    try expectEqual(
+        dateparsa.DateTime{ .year = 2024, .month = 3, .day = 15, .hour = 12, .minute = 30, .nanosecond = 123_000_000 },
+        events[1].at.time.?,
+    );
+    try expect(events[2].at.time == null);
+
+    const out = try std.json.Stringify.valueAlloc(arena, events[1], .{});
+    try expectEqualStrings(
+        \\{"name":"b","at":"2024-03-15T12:30:00.123Z"}
+    , out);
+
+    // The numeric rule: a number under ten digits is seconds, the string
+    // of its digits is refused.
+    const day = try dateparsa.FlexTime.fromValue(.{ .integer = 86400 });
+    try expectEqual(dateparsa.DateTime{ .year = 1970, .month = 1, .day = 2 }, day.time.?);
+    try std.testing.expectError(error.NoMatch, dateparsa.FlexTime.fromValue(.{ .string = "86400" }));
+
+    var strict = dateparsa.Parser.init(.{ .strict = true });
+    try std.testing.expectError(error.Ambiguous, dateparsa.FlexTime.fromValueWith(&strict, .{ .string = "01/02/2024" }));
+}
+
 test "every example in the README's format table parses" {
     const base: dateparsa.DateTime = .{ .year = 2024, .month = 3, .day = 15, .hour = 12 };
     for ([_][]const u8{

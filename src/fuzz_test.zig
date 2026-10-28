@@ -9,6 +9,10 @@
 //!   detecting that input afresh: the property Parser depends on.
 //! - A Parser primed with one input agrees with parseWith on the next.
 //! - The fixed-slot fast path agrees with the interpreter.
+//! - A JSON value FlexTime reads is a valid time, and the RFC 3339 it
+//!   writes reads back to that time.
+//! - What FlexTime reads, through std.json or fromValue, does not depend on
+//!   what it read before: its per-thread cache agrees with a cold one.
 //!
 //! The seeds are the Go targets' seeds and committed crashers, every format's
 //! example and every row of the golden corpus.
@@ -158,6 +162,67 @@ fn fastOne(_: void, smith: *Smith) anyerror!void {
     try expectEqual(slow.execute(b), r.layout.program.execute(b));
 }
 
+/// A JSON document read as a FlexTime. The buffer holds the scanner's
+/// nesting bits and a copy of an escaped string, which are all std.json
+/// allocates for one.
+fn readJson(doc: []const u8) !dp.FlexTime {
+    var mem: [4 * max_input]u8 = undefined;
+    var fba: std.heap.FixedBufferAllocator = .init(&mem);
+    return std.json.parseFromSliceLeaky(dp.FlexTime, fba.allocator(), doc, .{});
+}
+
+fn jsonOne(_: void, smith: *Smith) anyerror!void {
+    var buf: [max_input]u8 = undefined;
+    const doc = input(smith, &buf);
+    errdefer report(doc, null, .{});
+
+    const ft = readJson(doc) catch return;
+    const t = ft.time orelse return;
+    try expect(t.isValid());
+    var out: [64]u8 = undefined;
+    var w: std.Io.Writer = .fixed(&out);
+    try std.json.Stringify.value(ft, .{}, &w);
+    errdefer std.debug.print("written as {s}\n", .{w.buffered()});
+    // Outside 0000-9999, or with an offset in seconds, what is written is
+    // Go's form and not RFC 3339, and need not read back.
+    if (t.year < 0 or t.year > 9999 or @rem(t.offset_seconds, 60) != 0) return;
+    try expectEqual(dp.FlexTime{ .time = t }, try readJson(w.buffered()));
+}
+
+fn flexJsonOne(_: void, smith: *Smith) anyerror!void {
+    var buf_a: [max_input]u8 = undefined;
+    var buf_b: [max_input]u8 = undefined;
+    const a = input(smith, &buf_a);
+    const b = input(smith, &buf_b);
+    errdefer report(a, b, .{});
+
+    // Cleared first, so the cache holds a's layout or none, whatever ran
+    // before: a failing input then fails again when replayed alone.
+    dp.FlexTime.forgetLayouts();
+    _ = readJson(a) catch {};
+    const warm = readJson(b);
+    dp.FlexTime.forgetLayouts();
+    // One direction, as for Parser: a primed cache may accept bytes
+    // detection refuses, never refuse or change what it reads.
+    const cold = readJson(b) catch return;
+    try expectEqual(cold, try warm);
+}
+
+fn flexValueOne(_: void, smith: *Smith) anyerror!void {
+    var buf_a: [max_input]u8 = undefined;
+    var buf_b: [max_input]u8 = undefined;
+    const a = input(smith, &buf_a);
+    const b = input(smith, &buf_b);
+    errdefer report(a, b, .{});
+
+    dp.FlexTime.forgetLayouts();
+    _ = dp.FlexTime.fromValue(.{ .string = a }) catch {};
+    const warm = dp.FlexTime.fromValue(.{ .string = b });
+    dp.FlexTime.forgetLayouts();
+    const cold = dp.FlexTime.fromValue(.{ .string = b }) catch return;
+    try expectEqual(cold, try warm);
+}
+
 /// Go's FuzzParse and FuzzDetect seeds and committed crashers, and inputs
 /// past the length bounds.
 const singles = [_][]const u8{
@@ -188,6 +253,38 @@ const singles = [_][]const u8{
     // Found here. textual.trimSpace decoded the tail "\x7f\x84" as one
     // two-byte sequence, which std.unicode asserts it is not.
     "202March 15, 2024\xcd\x7f\x84",
+    // Go's FuzzScanString seed: a crasher there (C1, detect.trimAtSuffix).
+    "deC0000\xcd\xcd\xcd At 0",
+};
+
+/// Go's FuzzUnmarshalJSON seeds, and numbers and escapes at the edges of
+/// what FlexTime reads.
+const json_singles = [_][]const u8{
+    "\"2024-03-15T10:30:00Z\"",
+    "\"03/15/2024\"",
+    "1710505800",
+    "1710505800.123",
+    "null",
+    "\"\"",
+    "\"garbage\"",
+    "true",
+    "{}",
+    "86400",
+    "-0",
+    "1.7105e9",
+    "1e300",
+    "-9223372036854775808",
+    "99999999999999999999",
+    "\"2024-03-15T10:30:00\\u005a\"",
+    "\"03\\/15\\/2024\"",
+};
+
+/// Go's FuzzUnmarshalJSONAcrossFormats seeds that are not a pair below in
+/// quotes.
+const json_pairs = [_][2][]const u8{
+    .{ "1710505800", "\"2024-03-15\"" },
+    .{ "\"2024-03-15\"", "null" },
+    .{ "0", "\"in0S\"" },
 };
 
 /// Go's FuzzLayoutReuse and FuzzParserAgreesWithParse seeds, nearly all of
@@ -245,6 +342,10 @@ const pairs = [_][2][]const u8{
     .{ "March 15, 2024", "March 16; 2024" },
     .{ "March 15, 2024", "April 16, 2024" },
     .{ "15 mars 2024", "16 mai 2024" },
+    // From the Go flextime targets.
+    .{ "2024-03-15T10:30:00Z", "03/15/2024" },
+    .{ "1710505800", "2024-03-15" },
+    .{ "0", "in0S" },
 };
 
 /// A seed as Smith reads one: each string a four-byte little-endian length
@@ -297,6 +398,31 @@ fn pairSeeds(arena: Allocator) ![]const []const u8 {
     return out.items;
 }
 
+/// s as a JSON string. Bytes that are not UTF-8 are kept, which makes a
+/// document std.json refuses: a seed for that path too.
+fn quote(arena: Allocator, s: []const u8) ![]const u8 {
+    var w: std.Io.Writer.Allocating = .init(arena);
+    try std.json.Stringify.encodeJsonString(s, .{}, &w.writer);
+    return w.written();
+}
+
+/// The JSON values, then every single seed and format example as a string.
+fn jsonSeeds(arena: Allocator) ![]const []const u8 {
+    var out: std.ArrayList([]const u8) = .empty;
+    for (json_singles) |s| try out.append(arena, try seed(arena, &.{s}));
+    for (singles) |s| try out.append(arena, try seed(arena, &.{try quote(arena, s)}));
+    for (formats.examples) |ex| try out.append(arena, try seed(arena, &.{try quote(arena, ex[1])}));
+    return out.items;
+}
+
+/// The JSON pairs, then every pair as two strings.
+fn jsonPairSeeds(arena: Allocator) ![]const []const u8 {
+    var out: std.ArrayList([]const u8) = .empty;
+    for (json_pairs) |p| try out.append(arena, try seed(arena, &p));
+    for (pairs) |p| try out.append(arena, try seed(arena, &.{ try quote(arena, p[0]), try quote(arena, p[1]) }));
+    return out.items;
+}
+
 test "fuzz: parseWith on any bytes answers a valid time its layout re-reads" {
     var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
     defer arena.deinit();
@@ -319,6 +445,24 @@ test "fuzz: the fast path agrees with the interpreter" {
     var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
     defer arena.deinit();
     try std.testing.fuzz({}, fastOne, .{ .corpus = try pairSeeds(arena.allocator()) });
+}
+
+test "fuzz: a JSON value FlexTime reads is valid and its RFC 3339 reads back" {
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    try std.testing.fuzz({}, jsonOne, .{ .corpus = try jsonSeeds(arena.allocator()) });
+}
+
+test "fuzz: FlexTime's std.json cache agrees with a cold one" {
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    try std.testing.fuzz({}, flexJsonOne, .{ .corpus = try jsonPairSeeds(arena.allocator()) });
+}
+
+test "fuzz: FlexTime's fromValue cache agrees with a cold one" {
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    try std.testing.fuzz({}, flexValueOne, .{ .corpus = try pairSeeds(arena.allocator()) });
 }
 
 test seed {

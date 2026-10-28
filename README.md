@@ -226,6 +226,35 @@ const ms = try dateparsa.parse("1710504800123"); // milliseconds
 Offsets are fixed: `Z`, `+05:30`, `-0800`, `+00`, and sixteen abbreviations
 (`UTC`, `GMT`, `EST`, `CET` and so on) each read as the offset it names.
 
+### JSON
+
+`FlexTime` is a field type for `std.json`. It reads a time however the document
+writes it and writes it back as RFC 3339:
+
+```zig
+const Event = struct { name: []const u8, at: dateparsa.FlexTime };
+
+const events = try std.json.parseFromSliceLeaky([]Event, arena,
+    \\[{"name": "a", "at": "March 15, 2024"},
+    \\ {"name": "b", "at": 1710505800123},
+    \\ {"name": "c", "at": null}]
+, .{});
+// events[0].at.time   2024-03-15 00:00:00 +00:00
+// events[1].at.time   2024-03-15 12:30:00.123 +00:00
+// events[2].at.time   null
+
+const out = try std.json.Stringify.valueAlloc(arena, events[1], .{});
+// {"name":"b","at":"2024-03-15T12:30:00.123Z"}
+```
+
+A string is read as `parse` reads it, and `at.ambiguous` says when it needed a
+guess. A number is a Unix timestamp whose digit count is its precision, and
+under ten digits it is seconds: `86400` is 2 January 1970, while the string
+`"86400"` is refused. Outside `std.json`, `FlexTime.fromValue` reads the same
+values from a database row or anything else already typed, and
+`FlexTime.fromValueWith(&parser, value)` reads strings with your `Options`,
+strict mode included.
+
 ## Formats
 
 | Family | Examples |
@@ -246,14 +275,17 @@ time is midnight. Validation refuses rather than normalises: `2024-02-30` is
 
 ## Design
 
-- **No allocation.** No API takes an allocator. Inputs are bounded (a format
-  addresses at most 510 bytes, a natural-language expression 512), so fixed
-  buffers serve every path.
+- **No allocation.** No API takes an allocator, apart from `FlexTime`'s
+  `std.json` hooks, which are handed `std.json`'s: it uses it to unescape a
+  string, and the hook frees that copy before returning. Inputs are bounded (a
+  format addresses at most 510 bytes, a natural-language expression 512), so
+  fixed buffers serve every path.
 - **No hidden I/O.** The library reads no clock, file, environment or network.
 - **Values, not pointers.** `Layout` and `DateTime` are plain values you can
   copy, store and compare.
 - **Thread safety.** Everything is immutable except `Parser`'s cache: use one
-  `Parser` per thread, or share layouts, which are read-only.
+  `Parser` per thread, or share layouts, which are read-only. `FlexTime` keeps
+  its caches per thread.
 - **Comptime data.** Trie, formats, compiled layouts, locale tables and the
   Unicode case tables the natural-language scanner uses are all built at
   compile time.
@@ -272,6 +304,7 @@ Each is deliberate.
 | Natural-language readings labelled with their dates | Labelled `NATURAL_LANGUAGE`; the times tell them apart |
 | A reused layout folds month names with Unicode case rules | ASCII case, as detection already does ([kmoneil/dateparsa#36](https://github.com/kmoneil/dateparsa/issues/36)) |
 | All locales always linked | Chosen at build time with `-Dlocales` |
+| `flextime`: `database/sql`, JSON and text (un)marshalling, `WithJSONFormat`, layout caches shared by the process | `FlexTime`: `std.json` hooks and `fromValue`, always RFC 3339 out, caches per thread |
 
 ## How it's checked
 
@@ -279,7 +312,7 @@ Each is deliberate.
 |---|---|
 | `zig build test` | The full suite, including every row of the Go library's golden corpus (`testdata/golden.txt`, 1,377 inputs) and every example in this README, format table included |
 | `tools/oracle.sh` | Runs the Go library and this port side by side: 33,186 public-API answers under nine option sets, including a first row's layout reused on 3,522 other rows, and 124,068 natural-language answers across every locale. All identical. |
-| `tools/fuzz.sh` | Zig's fuzzer on four properties: any bytes parse without tripping a safety check, to a time that round-trips through RFC 3339 and that the result's layout re-reads; a layout reused on another input refuses it or agrees with detection; a primed `Parser` agrees with `parseWith`; the fast path agrees with the interpreter. `zig build test` replays their seeds: the Go library's fuzz seeds and crashers, the golden corpus and every format's example |
+| `tools/fuzz.sh` | Zig's fuzzer on six properties: any bytes parse without tripping a safety check, to a time that round-trips through RFC 3339 and that the result's layout re-reads; a layout reused on another input refuses it or agrees with detection; a primed `Parser` agrees with `parseWith`; the fast path agrees with the interpreter; any JSON `FlexTime` reads is a valid time whose RFC 3339 reads back to it; and `FlexTime`'s caches agree with cold ones. `zig build test` replays their seeds: the Go library's fuzz seeds and crashers, the golden corpus and every format's example |
 | Unicode tables | Lowercasing and word boundaries match Go's `unicode` package on all 1,114,112 code points |
 | Deliberate breaks | Each feature's tests were run against seeded bugs, and every bug that could change an answer was caught |
 

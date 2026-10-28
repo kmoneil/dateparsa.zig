@@ -164,6 +164,32 @@ pub fn eqlInstant(a: DateTime, b: DateTime) bool {
     return ea.seconds == eb.seconds and ea.nanosecond == eb.nanosecond;
 }
 
+/// Writes the civil reading as RFC 3339 with nanoseconds, as Go's
+/// time.RFC3339Nano does: the fraction without its trailing zeros, none at
+/// all when it is zero, and `Z` for a zero offset. `{f}` in a format string.
+///
+/// Two values have no RFC 3339 form and are written as Go writes them: a
+/// year outside 0000-9999 takes the digits it needs and a `-` when negative
+/// ("-0001-12-31T23:00:00Z"), and an offset loses its seconds, truncated
+/// toward zero, since the offset is written in minutes.
+pub fn format(dt: DateTime, w: *std.Io.Writer) std.Io.Writer.Error!void {
+    if (dt.year < 0) try w.writeByte('-');
+    try w.print("{d:0>4}-{d:0>2}-{d:0>2}T{d:0>2}:{d:0>2}:{d:0>2}", .{
+        @abs(dt.year), dt.month, dt.day, dt.hour, dt.minute, dt.second,
+    });
+    if (dt.nanosecond != 0) {
+        var frac: [9]u8 = undefined;
+        _ = std.fmt.bufPrint(&frac, "{d:0>9}", .{dt.nanosecond}) catch unreachable;
+        try w.writeByte('.');
+        try w.writeAll(std.mem.trimEnd(u8, &frac, "0"));
+    }
+    if (dt.offset_seconds == 0) return w.writeByte('Z');
+    const minutes = @divTrunc(dt.offset_seconds, 60);
+    try w.writeByte(if (minutes < 0) '-' else '+');
+    const m = @abs(minutes);
+    try w.print("{d:0>2}:{d:0>2}", .{ m / 60, m % 60 });
+}
+
 /// Shifts by n calendar days, keeping the clock and offset.
 pub fn addDays(dt: DateTime, n: i64) DateTime {
     const date = civilFromDays(daysFromCivil(dt.year, dt.month, dt.day) + n);
@@ -321,6 +347,36 @@ test "addDays and addSeconds" {
         DateTime{ .year = 2023, .month = 12, .day = 31, .hour = 23, .minute = 59, .second = 59 },
         pre.addSeconds(-1),
     );
+}
+
+test format {
+    const Case = struct { DateTime, []const u8 };
+    for ([_]Case{
+        .{ .{ .year = 2024, .month = 3, .day = 15, .hour = 10, .minute = 30 }, "2024-03-15T10:30:00Z" },
+        .{
+            .{ .year = 2024, .month = 3, .day = 15, .hour = 10, .minute = 30, .nanosecond = 123_456_789 },
+            "2024-03-15T10:30:00.123456789Z",
+        },
+        // Trailing zeros of the fraction go; leading ones stay.
+        .{ .{ .year = 2024, .month = 3, .day = 15, .nanosecond = 500_000_000 }, "2024-03-15T00:00:00.5Z" },
+        .{ .{ .year = 2024, .month = 3, .day = 15, .nanosecond = 1_000 }, "2024-03-15T00:00:00.000001Z" },
+        .{
+            .{ .year = 2024, .month = 3, .day = 15, .hour = 10, .offset_seconds = 5 * 3600 + 30 * 60 },
+            "2024-03-15T10:00:00+05:30",
+        },
+        .{ .{ .year = 2024, .month = 3, .day = 15, .offset_seconds = -8 * 3600 }, "2024-03-15T00:00:00-08:00" },
+        .{ .{ .year = 0, .month = 1, .day = 1 }, "0000-01-01T00:00:00Z" },
+        .{ .{ .year = -1, .month = 12, .day = 31, .hour = 23 }, "-0001-12-31T23:00:00Z" },
+        .{ .{ .year = 10000, .month = 1, .day = 1 }, "10000-01-01T00:00:00Z" },
+        // Go writes the offset in minutes, truncated toward zero, so an
+        // offset under a minute is "+00:00" whichever side it is on.
+        .{ .{ .year = 2024, .month = 1, .day = 1, .offset_seconds = 3600 + 59 }, "2024-01-01T00:00:00+01:00" },
+        .{ .{ .year = 2024, .month = 1, .day = 1, .offset_seconds = -30 }, "2024-01-01T00:00:00+00:00" },
+        .{ .{ .year = 2024, .month = 1, .day = 1, .offset_seconds = -90 }, "2024-01-01T00:00:00-00:01" },
+    }) |c| {
+        var buf: [64]u8 = undefined;
+        try testing.expectEqualStrings(c[1], try std.fmt.bufPrint(&buf, "{f}", .{c[0]}));
+    }
 }
 
 test "isValid" {

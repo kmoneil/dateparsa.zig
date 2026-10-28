@@ -25,6 +25,9 @@ pub const DateTime = @import("DateTime.zig");
 pub const Layout = @import("Layout.zig");
 /// Parses a column, reusing the first value's layout where it can.
 pub const Parser = @import("Parser.zig");
+/// A date-time field for std.json: reads a string in any format, a Unix
+/// timestamp or null, and writes RFC 3339.
+pub const FlexTime = @import("FlexTime.zig");
 /// The locales whose words are read besides English, one field per locale
 /// this build compiled in: `.{ .fr = true, .de = true }`.
 pub const LocaleSet = locale.LocaleSet;
@@ -265,6 +268,7 @@ test {
     _ = @import("Layout.zig");
     _ = @import("formats.zig");
     _ = @import("Parser.zig");
+    _ = @import("FlexTime.zig");
     _ = @import("api_test.zig");
     _ = @import("golden_test.zig");
     _ = @import("readme_test.zig");
