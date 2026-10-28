@@ -10,6 +10,13 @@ the difference. Before 1.0 a breaking change is a minor bump.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.2.1] - 2026-10-28
+
+The C library, prebuilt. No library code changed, and every input parses to
+what it did in 0.2.0.
+
 ### Added
 
 - Prebuilt `libdateparsa` on every release, for Linux, macOS 13 and later, and
@@ -68,6 +75,7 @@ what was changed on purpose.
 - No allocation on any path and no clock: an input that needs a base time and
   was given none fails with `error.NoBaseTime`.
 
-[Unreleased]: https://github.com/kmoneil/dateparsa.zig/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/kmoneil/dateparsa.zig/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/kmoneil/dateparsa.zig/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/kmoneil/dateparsa.zig/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/kmoneil/dateparsa.zig/releases/tag/v0.1.0
