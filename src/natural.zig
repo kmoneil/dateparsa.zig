@@ -89,6 +89,15 @@ pub const Tokens = struct {
         t.len += 1;
     }
 
+    /// Empties t to hold text's tokens. The token buffer is left as it is:
+    /// a Tokens is several kilobytes, and copying or clearing one per
+    /// scan was most of a natural-language parse.
+    fn reset(t: *Tokens, text: []const u8) void {
+        t.len = 0;
+        t.text = text;
+        t.overflow = false;
+    }
+
     pub fn slice(t: *const Tokens) []const Token {
         return t.buf[0..t.len];
     }
@@ -275,15 +284,16 @@ const english_words = std.StaticStringMap(What).initComptime(.{
     .{ "few", What{ .number = 3 } },
 });
 
-/// English tokens. The input is lowercased in place of its bytes (ASCII,
-/// or Unicode when that keeps the length); otherwise nothing is scanned,
-/// as Go does. ASCII letters form words; other bytes are stepped over.
-pub fn scanEnglish(buf: *[max_text_len]u8, s: []const u8) Tokens {
-    var t: Tokens = .{};
+/// English tokens, into t. The input is lowercased in place of its bytes
+/// (ASCII, or Unicode when that keeps the length); otherwise nothing is
+/// scanned, as Go does. ASCII letters form words; other bytes are stepped
+/// over.
+pub fn scanEnglish(t: *Tokens, buf: *[max_text_len]u8, s: []const u8) void {
+    t.reset("");
     const lower = blk: {
         for (s) |c| if (c >= 0x80) {
             const l = unicode.lowerInto(buf, s);
-            if (l.len != s.len) return t;
+            if (l.len != s.len) return;
             break :blk l;
         };
         break :blk std.ascii.lowerString(buf, s);
@@ -318,7 +328,6 @@ pub fn scanEnglish(buf: *[max_text_len]u8, s: []const u8) Tokens {
             i += 1;
         }
     }
-    return t;
 }
 
 const LocaleWord = struct { phrase: []const u8, what: What, alt: ?What = null };
@@ -436,12 +445,12 @@ fn folded(comptime p: []const u8) []const u8 {
     }
 }
 
-/// A locale's tokens over text, which is the input lowercased and
-/// accent-folded. At each position the first word that matches as a whole
-/// word wins; otherwise a number, or an unknown run up to the next space,
-/// comma or digit.
-fn scanLocale(text: []const u8, li: usize) Tokens {
-    var t: Tokens = .{ .text = text };
+/// A locale's tokens over text, into t. The text is the input lowercased
+/// and accent-folded. At each position the first word that matches as a
+/// whole word wins; otherwise a number, or an unknown run up to the next
+/// space, comma or digit.
+fn scanLocale(t: *Tokens, text: []const u8, li: usize) void {
+    t.reset(text);
     var i: usize = 0;
     outer: while (i < text.len) {
         const c = text[i];
@@ -475,7 +484,6 @@ fn scanLocale(text: []const u8, li: usize) Tokens {
             !std.ascii.isDigit(text[i])) i += 1;
         t.add(token(start, i - start, .unknown));
     }
-    return t;
 }
 
 pub const Kind = enum { now, relative };
@@ -499,15 +507,16 @@ pub const Config = struct {
 pub fn parse(s: []const u8, cfg: Config) ?Result {
     if (s.len > max_input_len) return null;
     var buf: [max_text_len]u8 = undefined;
-    var english = scanEnglish(&buf, s);
-    if (tryParse(&english, cfg)) |r| return r;
+    var tokens: Tokens = undefined;
+    scanEnglish(&tokens, &buf, s);
+    if (tryParse(&tokens, cfg)) |r| return r;
     if (locale.isEmpty(cfg.locales)) return null;
     const lower = unicode.lowerInto(&buf, s);
     var fold_buf: [max_text_len]u8 = undefined;
     const text = unicode.foldAccentsInto(&fold_buf, lower);
     for (locale.compiled, 0..) |_, li| {
         if (!locale.contains(cfg.locales, li)) continue;
-        var tokens = scanLocale(text, li);
+        scanLocale(&tokens, text, li);
         if (parseBothReadings(&tokens, cfg)) |r| return r;
     }
     return null;
@@ -517,15 +526,14 @@ pub fn parse(s: []const u8, cfg: Config) ?Result {
 /// alternative meanings give a different time.
 fn parseBothReadings(tokens: *Tokens, cfg: Config) ?Result {
     var r = tryParse(tokens, cfg) orelse return null;
-    var swapped = tokens.*;
-    var any = false;
-    for (swapped.buf[0..swapped.len]) |*tok| {
-        const alt = tok.alt orelse continue;
-        tok.what = alt;
-        tok.alt = null;
-        any = true;
+    for (tokens.slice()) |tok| {
+        if (tok.alt != null) break;
+    } else return r;
+    var swapped: Tokens = undefined;
+    swapped.reset(tokens.text);
+    for (tokens.slice()) |tok| {
+        swapped.add(.{ .pos = tok.pos, .len = tok.len, .what = tok.alt orelse tok.what });
     }
-    if (!any) return r;
     const alt = tryParse(&swapped, cfg) orelse return r;
     if (alt.time.eqlInstant(r.time)) return r;
     r.ambiguous = true;
@@ -564,7 +572,8 @@ pub fn eval(tokens_in: *const Tokens, base: DateTime, prefer_future: bool) ?Resu
         if (tok.what == .unknown) unknowns += 1;
     }
     if (unknowns > tokens_in.len / 2) return null;
-    var collapsed: Tokens = .{ .text = tokens_in.text };
+    var collapsed: Tokens = undefined;
+    collapsed.reset(tokens_in.text);
     collapseNumbers(tokens_in, &collapsed);
     const ts = collapsed.slice();
     // Go's priority order: relative words before "N units ago" so that
@@ -1039,35 +1048,44 @@ test "bounds: input length and quantity width" {
     try std.testing.expect(parse("in 999999 years", .{ .base = test_base }).?.time.year > 1_000_000);
 }
 
+/// scanEnglish's tokens by value, which costs nothing that matters here.
+fn english(buf: *[max_text_len]u8, s: []const u8) Tokens {
+    var t: Tokens = undefined;
+    scanEnglish(&t, buf, s);
+    return t;
+}
+
 test "English tokens" {
     var buf: [max_text_len]u8 = undefined;
-    var t = scanEnglish(&buf, "3 days ago");
+    var t = english(&buf, "3 days ago");
     try std.testing.expectEqual(3, t.len);
     try std.testing.expectEqual(What{ .number = 3 }, t.buf[0].what);
     try std.testing.expectEqual(What{ .unit = .day }, t.buf[1].what);
     try std.testing.expectEqual(What{ .direction = .ago }, t.buf[2].what);
 
-    t = scanEnglish(&buf, "yesterday at 5pm");
+    t = english(&buf, "yesterday at 5pm");
     try std.testing.expectEqual(3, t.len);
     try std.testing.expectEqual(What.at, t.buf[1].what);
     try std.testing.expectEqual(What{ .time = .{ .hour = 17, .minute = 0 } }, t.buf[2].what);
 
-    t = scanEnglish(&buf, "next friday at 14:00");
+    t = english(&buf, "next friday at 14:00");
     try std.testing.expectEqual(What{ .time = .{ .hour = 14, .minute = 0 } }, t.buf[3].what);
 
-    t = scanEnglish(&buf, "3 days from now");
+    t = english(&buf, "3 days from now");
     try std.testing.expectEqual(What{ .direction = .from_now }, t.buf[2].what);
 
-    t = scanEnglish(&buf, "a week ago");
+    t = english(&buf, "a week ago");
     try std.testing.expectEqual(What{ .number = 1 }, t.buf[0].what);
 
     // A non-ASCII input whose lowercase changes length is not scanned.
-    try std.testing.expectEqual(0, scanEnglish(&buf, "\u{23a} now").len);
+    try std.testing.expectEqual(0, english(&buf, "\u{23a} now").len);
 }
 
 fn scanIn(buf: *[max_text_len]u8, fold_buf: *[max_text_len]u8, tag: []const u8, s: []const u8) ?Tokens {
     const li = locale.lookup(tag) orelse return null;
-    return scanLocale(unicode.foldAccentsInto(fold_buf, unicode.lowerInto(buf, s)), li);
+    var t: Tokens = undefined;
+    scanLocale(&t, unicode.foldAccentsInto(fold_buf, unicode.lowerInto(buf, s)), li);
+    return t;
 }
 
 test "the longest phrase at a position wins" {
@@ -1116,7 +1134,8 @@ test "every multi-word phrase scans as one token" {
         for (words) |w| {
             if (std.mem.indexOfScalar(u8, w.phrase, ' ') == null) continue;
             checked += 1;
-            const t = scanLocale(w.phrase, li);
+            var t: Tokens = undefined;
+            scanLocale(&t, w.phrase, li);
             errdefer std.debug.print("{s}: \"{s}\"\n", .{ locale.compiled[li].tag, w.phrase });
             try std.testing.expectEqual(1, t.len);
             try std.testing.expect(t.buf[0].what != .unknown);
