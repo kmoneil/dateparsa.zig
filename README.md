@@ -286,12 +286,11 @@ Each is deliberate.
 ## Performance
 
 Measured against the Go library on one machine, by the Go library's own
-benchmarks: reusing a layout takes 0.6 to 0.8 of Go's time, and the first
-parse of a structured date is mostly at or under Go's. Natural language,
-misses and a textual date with locales configured are slower, 1.3 to 3.2
-times Go. [docs/PERF.md](docs/PERF.md) has
-the table, how it is measured, and why a number from it means nothing on
-another machine.
+benchmarks: reusing a layout takes 0.6 to 0.8 of Go's time, natural language
+0.3 to 0.5, a miss 0.2 to 0.8 and a textual date 0.5 to 0.6, and the first
+parse of the other structured formats is at or near Go's.
+[docs/PERF.md](docs/PERF.md) has the table, how it is measured, and why a
+number from it means nothing on another machine.
 
 ## Development
 

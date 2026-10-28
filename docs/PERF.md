@@ -61,69 +61,85 @@ hot paths allocate nothing either.
 
 ## Results
 
-Go v0.2.0 (go1.26.4) against dateparsa.zig 08911e7, library as committed, harness not yet (Zig 0.17.0)  
-Apple M5 Max, Darwin arm64, 2026-10-27, 10 rounds of 350ms runs  
-Load averages at the start 8.03 8.71 8.90, at the end 7.87 8.66 8.69  
+Go v0.2.0 (go1.26.4) against dateparsa.zig 73880c4 (Zig 0.17.0)  
+Apple M5 Max, Darwin arm64, 2026-10-28, 10 rounds of 350ms runs  
+Load averages at the start 5.54 4.88 6.15, at the end 7.68 6.70 6.46  
 
 | Benchmark | Go ns/op | Zig ns/op | Zig / Go | middle range |
 |---|--:|--:|--:|--:|
-| Parse_ISO8601 | 48.4 | 41.2 | 0.86 | 0.83 to 0.87 |
-| Parse_ISO8601_DateTime | 66.0 | 64.6 | 0.98 | 0.94 to 1.01 |
-| Parse_RFC3339 | 76.2 | 88.2 | 1.15 | 1.11 to 1.22 |
-| Parse_SQLDatetime | 64.0 | 60.9 | 0.94 | 0.89 to 0.99 |
-| Parse_TextualMonth | 267 | 168 | 0.63 | 0.61 to 0.66 |
-| Parse_RFC2822_Locales | 802 | 2558 | 3.19 | 3.06 to 3.22 |
-| Parse_AmbiguousSlash | 153 | 83.7 | 0.54 | 0.49 to 0.57 |
-| Parse_Miss_Short | 227 | 205 | 0.91 | 0.88 to 0.97 |
-| Parse_Miss_Text | 288 | 487 | 1.68 | 1.62 to 1.75 |
-| Parse_Miss_Long | 1054 | 1397 | 1.32 | 1.22 to 1.38 |
-| Parse_Miss_Locales | 966 | 2137 | 2.20 (wide) | 2.05 to 2.29 |
-| Parse_Miss_Locales_NonLatin | 1246 | 1768 | 1.38 | 1.31 to 1.44 |
-| Layout_Parse | 15.3 | 10.3 | 0.68 | 0.66 to 0.70 |
-| Layout_Parse_ISODate | 11.1 | 7.5 | 0.68 | 0.66 to 0.71 |
-| Layout_Parse_TextualMonth | 23.3 | 13.6 | 0.59 | 0.57 to 0.59 |
-| Detect_Only | 48.7 | 63.0 | 1.30 | 1.26 to 1.35 |
-| Detect_TrieMiss_Fallback | 223 | 171 | 0.77 | 0.70 to 0.80 |
-| Detect_NoMatch | 106 | 488 | 4.58 (wide) | 4.13 to 4.82 |
-| Parser_Cached | 16.9 | 15.3 | 0.90 | 0.90 to 0.92 |
-| 10M_Layout_Parse | 148.1 ms | 103.8 ms | 0.70 | 0.69 to 0.72 |
-| 10M_Parser_ParseColumn | 191.9 ms | 161.5 ms | 0.83 | 0.79 to 0.85 |
-| Layout_Parse_TZName_CET | 17.7 | 14.5 | 0.82 | 0.80 to 0.82 |
-| Layout_Parse_TZOffset_OffGrid | 20.0 | 12.6 | 0.63 | 0.63 to 0.64 |
-| Layout_Parse_TZOffset_OnGrid | 19.6 | 12.7 | 0.65 | 0.64 to 0.66 |
-| Parse_Compact | 41.6 | 39.4 | 0.95 | 0.94 to 0.96 |
-| Parse_CompactDateTime | 57.0 | 48.2 | 0.84 | 0.83 to 0.90 |
-| Parse_UnixTimestamp | 57.5 | 36.3 | 0.64 | 0.62 to 0.65 |
-| Parse_ISOWeekDate | 165 | 76.7 | 0.46 | 0.41 to 0.48 |
-| Parse_ISOOrdinal | 103 | 66.8 | 0.63 | 0.58 to 0.66 |
-| Parse_TimeAMPM | 122 | 70.4 | 0.57 | 0.52 to 0.60 |
-| Parse_SQLFrac6 | 75.3 | 86.6 | 1.15 | 1.06 to 1.21 |
-| Layout_Parse_Compact | 10.6 | 7.2 | 0.70 | 0.68 to 0.72 |
-| Parse_NL_Yesterday | 208 | 296 | 1.41 (wide) | 1.22 to 1.47 |
-| Parse_NL_3DaysAgo | 241 | 344 | 1.43 | 1.34 to 1.50 |
-| Parse_NL_NextFriday | 249 | 352 | 1.41 (wide) | 1.32 to 1.57 |
-| Parse_NL_YesterdayAt5pm | 277 | 468 | 1.67 | 1.52 to 1.71 |
-| Parse_NL_BeginningOfMonth | 244 | 457 | 1.89 | 1.75 to 1.95 |
-| Parse_NL_In10Minutes | 236 | 386 | 1.67 (wide) | 1.48 to 1.75 |
-| Parse_Locale_FrenchMonth | 270 | 291 | 1.08 | 0.98 to 1.13 |
-| Parse_Locale_FrenchNL | 324 | 484 | 1.49 (wide) | 1.38 to 1.59 |
-| Parse_Locale_GermanMonth | 282 | 307 | 1.07 | 0.97 to 1.11 |
-| Parse_Locale_RussianNL | 752 | 1173 | 1.56 | 1.41 to 1.60 |
+| Parse_ISO8601 | 49.0 | 44.0 | 0.91 | 0.88 to 0.97 |
+| Parse_ISO8601_DateTime | 67.2 | 64.0 | 0.94 | 0.92 to 0.96 |
+| Parse_RFC3339 | 77.8 | 81.8 | 1.05 | 1.01 to 1.07 |
+| Parse_SQLDatetime | 64.8 | 60.5 | 0.94 | 0.92 to 0.97 |
+| Parse_TextualMonth | 256 | 142 | 0.55 | 0.48 to 0.57 |
+| Parse_RFC2822_Locales | 840 | 512 | 0.63 | 0.56 to 0.68 |
+| Parse_AmbiguousSlash | 164 | 85.2 | 0.51 | 0.48 to 0.55 |
+| Parse_Miss_Short | 234 | 45.7 | 0.19 | 0.18 to 0.21 |
+| Parse_Miss_Text | 295 | 153 | 0.52 | 0.49 to 0.53 |
+| Parse_Miss_Long | 1166 | 527 | 0.46 | 0.41 to 0.50 |
+| Parse_Miss_Locales | 1026 | 769 | 0.76 | 0.70 to 0.78 |
+| Parse_Miss_Locales_NonLatin | 1276 | 892 | 0.70 | 0.64 to 0.73 |
+| Layout_Parse | 15.2 | 10.3 | 0.68 | 0.67 to 0.70 |
+| Layout_Parse_ISODate | 11.2 | 7.6 | 0.70 | 0.67 to 0.72 |
+| Layout_Parse_TextualMonth | 23.6 | 13.7 | 0.58 | 0.57 to 0.60 |
+| Detect_Only | 49.0 | 64.7 | 1.31 | 1.28 to 1.34 |
+| Detect_TrieMiss_Fallback | 221 | 143 | 0.65 | 0.58 to 0.66 |
+| Detect_NoMatch | 104 | 152 | 1.42 | 1.38 to 1.54 |
+| Parser_Cached | 16.7 | 16.1 | 0.95 | 0.88 to 0.98 |
+| 10M_Layout_Parse | 151.0 ms | 102.8 ms | 0.68 | 0.67 to 0.70 |
+| 10M_Parser_ParseColumn | 194.2 ms | 164.2 ms | 0.83 | 0.78 to 0.86 |
+| Layout_Parse_TZName_CET | 17.7 | 14.4 | 0.80 | 0.80 to 0.85 |
+| Layout_Parse_TZOffset_OffGrid | 20.2 | 12.6 | 0.63 | 0.61 to 0.65 |
+| Layout_Parse_TZOffset_OnGrid | 19.5 | 12.8 | 0.65 | 0.62 to 0.69 |
+| Parse_Compact | 41.8 | 44.3 | 1.05 | 1.00 to 1.10 |
+| Parse_CompactDateTime | 58.9 | 50.6 | 0.88 | 0.84 to 0.92 |
+| Parse_UnixTimestamp | 58.0 | 36.5 | 0.63 | 0.60 to 0.65 |
+| Parse_ISOWeekDate | 166 | 77.2 | 0.47 | 0.43 to 0.49 |
+| Parse_ISOOrdinal | 107 | 67.9 | 0.63 | 0.55 to 0.65 |
+| Parse_TimeAMPM | 126 | 74.2 | 0.58 | 0.52 to 0.61 |
+| Parse_SQLFrac6 | 76.5 | 79.9 | 1.03 | 1.00 to 1.13 |
+| Layout_Parse_Compact | 10.5 | 7.3 | 0.70 | 0.69 to 0.72 |
+| Parse_NL_Yesterday | 226 | 74.6 | 0.33 | 0.31 to 0.37 |
+| Parse_NL_3DaysAgo | 257 | 112 | 0.44 | 0.41 to 0.46 |
+| Parse_NL_NextFriday | 253 | 102 | 0.41 | 0.39 to 0.42 |
+| Parse_NL_YesterdayAt5pm | 303 | 120 | 0.40 | 0.38 to 0.43 |
+| Parse_NL_BeginningOfMonth | 265 | 100 | 0.39 | 0.36 to 0.41 |
+| Parse_NL_In10Minutes | 247 | 104 | 0.43 | 0.41 to 0.45 |
+| Parse_Locale_FrenchMonth | 281 | 147 | 0.52 | 0.46 to 0.56 |
+| Parse_Locale_FrenchNL | 342 | 138 | 0.41 | 0.38 to 0.44 |
+| Parse_Locale_GermanMonth | 300 | 151 | 0.51 | 0.45 to 0.53 |
+| Parse_Locale_RussianNL | 788 | 390 | 0.49 | 0.46 to 0.52 |
 
-**Faster than Go:** reusing a layout (0.6 to 0.8 of Go's time, the ten
-million row column included), and the first parse of most structured
-formats: a textual month, an ambiguous numeric date, an ISO week date, a
-Unix timestamp, a time with AM or PM.
+**Faster than Go:** natural language (0.33 to 0.49 of Go's time, English,
+French and Russian alike), misses (0.19 to 0.76), textual dates with or
+without locales (0.51 to 0.63), reusing a layout (0.63 to 0.80, the ten
+million row column included), and the first parse of most other formats:
+an ambiguous numeric date, an ISO week date, a Unix timestamp, a time with
+AM or PM.
 
-**About even:** an ISO date-time with `Z`, SQL date-times, compact dates,
-the short miss, and a month name in a configured locale.
-
-**Slower:** everything that reaches natural language, which every miss does
-on its way to failing: 1.4 to 1.9 times Go for an English expression, about
-1.5 for one in a locale. Misses cost 1.3 to 2.2 times Go, and a textual
-date with locales configured 3.2 times. Two first parses with a zone
-offset or a fraction (`Parse_RFC3339`, `Parse_SQLFrac6`) are 1.15.
+**About even:** ISO and SQL date-times, compact dates, and a parse with a
+zone offset or a fraction (0.88 to 1.05). The rows above 1 have ranges
+that reach 1 or straddle it.
 
 **Not comparable:** `Detect_Only` and `Detect_NoMatch`. Go's `Detect` stops
 after structured detection; this port's is a whole parse, and on a miss
 that includes natural language. `Parse_Miss_Text` is the like-for-like miss.
+
+## Changes measured with this harness
+
+The first table, in the commit that added this file (82a9edd), had natural
+language at 1.4 to 1.9 times Go, misses up to 2.2 and a textual date with
+three locales at 3.2. Two changes account for the difference: the first
+came from reading how Go finds month names, the second from profiling the
+slowest row with `sample`, and `tools/oracle.sh` showed neither changed an
+answer. Ratios are Zig / Go, before and after.
+
+| Change | Rows it moved |
+|---|---|
+| Month names found from a word list, Go's `wordMatcher`, rather than scanning the input once per spelling (2663658) | textual date with locales 3.19 to 0.65; English natural language 1.41-1.89 to 0.98-1.11; `Miss_Text` 1.68 to 1.05; French and German months 1.08 to 0.54 |
+| Natural-language tokens filled in place rather than returned by value, several kilobytes copied per scan (73880c4) | English natural language 0.98-1.11 to 0.33-0.44; French 1.50 to 0.41; Russian 0.98 to 0.49; misses 0.93-1.20 to 0.19-0.76 |
+
+Not done, and not needed by any row here: the per-format comptime fast path
+and Go's day-count table in front of `daysFromCivil` (the reuse rows are
+already 0.63 to 0.80), a SIMD signature scan, and bucketing locale words by
+first byte (`Miss_Locales` is 0.76).
