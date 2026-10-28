@@ -32,7 +32,8 @@ jobs:
         run: zig build fmt-check
       # zigvet is a released binary, not a package (see build.zig). Pinned
       # with its checksum, so a new zigvet release cannot fail an unchanged
-      # commit; bump the version and the sum together.
+      # commit; bump the version and the sum together, here and in
+      # release.yml.
       - name: install zigvet
         env:
           ZIGVET_VERSION: v0.12.0
