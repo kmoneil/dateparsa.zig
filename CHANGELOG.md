@@ -10,6 +10,14 @@ the difference. Before 1.0 a breaking change is a minor bump.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.3.0] - 2026-10-28
+
+A column's date order, format strings for other tools, and a Python
+package. All of it is new API: nothing that existed changed, and every input
+parses to what it did in 0.2.1.
+
 ### Added
 
 - `detectColumn` and `Column`: which order a column writes its numeric dates
@@ -22,6 +30,13 @@ the difference. Before 1.0 a breaking change is a minor bump.
   `dateparsa_column_summarize`.
 - `Layout.dateOrder()`: the order a numeric layout reads year, month and day
   in.
+- `Layout.formatString(dialect, detected_from, writer)`: a detected format as
+  another tool's format string, in strftime (C, Python, pandas, Ruby), Go or
+  Java (also Kotlin and Spark) form, such as `%d/%m/%Y %H:%M`. A field a
+  dialect cannot spell is `error.Unsupported`, never a string that reads
+  something else. Every example in the format table is checked in Python, Go
+  and Java by `tools/format_check.sh`. In C: `dateparsa_format_string` and
+  the new status `DATEPARSA_UNSUPPORTED`.
 - A Python package, `pip install dateparsa`: wheels for Linux (glibc and musl),
   macOS 13 and later, and Windows, on x86_64 and arm64, for Python 3.9 and
   later, wrapping the release libraries with `ctypes`. `parse`, `detect`,
@@ -30,13 +45,6 @@ the difference. Before 1.0 a breaking change is a minor bump.
   `Ambiguous` and `NoBaseTime` as `ValueError`s. Every release installs each
   wheel on its platform and runs the tests before publishing to PyPI as a
   trusted publisher.
-- `Layout.formatString(dialect, detected_from, writer)`: a detected format as
-  another tool's format string, in strftime (C, Python, pandas, Ruby), Go or
-  Java (also Kotlin and Spark) form, such as `%d/%m/%Y %H:%M`. A field a
-  dialect cannot spell is `error.Unsupported`, never a string that reads
-  something else. Every example in the format table is checked in Python, Go
-  and Java by `tools/format_check.sh`. In C: `dateparsa_format_string` and
-  the new status `DATEPARSA_UNSUPPORTED`.
 
 ## [0.2.1] - 2026-10-28
 
@@ -101,7 +109,8 @@ what was changed on purpose.
 - No allocation on any path and no clock: an input that needs a base time and
   was given none fails with `error.NoBaseTime`.
 
-[Unreleased]: https://github.com/kmoneil/dateparsa.zig/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/kmoneil/dateparsa.zig/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/kmoneil/dateparsa.zig/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/kmoneil/dateparsa.zig/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/kmoneil/dateparsa.zig/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/kmoneil/dateparsa.zig/releases/tag/v0.1.0
