@@ -84,6 +84,54 @@ pub fn build(b: *std.Build) void {
     const lib_step = b.step("lib", "Build libdateparsa and install it with include/dateparsa.h");
     lib_step.dependOn(&b.addInstallArtifact(lib, .{}).step);
 
+    // The libraries a release attaches: every dist target, static and
+    // shared, ReleaseFast, each under zig-out/dist/dateparsa-<version>-<name>
+    // with the header and the licences. tools/dist.sh archives them. On
+    // Windows the static library is dateparsa_static.lib, since the DLL's
+    // import library is dateparsa.lib.
+    const dist_step = b.step("dist", "Build the release libraries into zig-out/dist (tools/dist.sh archives them)");
+    for (dist_targets) |dt| {
+        const dist_target = b.resolveTargetQuery(std.Target.Query.parse(.{ .arch_os_abi = dt.query }) catch unreachable);
+        const windows = dist_target.result.os.tag == .windows;
+        const dir = b.fmt("dist/dateparsa-{s}-{s}", .{ zon.version, dt.name });
+        const dist_mod = b.createModule(.{
+            .root_source_file = b.path("src/c_api.zig"),
+            .target = dist_target,
+            .optimize = .ReleaseFast,
+            .pic = true,
+            .strip = true,
+        });
+        dist_mod.addOptions("build_options", options);
+        const dist_static = b.addLibrary(.{
+            .linkage = .static,
+            .name = if (windows) "dateparsa_static" else "dateparsa",
+            .root_module = dist_mod,
+        });
+        dist_static.bundle_compiler_rt = true;
+        const dist_shared = b.addLibrary(.{
+            .linkage = .dynamic,
+            .name = "dateparsa",
+            .root_module = dist_mod,
+            .version = std.SemanticVersion.parse(zon.version) catch unreachable,
+        });
+        const lib_dir: std.Build.InstallDir = .{ .custom = b.fmt("{s}/lib", .{dir}) };
+        for ([_]*std.Build.Step.Compile{ dist_static, dist_shared }) |artifact| {
+            dist_step.dependOn(&b.addInstallArtifact(artifact, .{
+                .dest_dir = .{ .override = if (artifact.isDll()) .{ .custom = b.fmt("{s}/bin", .{dir}) } else lib_dir },
+                .implib_dir = if (artifact.isDll()) .{ .override = lib_dir } else .disabled,
+                .pdb_dir = .disabled,
+                .h_dir = .disabled,
+            }).step);
+        }
+        for ([_][2][]const u8{
+            .{ "include/dateparsa.h", "include/dateparsa.h" },
+            .{ "LICENSE", "LICENSE" },
+            .{ "NOTICE", "NOTICE" },
+        }) |file| {
+            dist_step.dependOn(&b.addInstallFileWithDir(b.path(file[0]), .{ .custom = dir }, file[1]).step);
+        }
+    }
+
     // test/c_api.c, a C program, against the static library and the
     // header; and the header compiled as C++, which only has to compile.
     const static_lib = if (linkage == .static) lib else b.addLibrary(.{
@@ -241,3 +289,15 @@ pub fn build(b: *std.Build) void {
         step.dependOn(&run_exe.step);
     }
 }
+
+/// The platforms a release carries libdateparsa for. macOS from 13, the
+/// oldest the hosted runners and Apple still support; Linux and Windows
+/// libraries link no libc, so any glibc, musl or C runtime takes them.
+const dist_targets = [_]struct { name: []const u8, query: []const u8 }{
+    .{ .name = "x86_64-linux", .query = "x86_64-linux-gnu" },
+    .{ .name = "aarch64-linux", .query = "aarch64-linux-gnu" },
+    .{ .name = "x86_64-macos", .query = "x86_64-macos.13.0" },
+    .{ .name = "aarch64-macos", .query = "aarch64-macos.13.0" },
+    .{ .name = "x86_64-windows", .query = "x86_64-windows-msvc" },
+    .{ .name = "aarch64-windows", .query = "aarch64-windows-msvc" },
+};
