@@ -1,4 +1,5 @@
 const std = @import("std");
+const zon = @import("build.zig.zon");
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
@@ -18,18 +19,39 @@ pub fn build(b: *std.Build) void {
     ) orelse "all";
     const options = b.addOptions();
     options.addOption([]const u8, "locales", locales);
+    options.addOption([]const u8, "version", zon.version);
     mod.addOptions("build_options", options);
 
+    // The C ABI: src/c_api.zig behind include/dateparsa.h.
+    const c_mod = b.createModule(.{
+        .root_source_file = b.path("src/c_api.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    c_mod.addOptions("build_options", options);
+
     // The tests are the library plus test data the package does not ship:
-    // the golden corpus vendored from the Go original.
+    // the golden corpus vendored from the Go original, and the C header as
+    // Zig reads it, which src/c_api_test.zig checks the exports against.
+    const header = b.addTranslateC(.{
+        .root_source_file = b.path("include/dateparsa.h"),
+        .target = target,
+        .optimize = optimize,
+        // The header needs only the compiler's own stdbool, stddef and
+        // stdint, and the tests stay off libc.
+        .link_libc = false,
+    });
     const test_mod = b.createModule(.{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{.{
-            .name = "golden_corpus",
-            .module = b.createModule(.{ .root_source_file = b.path("testdata/golden.zig") }),
-        }},
+        .imports = &.{
+            .{
+                .name = "golden_corpus",
+                .module = b.createModule(.{ .root_source_file = b.path("testdata/golden.zig") }),
+            },
+            .{ .name = "dateparsa_h", .module = header.createModule() },
+        },
     });
     test_mod.addOptions("build_options", options);
     const mod_tests = b.addTest(.{
@@ -39,6 +61,55 @@ pub fn build(b: *std.Build) void {
 
     const test_step = b.step("test", "Run tests");
     test_step.dependOn(&run_mod_tests.step);
+
+    // libdateparsa for other languages, static unless -Dlinkage=dynamic,
+    // installed with its header by `zig build lib`. A static library
+    // carries the compiler runtime, so a C toolchain links it alone.
+    const linkage = b.option(
+        std.builtin.LinkMode,
+        "linkage",
+        "libdateparsa's linkage for the lib step (default: static)",
+    ) orelse .static;
+    const lib = b.addLibrary(.{
+        .linkage = linkage,
+        .name = "dateparsa",
+        .root_module = c_mod,
+        .version = std.SemanticVersion.parse(zon.version) catch unreachable,
+    });
+    lib.bundle_compiler_rt = true;
+    lib.installHeader(b.path("include/dateparsa.h"), "dateparsa.h");
+    const lib_step = b.step("lib", "Build libdateparsa and install it with include/dateparsa.h");
+    lib_step.dependOn(&b.addInstallArtifact(lib, .{}).step);
+
+    // test/c_api.c, a C program, against the static library and the
+    // header; and the header compiled as C++, which only has to compile.
+    const static_lib = if (linkage == .static) lib else b.addLibrary(.{
+        .name = "dateparsa",
+        .root_module = c_mod,
+    });
+    static_lib.bundle_compiler_rt = true;
+    const c_flags: []const []const u8 = &.{ "-Wall", "-Wextra", "-Werror", "-pedantic" };
+    const c_test = b.addExecutable(.{
+        .name = "c_api_test",
+        .root_module = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true }),
+    });
+    c_test.root_module.addCSourceFile(.{
+        .file = b.path("test/c_api.c"),
+        .flags = c_flags ++ &[_][]const u8{"-std=c11"},
+    });
+    c_test.root_module.addIncludePath(b.path("include"));
+    c_test.root_module.linkLibrary(static_lib);
+    test_step.dependOn(&b.addRunArtifact(c_test).step);
+    const cpp_header = b.addObject(.{
+        .name = "header_cpp",
+        .root_module = b.createModule(.{ .target = target, .optimize = optimize, .link_libc = true }),
+    });
+    cpp_header.root_module.addCSourceFile(.{
+        .file = b.path("test/header.cpp"),
+        .flags = c_flags ++ &[_][]const u8{"-std=c++11"},
+    });
+    cpp_header.root_module.addIncludePath(b.path("include"));
+    test_step.dependOn(&cpp_header.step);
 
     // The fuzz targets alone. `zig build fuzz` replays their seeds, and
     // tools/fuzz.sh runs them under the fuzzer with --fuzz. Always the LLVM
