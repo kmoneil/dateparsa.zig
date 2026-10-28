@@ -59,7 +59,9 @@ static void reuse_the_layout(void) {
     CHECK(dateparsa_layout_parse(&first.layout, S(" 2024-03-16 "), &t) == DATEPARSA_OK);
     CHECK(t.year == 2024 && t.day == 16);
     CHECK(dateparsa_layout_parse(&first.layout, S("March 17, 2024"), &t) == DATEPARSA_NO_MATCH);
-    CHECK(same(dateparsa_layout_label(&first.layout, &n), n, "ISO8601_DATE"));
+    /* The label first: C leaves the order of a call's arguments open. */
+    const char *label = dateparsa_layout_label(&first.layout, &n);
+    CHECK(same(label, n, "ISO8601_DATE"));
 
     dateparsa_layout detected;
     CHECK(dateparsa_detect(S("15.03.2024"), NULL, &detected) == DATEPARSA_OK);
