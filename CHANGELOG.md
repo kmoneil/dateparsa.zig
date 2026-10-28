@@ -22,6 +22,14 @@ the difference. Before 1.0 a breaking change is a minor bump.
   `dateparsa_column_summarize`.
 - `Layout.dateOrder()`: the order a numeric layout reads year, month and day
   in.
+- A Python package, `pip install dateparsa`: wheels for Linux (glibc and musl),
+  macOS 13 and later, and Windows, on x86_64 and arm64, for Python 3.9 and
+  later, wrapping the release libraries with `ctypes`. `parse`, `detect`,
+  `Parser`, `Layout` (with `format_string`), `detect_column` and `Column`,
+  with options as keyword arguments, results as `datetime`s, and `NoMatch`,
+  `Ambiguous` and `NoBaseTime` as `ValueError`s. Every release installs each
+  wheel on its platform and runs the tests before publishing to PyPI as a
+  trusted publisher.
 - `Layout.formatString(dialect, detected_from, writer)`: a detected format as
   another tool's format string, in strftime (C, Python, pandas, Ruby), Go or
   Java (also Kotlin and Spark) form, such as `%d/%m/%Y %H:%M`. A field a

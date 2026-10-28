@@ -1,8 +1,10 @@
-# libdateparsa as a release ships it. tools/dist.sh builds every platform's
-# archive on one Linux runner; then each runner OS unpacks its own platform's
-# archive and links test/c_api.c against it, static and shared, with the C
-# compiler it already has (gcc on Linux, clang on macOS and Windows), and runs
-# it. No Zig on that side: it is what a C programmer downloading a release
+# libdateparsa as a release ships it, and the Python wheels around it.
+# tools/dist.sh builds every platform's archive on one Linux runner, and
+# tools/python_wheels.py a wheel from each. Then each runner OS unpacks its
+# own platform's archive and links test/c_api.c against it, static and
+# shared, with the C compiler it already has (gcc on Linux, clang on macOS and
+# Windows), and runs it; and installs the wheel pip picks for it and runs the
+# Python tests. No Zig on that side: it is what someone downloading a release
 # does.
 #
 # ci.yml calls this on every change, so a tag never finds a platform that does
@@ -30,6 +32,8 @@ jobs:
           use-cache: false
       - name: tools/dist.sh
         run: tools/dist.sh
+      - name: tools/python_wheels.py
+        run: python3 -I tools/python_wheels.py
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: libraries
@@ -39,6 +43,12 @@ jobs:
             zig-out/dist/SHA256SUMS
           retention-days: 7
           if-no-files-found: error
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: wheels
+          path: zig-out/wheels/*.whl
+          retention-days: 7
+          if-no-files-found: error
 
   verify:
     name: verify (${{ matrix.os }})
@@ -46,10 +56,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # The oldest Python the package supports on one runner, a current one
+        # on the others.
         include:
-          - { os: ubuntu-latest, platform: x86_64-linux }
-          - { os: macos-latest, platform: aarch64-macos }
-          - { os: windows-latest, platform: x86_64-windows }
+          - { os: ubuntu-latest, platform: x86_64-linux, python: "3.9" }
+          - { os: macos-latest, platform: aarch64-macos, python: "3.13" }
+          - { os: windows-latest, platform: x86_64-windows, python: "3.13" }
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     defaults:
@@ -97,3 +109,22 @@ jobs:
           PATH="$PKG/bin:$PATH" ./c_api_shared.exe
           clang $flags test/c_api.c "$PKG/lib/dateparsa_static.lib" -o c_api_static.exe
           ./c_api_static.exe
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: wheels
+          path: wheels
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ matrix.python }}
+      # pip picks the wheel, so a wrong platform tag fails here. The tests run
+      # from outside the checkout's python/src, against what pip installed.
+      - name: the Python wheel
+        run: |
+          python -m venv "$RUNNER_TEMP/venv"
+          py="$RUNNER_TEMP/venv/bin/python"
+          [ -x "$py" ] || py="$RUNNER_TEMP/venv/Scripts/python"
+          "$py" -m pip install --no-index --find-links wheels dateparsa
+          tests="$PWD/python/tests"
+          cd "$RUNNER_TEMP"
+          "$py" -c "import dateparsa, sys; print(dateparsa.__version__, dateparsa.__file__, sys.version)"
+          "$py" -m unittest discover -v -s "$tests"

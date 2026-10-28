@@ -1,0 +1,527 @@
+"""Date parsing for input whose format you do not control.
+
+CSV imports, log lines, third-party APIs, user-typed strings: dateparsa works
+out the format, parses the value, and hands you a layout that reads the rest
+of the column with no detection.
+
+    >>> import dateparsa
+    >>> r = dateparsa.parse("March 15, 2024")
+    >>> r.datetime
+    datetime.datetime(2024, 3, 15, 0, 0, tzinfo=datetime.timezone.utc)
+    >>> r.layout.format_string("strftime")
+    '%B %d, %Y'
+
+These are bindings to libdateparsa, the C interface of the Zig library
+(https://github.com/kmoneil/dateparsa.zig), which ships inside this package.
+Nothing here reads a clock: an input that needs a base time ("3 days ago")
+raises NoBaseTime unless you pass base_time.
+"""
+
+from __future__ import annotations
+
+import ctypes
+import datetime as _dt
+import os
+import sys
+from dataclasses import dataclass
+from typing import FrozenSet, Iterable, List, Optional, Tuple, Union
+
+__all__ = [
+    "Ambiguous",
+    "Column",
+    "ColumnReport",
+    "Error",
+    "Interpretation",
+    "LOCALES",
+    "Layout",
+    "NoBaseTime",
+    "NoMatch",
+    "Parser",
+    "Result",
+    "Time",
+    "Unsupported",
+    "detect",
+    "detect_column",
+    "parse",
+]
+
+# Every locale there is, in the order of the C header's DATEPARSA_LOCALE_*
+# bits.
+_ALL_LOCALES = (
+    "ar", "da", "de", "en", "es", "fi", "fr", "hi", "it", "ja",
+    "ko", "nl", "no", "pl", "pt", "ru", "sv", "tr", "uk", "zh",
+)
+_ORDERS = ("month_first", "day_first", "year_first")
+_KINDS = ("absolute", "relative", "now")
+_DIALECTS = ("strftime", "go", "java")
+
+_OK, _NO_MATCH, _AMBIGUOUS, _NO_BASE_TIME, _INVALID, _TOO_SMALL, _UNSUPPORTED = range(7)
+
+
+class _DateTime(ctypes.Structure):
+    _fields_ = [
+        ("year", ctypes.c_int32),
+        ("month", ctypes.c_uint8),
+        ("day", ctypes.c_uint8),
+        ("hour", ctypes.c_uint8),
+        ("minute", ctypes.c_uint8),
+        ("second", ctypes.c_uint8),
+        ("nanosecond", ctypes.c_uint32),
+        ("offset_seconds", ctypes.c_int32),
+    ]
+
+
+class _Interpretation(ctypes.Structure):
+    _fields_ = [("time", _DateTime), ("label", ctypes.c_void_p), ("label_len", ctypes.c_size_t)]
+
+
+class _Diagnostics(ctypes.Structure):
+    _fields_ = [
+        ("interpretations", _Interpretation * 3),
+        ("interpretation_count", ctypes.c_uint8),
+        ("message", ctypes.c_void_p),
+        ("message_len", ctypes.c_size_t),
+    ]
+
+
+class _Options(ctypes.Structure):
+    _fields_ = [
+        ("base_time", ctypes.POINTER(_DateTime)),
+        ("timezone_offset", ctypes.c_int32),
+        ("locales", ctypes.c_uint32),
+        ("prefer_day_first", ctypes.c_bool),
+        ("prefer_year_first", ctypes.c_bool),
+        ("prefer_future", ctypes.c_bool),
+        ("strict", ctypes.c_bool),
+        ("diagnostics", ctypes.POINTER(_Diagnostics)),
+    ]
+
+
+def _opaque(size: int) -> type:
+    return type(
+        "_Opaque%d" % size,
+        (ctypes.Union,),
+        {"_fields_": [("bytes", ctypes.c_ubyte * size), ("align_u64_", ctypes.c_uint64), ("align_ptr_", ctypes.c_void_p)]},
+    )
+
+
+_LayoutBlob = _opaque(256)
+_ParserBlob = _opaque(384)
+_ColumnBlob = _opaque(256)
+
+
+class _Result(ctypes.Structure):
+    _fields_ = [
+        ("time", _DateTime),
+        ("unix_seconds", ctypes.c_int64),
+        ("kind", ctypes.c_uint8),
+        ("ambiguous", ctypes.c_bool),
+        ("reusable", ctypes.c_bool),
+        ("label", ctypes.c_void_p),
+        ("label_len", ctypes.c_size_t),
+        ("layout", _LayoutBlob),
+    ]
+
+
+class _ColumnReport(ctypes.Structure):
+    _fields_ = [
+        ("order", ctypes.c_int32),
+        ("fits", ctypes.c_uint32),
+        ("prefer_day_first", ctypes.c_bool),
+        ("prefer_year_first", ctypes.c_bool),
+        ("values", ctypes.c_uint64),
+        ("voted", ctypes.c_uint64),
+        ("failed", ctypes.c_uint64),
+        ("conflicts", ctypes.c_uint64),
+        ("settled_by", ctypes.c_int64),
+        ("first_conflict", ctypes.c_int64),
+    ]
+
+
+def _load() -> ctypes.CDLL:
+    path = os.environ.get("DATEPARSA_LIB")
+    if not path:
+        if sys.platform == "win32":
+            name = "dateparsa.dll"
+        elif sys.platform == "darwin":
+            name = "libdateparsa.dylib"
+        else:
+            name = "libdateparsa.so"
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), name)
+    lib = ctypes.CDLL(path)
+    P = ctypes.POINTER
+    text = (ctypes.c_char_p, ctypes.c_size_t)
+    sigs = {
+        "dateparsa_version": ([], ctypes.c_char_p),
+        "dateparsa_locales_compiled": ([], ctypes.c_uint32),
+        "dateparsa_locale_lookup": ([*text, P(ctypes.c_uint32)], ctypes.c_int),
+        "dateparsa_parse": ([*text, P(_Options), P(_Result)], ctypes.c_int),
+        "dateparsa_detect": ([*text, P(_Options), P(_LayoutBlob)], ctypes.c_int),
+        "dateparsa_layout_parse": ([P(_LayoutBlob), *text, P(_DateTime)], ctypes.c_int),
+        "dateparsa_layout_reusable": ([P(_LayoutBlob)], ctypes.c_bool),
+        "dateparsa_layout_label": ([P(_LayoutBlob), P(ctypes.c_size_t)], ctypes.c_void_p),
+        "dateparsa_format_string": (
+            [P(_LayoutBlob), ctypes.c_int, *text, ctypes.c_char_p, ctypes.c_size_t, P(ctypes.c_size_t)],
+            ctypes.c_int,
+        ),
+        "dateparsa_parser_init": ([P(_ParserBlob), P(_Options)], ctypes.c_int),
+        "dateparsa_parser_parse": ([P(_ParserBlob), *text, P(_Result)], ctypes.c_int),
+        "dateparsa_parser_reset": ([P(_ParserBlob)], None),
+        "dateparsa_column_init": ([P(_ColumnBlob), P(_Options)], ctypes.c_int),
+        "dateparsa_column_add": ([P(_ColumnBlob), *text], ctypes.c_int),
+        "dateparsa_column_summarize": ([P(_ColumnBlob), P(_ColumnReport)], ctypes.c_int),
+    }
+    for name, (args, res) in sigs.items():
+        fn = getattr(lib, name)
+        fn.argtypes = args
+        fn.restype = res
+    return lib
+
+
+_lib = _load()
+
+__version__: str = _lib.dateparsa_version().decode()
+
+#: The locales this build reads, by BCP 47 tag. English always.
+LOCALES: Tuple[str, ...] = tuple(
+    tag for i, tag in enumerate(_ALL_LOCALES) if _lib.dateparsa_locales_compiled() >> i & 1
+)
+
+
+class Error(ValueError):
+    """Why an input did not parse."""
+
+
+class NoMatch(Error):
+    """No format, timestamp or natural-language reading fits the input."""
+
+
+class NoBaseTime(Error):
+    """The input needs a base time ("3 days ago", "10:30") and none was given."""
+
+
+class Ambiguous(Error):
+    """Strict mode: more than one reading fits. interpretations lists them,
+    the preferred one first."""
+
+    def __init__(self, message: str, interpretations: List["Interpretation"]):
+        super().__init__(message)
+        self.interpretations = interpretations
+
+
+class Unsupported(Error):
+    """A format string dialect cannot spell one of the format's fields."""
+
+
+@dataclass(frozen=True)
+class Time:
+    """A civil date and time with a fixed UTC offset. year is astronomical
+    (year 0 is 1 BC) and may lie outside what datetime holds."""
+
+    year: int
+    month: int
+    day: int
+    hour: int
+    minute: int
+    second: int
+    nanosecond: int
+    offset_seconds: int
+
+    @property
+    def tzinfo(self) -> _dt.timezone:
+        return _dt.timezone(_dt.timedelta(seconds=self.offset_seconds))
+
+    def to_datetime(self) -> _dt.datetime:
+        """An aware datetime, to the microsecond. ValueError for a year
+        outside 1 to 9999."""
+        return _dt.datetime(
+            self.year, self.month, self.day, self.hour, self.minute, self.second,
+            self.nanosecond // 1000, tzinfo=self.tzinfo,
+        )
+
+    @classmethod
+    def _from(cls, t: _DateTime) -> "Time":
+        return cls(t.year, t.month, t.day, t.hour, t.minute, t.second, t.nanosecond, t.offset_seconds)
+
+
+@dataclass(frozen=True)
+class Interpretation:
+    """One way to read an input strict mode refused to choose for."""
+
+    label: str
+    time: Time
+
+
+def _str(ptr: Optional[int], n: int) -> str:
+    return ctypes.string_at(ptr, n).decode("utf-8") if n else ""
+
+
+class Layout:
+    """A detected format, compiled, to read the rest of a column with."""
+
+    __slots__ = ("_blob", "_sample", "label", "reusable")
+
+    def __init__(self, blob, sample: bytes):
+        self._blob = blob
+        self._sample = sample
+        n = ctypes.c_size_t()
+        self.label: str = _str(_lib.dateparsa_layout_label(ctypes.byref(blob), ctypes.byref(n)), n.value)
+        #: Whether the rest of a column can be read with this layout: false
+        #: for timestamps, natural language, and formats whose month and day
+        #: are decided per value.
+        self.reusable: bool = bool(_lib.dateparsa_layout_reusable(ctypes.byref(blob)))
+
+    def parse(self, text: str) -> Time:
+        """text read in this layout's format, with no detection. NoMatch
+        when it is not written that way."""
+        b = text.encode("utf-8")
+        t = _DateTime()
+        status = _lib.dateparsa_layout_parse(ctypes.byref(self._blob), b, len(b), ctypes.byref(t))
+        if status != _OK:
+            raise NoMatch("%r is not written as %s" % (text, self.label))
+        return Time._from(t)
+
+    def format_string(self, dialect: str = "strftime") -> str:
+        """The format as another tool's format string: "strftime" (C,
+        Python, pandas), "go", or "java" (Java, Kotlin, Spark). Unsupported
+        when the dialect cannot spell a field, such as an ordinal suffix."""
+        if dialect not in _DIALECTS:
+            raise ValueError("dialect must be one of %s" % ", ".join(_DIALECTS))
+        buf = ctypes.create_string_buffer(1024)
+        n = ctypes.c_size_t()
+        status = _lib.dateparsa_format_string(
+            ctypes.byref(self._blob), _DIALECTS.index(dialect), self._sample, len(self._sample),
+            buf, len(buf), ctypes.byref(n),
+        )
+        if status == _UNSUPPORTED:
+            raise Unsupported("%s cannot spell the format %s" % (dialect, self.label))
+        if status != _OK:
+            raise ValueError("this layout was not detected from %r" % self._sample.decode("utf-8", "replace"))
+        return buf.raw[: n.value].decode("utf-8")
+
+    def __repr__(self) -> str:
+        return "Layout(%r)" % self.label
+
+
+@dataclass(frozen=True)
+class Result:
+    """A successful parse."""
+
+    time: Time
+    #: Seconds since 1970-01-01T00:00:00Z; time.nanosecond is the rest.
+    unix_seconds: int
+    #: "absolute" ("2024-03-15", a timestamp), "relative" ("3 days ago") or
+    #: "now" ("now", "today").
+    kind: str
+    #: The input needed a guess ("01/02/2024"), and the preferences made it.
+    ambiguous: bool
+    #: The format's name: "ISO8601_DATE", "NUMERIC_MDY", "NATURAL_LANGUAGE".
+    label: str
+    layout: Layout
+
+    @property
+    def datetime(self) -> _dt.datetime:
+        """time as an aware datetime, to the microsecond."""
+        return self.time.to_datetime()
+
+
+def _bits(locales: Union[str, Iterable[str]]) -> int:
+    if isinstance(locales, str):
+        locales = [locales]
+    bits = 0
+    for tag in locales:
+        b = tag.encode("utf-8")
+        bit = ctypes.c_uint32()
+        if _lib.dateparsa_locale_lookup(b, len(b), ctypes.byref(bit)) != _OK:
+            raise ValueError("locale %r is not one this build reads (%s)" % (tag, ", ".join(LOCALES)))
+        bits |= bit.value
+    return bits
+
+
+class _Call:
+    """Options for one call, with the structs they point at kept alive."""
+
+    def __init__(
+        self,
+        base_time: Optional[_dt.datetime] = None,
+        timezone_offset: Union[int, _dt.timedelta] = 0,
+        prefer_day_first: bool = False,
+        prefer_year_first: bool = False,
+        prefer_future: bool = False,
+        strict: bool = False,
+        locales: Union[str, Iterable[str]] = (),
+    ):
+        self.diag = _Diagnostics()
+        self.base = None
+        if base_time is not None:
+            off = base_time.utcoffset()
+            self.base = _DateTime(
+                base_time.year, base_time.month, base_time.day, base_time.hour, base_time.minute,
+                base_time.second, base_time.microsecond * 1000, int(off.total_seconds()) if off else 0,
+            )
+        if isinstance(timezone_offset, _dt.timedelta):
+            timezone_offset = int(timezone_offset.total_seconds())
+        self.opts = _Options(
+            ctypes.pointer(self.base) if self.base is not None else None,
+            timezone_offset, _bits(locales), prefer_day_first, prefer_year_first, prefer_future, strict,
+            ctypes.pointer(self.diag),
+        )
+
+    def raise_for(self, status: int, text: str) -> None:
+        d = self.diag
+        message = _str(d.message, d.message_len)
+        if status == _NO_MATCH:
+            raise NoMatch("cannot parse %r: %s" % (text, message))
+        if status == _NO_BASE_TIME:
+            raise NoBaseTime("cannot parse %r: %s" % (text, message))
+        if status == _AMBIGUOUS:
+            ins = [
+                Interpretation(_str(i.label, i.label_len), Time._from(i.time))
+                for i in d.interpretations[: d.interpretation_count]
+            ]
+            raise Ambiguous("%r is ambiguous: %s" % (text, ", ".join(i.label for i in ins)), ins)
+        raise ValueError(message or "invalid argument")
+
+
+def _result(r: _Result, sample: bytes) -> Result:
+    blob = _LayoutBlob()
+    ctypes.memmove(ctypes.byref(blob), ctypes.byref(r.layout), ctypes.sizeof(blob))
+    return Result(
+        time=Time._from(r.time),
+        unix_seconds=r.unix_seconds,
+        kind=_KINDS[r.kind],
+        ambiguous=bool(r.ambiguous),
+        label=_str(r.label, r.label_len),
+        layout=Layout(blob, sample),
+    )
+
+
+def parse(text: str, **options) -> Result:
+    """text parsed as a structured date, then a Unix timestamp, then natural
+    language. Surrounding ASCII whitespace is padding.
+
+    Options: base_time (a datetime, for relative and year-less inputs),
+    timezone_offset (seconds or a timedelta, for inputs that write no zone),
+    prefer_day_first, prefer_year_first, prefer_future, strict (raise
+    Ambiguous instead of guessing), locales (BCP 47 tags besides English).
+    """
+    call = _Call(**options)
+    b = text.encode("utf-8")
+    r = _Result()
+    status = _lib.dateparsa_parse(b, len(b), ctypes.byref(call.opts), ctypes.byref(r))
+    if status != _OK:
+        call.raise_for(status, text)
+    return _result(r, b)
+
+
+def detect(text: str, **options) -> Layout:
+    """The layout text is written in, without its time."""
+    call = _Call(**options)
+    b = text.encode("utf-8")
+    blob = _LayoutBlob()
+    status = _lib.dateparsa_detect(b, len(b), ctypes.byref(call.opts), ctypes.byref(blob))
+    if status != _OK:
+        call.raise_for(status, text)
+    return Layout(blob, b)
+
+
+class Parser:
+    """Parses a column: caches the first value's layout and re-detects any
+    value it cannot read, so each answer is what parse would give. Not for
+    use by two threads at once."""
+
+    def __init__(self, **options):
+        self._call = _Call(**options)
+        self._blob = _ParserBlob()
+        self._layout = b""
+        self._sample = b""
+        status = _lib.dateparsa_parser_init(ctypes.byref(self._blob), ctypes.byref(self._call.opts))
+        if status != _OK:
+            self._call.raise_for(status, "")
+
+    def parse(self, text: str) -> Result:
+        b = text.encode("utf-8")
+        r = _Result()
+        status = _lib.dateparsa_parser_parse(ctypes.byref(self._blob), b, len(b), ctypes.byref(r))
+        if status != _OK:
+            self._call.raise_for(status, text)
+        # The layout a format string is spelled from is the value it was
+        # detected from: the earlier one, when this answer came from the cache.
+        layout = bytes(r.layout.bytes)
+        if layout != self._layout:
+            self._layout, self._sample = layout, b
+        return _result(r, self._sample)
+
+    def reset(self) -> None:
+        """Forgets the cached layout."""
+        _lib.dateparsa_parser_reset(ctypes.byref(self._blob))
+        self._layout = b""
+
+
+@dataclass(frozen=True)
+class ColumnReport:
+    """What a column's values say about the order of their numeric dates."""
+
+    #: "month_first", "day_first" or "year_first": the one order every value
+    #: with a say fits, or, when none fits them all, the one the fewest
+    #: contradict. None when nothing settled it.
+    order: Optional[str]
+    #: The orders every value with a say fits; empty when they contradict.
+    fits: FrozenSet[str]
+    values: int
+    #: Values in a format whose field order is decided per value.
+    voted: int
+    failed: int
+    #: Values with a say that order does not fit, and the first of them.
+    conflicts: int
+    first_conflict: Optional[int]
+    #: The index of the value after which order was the only one left.
+    settled_by: Optional[int]
+    prefer_day_first: bool
+    prefer_year_first: bool
+
+    @property
+    def preferences(self) -> dict:
+        """The options that read the column in order: parse(v, **report.preferences)."""
+        return {"prefer_day_first": self.prefer_day_first, "prefer_year_first": self.prefer_year_first}
+
+
+class Column:
+    """Settles which order a column writes its numeric dates in, from all of
+    its values: one "13/02/2024" means day first for all of it. Takes values
+    one at a time and keeps only counts."""
+
+    def __init__(self, **options):
+        self._call = _Call(**options)
+        self._blob = _ColumnBlob()
+        status = _lib.dateparsa_column_init(ctypes.byref(self._blob), ctypes.byref(self._call.opts))
+        if status != _OK:
+            self._call.raise_for(status, "")
+
+    def add(self, value: str) -> None:
+        b = value.encode("utf-8")
+        _lib.dateparsa_column_add(ctypes.byref(self._blob), b, len(b))
+
+    def report(self) -> ColumnReport:
+        r = _ColumnReport()
+        _lib.dateparsa_column_summarize(ctypes.byref(self._blob), ctypes.byref(r))
+        return ColumnReport(
+            order=_ORDERS[r.order] if r.order >= 0 else None,
+            fits=frozenset(o for i, o in enumerate(_ORDERS) if r.fits >> i & 1),
+            values=r.values,
+            voted=r.voted,
+            failed=r.failed,
+            conflicts=r.conflicts,
+            first_conflict=r.first_conflict if r.first_conflict >= 0 else None,
+            settled_by=r.settled_by if r.settled_by >= 0 else None,
+            prefer_day_first=bool(r.prefer_day_first),
+            prefer_year_first=bool(r.prefer_year_first),
+        )
+
+
+def detect_column(values: Iterable[str], **options) -> ColumnReport:
+    """What a column's values say about the order of their numeric dates."""
+    c = Column(**options)
+    for v in values:
+        c.add(v)
+    return c.report()
