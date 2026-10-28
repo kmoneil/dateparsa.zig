@@ -1,6 +1,7 @@
 # A tag is the release. For Zig the package is its source, fetched by `zig
 # fetch` from the tag; for everyone else the release attaches libdateparsa,
-# built for six platforms by libraries.yml, with SHA256SUMS and provenance.
+# built for six platforms by libraries.yml, with SHA256SUMS and provenance,
+# and the Python wheels around it go to PyPI.
 # What is published is whatever the tag points at, so this re-runs the gate
 # on the tagged commit rather than trusting that it was green on main.
 # It refuses a tag that disagrees with .version in build.zig.zon, which is
@@ -116,14 +117,19 @@ jobs:
         with:
           name: libraries
           path: dist
-      # Each archive: a signed statement that it was built by this workflow,
-      # from this tag, on a runner GitHub hosts. Checked with
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: wheels
+          path: dist
+      # Each archive and wheel: a signed statement that it was built by this
+      # workflow, from this tag, on a runner GitHub hosts. Checked with
       #   gh attestation verify dateparsa-0.3.0-x86_64-linux.tar.gz --repo kmoneil/dateparsa.zig
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: |
             dist/*.tar.gz
             dist/*.zip
+            dist/*.whl
 
   publish:
     name: publish
@@ -144,6 +150,10 @@ jobs:
         with:
           name: libraries
           path: dist
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: wheels
+          path: dist
       # A hyphen is what separates a semver prerelease from a release, so
       # v0.2.0-rc.1 is marked a prerelease and not made the latest.
       - name: create the GitHub release
@@ -154,4 +164,30 @@ jobs:
           flags=(--verify-tag --title "$TAG" --notes-file notes.md)
           case "$TAG" in *-*) flags+=(--prerelease) ;; esac
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" "${flags[@]}" \
-            dist/*.tar.gz dist/*.zip dist/SHA256SUMS
+            dist/*.tar.gz dist/*.zip dist/*.whl dist/SHA256SUMS
+
+  # The wheels to PyPI, last, once the GitHub release is out. PyPI trusts this
+  # workflow and the pypi environment as a trusted publisher, so the job holds
+  # no token: it mints a short-lived OIDC one, which the action trades for an
+  # upload, and with it signs the wheels' PEP 740 attestations. A version
+  # PyPI already has is refused, so a tag publishes once. A prerelease tag
+  # (v0.3.0-rc.1) is not uploaded: PyPI spells prereleases another way.
+  pypi:
+    name: publish to PyPI
+    needs: publish
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref_name, '-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: pypi
+      url: https://pypi.org/p/dateparsa
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: wheels
+          path: dist
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
+        with:
+          packages-dir: dist/
