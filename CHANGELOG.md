@@ -10,6 +10,13 @@ the difference. Before 1.0 a breaking change is a minor bump.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.2.0] - 2026-10-28
+
+The C interface. Nothing a Zig caller sees changed, and every input parses to
+what it did in 0.1.0.
+
 ### Added
 
 - A C interface, for every language that can call C. `zig build lib` builds
@@ -54,5 +61,6 @@ what was changed on purpose.
 - No allocation on any path and no clock: an input that needs a base time and
   was given none fails with `error.NoBaseTime`.
 
-[Unreleased]: https://github.com/kmoneil/dateparsa.zig/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/kmoneil/dateparsa.zig/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/kmoneil/dateparsa.zig/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/kmoneil/dateparsa.zig/releases/tag/v0.1.0
