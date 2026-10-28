@@ -10,7 +10,18 @@ the difference. Before 1.0 a breaking change is a minor bump.
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- `detectColumn` and `Column`: which order a column writes its numeric dates
+  in, month, day or year first, from all of its values where one value
+  cannot say. One `13/02/2024` settles day first for the whole column, and
+  two-digit years narrow it together. The report gives the order, the value
+  that settled it, any values that contradict it, and the `Options` that read
+  the column in it. `Column` takes values one at a time and allocates
+  nothing. In C: `dateparsa_column_init`, `dateparsa_column_add` and
+  `dateparsa_column_summarize`.
+- `Layout.dateOrder()`: the order a numeric layout reads year, month and day
+  in.
 
 ## [0.2.1] - 2026-10-28
 

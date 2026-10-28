@@ -13,6 +13,9 @@
 //!   writes reads back to that time.
 //! - What FlexTime reads, through std.json or fromValue, does not depend on
 //!   what it read before: its per-thread cache agrees with a cold one.
+//! - Each field order Column says a value fits is the order its preferences
+//!   read it in, and a column's options read every value that fits the
+//!   column's order in it.
 //! - The C API refuses exactly the options it must, whatever a C caller's
 //!   struct holds, and otherwise answers as parseWith does; a base time at
 //!   the edge of what it allows trips no safety check inside.
@@ -226,6 +229,38 @@ fn flexValueOne(_: void, smith: *Smith) anyerror!void {
     dp.FlexTime.forgetLayouts();
     const cold = dp.FlexTime.fromValue(.{ .string = b }) catch return;
     try expectEqual(cold, try warm);
+}
+
+fn columnOne(_: void, smith: *Smith) anyerror!void {
+    var buf_a: [max_input]u8 = undefined;
+    var buf_b: [max_input]u8 = undefined;
+    const a = input(smith, &buf_a);
+    const b = input(smith, &buf_b);
+    const opts = options(smith);
+    errdefer report(a, b, opts);
+    // Column sets strict mode aside, so its checks here do too.
+    var plain = opts;
+    plain.strict = false;
+
+    // Each order a value is said to fit is the order its preferences read.
+    for ([_][]const u8{ a, b }) |s| {
+        const say = dp.Column.orders(s, opts) orelse continue;
+        for (std.enums.values(dp.Layout.Order)) |o| {
+            if (!say.has(o)) continue;
+            const r = try dp.parseWith(s, dp.Column.readIn(plain, o));
+            try expectEqual(o, r.layout.dateOrder().?);
+        }
+    }
+    // The column's options read every value that fits its order in it.
+    const rep = dp.detectColumn(&.{ a, b }, opts);
+    const order = rep.order orelse return;
+    for ([_][]const u8{ a, b }) |s| {
+        const say = dp.Column.orders(s, opts) orelse continue;
+        if (!say.has(order)) continue;
+        var o = rep.options;
+        o.strict = false;
+        try expectEqual(order, (try dp.parseWith(s, o)).layout.dateOrder().?);
+    }
 }
 
 /// The C options a params string asks for, as raw as a C caller's struct.
@@ -551,6 +586,25 @@ fn jsonSeeds(arena: Allocator) ![]const []const u8 {
     return out.items;
 }
 
+/// The pairs, then numeric dates that settle, narrow, or contradict each
+/// other's order.
+fn columnSeeds(arena: Allocator) ![]const []const u8 {
+    var out: std.ArrayList([]const u8) = .empty;
+    const columns = [_][2][]const u8{
+        .{ "01/02/2024", "13/02/2024" },
+        .{ "01/02/2024", "02/13/2024" },
+        .{ "13/02/03", "05/06/31" },
+        .{ "32/01/02", "01/02/03" },
+        .{ "13/02/2024", "02/13/2024" },
+        .{ "01.01.1946", "02/13/2024" },
+        .{ "01-02-2024 10:30", "31/12/24" },
+        .{ "1/2/2024 10:30 PM", "12/31/24" },
+    };
+    for (columns) |p| try out.append(arena, try seed(arena, &p));
+    for (try pairSeeds(arena)) |p| try out.append(arena, p);
+    return out.items;
+}
+
 /// A params string for cOptions: the switches byte, the base year, the
 /// timezone offset and the locale bits; the rest of the record stays the
 /// golden base time's.
@@ -643,6 +697,12 @@ test "fuzz: FlexTime's fromValue cache agrees with a cold one" {
     var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
     defer arena.deinit();
     try std.testing.fuzz({}, flexValueOne, .{ .corpus = try pairSeeds(arena.allocator()) });
+}
+
+test "fuzz: a column's order is the order its options read its values in" {
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    try std.testing.fuzz({}, columnOne, .{ .corpus = try columnSeeds(arena.allocator()) });
 }
 
 test "fuzz: the C API refuses what it must and otherwise answers as parseWith" {

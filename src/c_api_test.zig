@@ -35,6 +35,8 @@ test "the header lays out every type as the library does" {
         .{ c.Result, h.dateparsa_result },
         .{ c.LayoutBlob, h.dateparsa_layout },
         .{ c.ParserBlob, h.dateparsa_parser },
+        .{ c.ColumnBlob, h.dateparsa_column },
+        .{ c.ColumnReport, h.dateparsa_column_report },
     }) |pair| {
         const Z = pair[0];
         const H = pair[1];
@@ -53,6 +55,11 @@ test "the header lays out every type as the library does" {
     }
     try expectEqual(c.layout_size, h.DATEPARSA_LAYOUT_SIZE);
     try expectEqual(c.parser_size, h.DATEPARSA_PARSER_SIZE);
+    try expectEqual(c.column_size, h.DATEPARSA_COLUMN_SIZE);
+    try expectEqual(-1, h.DATEPARSA_ORDER_NONE);
+    inline for (comptime std.enums.values(dp.Layout.Order)) |o| {
+        try expectEqual(@backingInt(o), @field(h, "DATEPARSA_ORDER_" ++ upper(@tagName(o))));
+    }
     try expectEqual(c.rfc3339_max, h.DATEPARSA_RFC3339_MAX);
     inline for (comptime std.enums.values(c.Status)) |v| {
         try expectEqual(@backingInt(v), @field(h, "DATEPARSA_" ++ upper(@tagName(v))));
@@ -171,6 +178,55 @@ test "through the header, a parser agrees with parse down the golden corpus" {
         const got = status(h.dateparsa_parser_parse(&p, s.ptr, s.len, &r));
         try expectAgrees(s, got, &r, .{ .base_time = toZig(golden_base) });
     }
+}
+
+/// A column through the header, against Column over the same values.
+fn expectColumnAgrees(values: []const []const u8, o: h.dateparsa_options, zo: dp.Options) !void {
+    var col: h.dateparsa_column = undefined;
+    try expectEqual(status(h.DATEPARSA_OK), status(h.dateparsa_column_init(&col, &o)));
+    for (values) |v| try expectEqual(status(h.DATEPARSA_OK), status(h.dateparsa_column_add(&col, v.ptr, v.len)));
+    var got: h.dateparsa_column_report = undefined;
+    try expectEqual(status(h.DATEPARSA_OK), status(h.dateparsa_column_summarize(&col, &got)));
+    const want = dp.detectColumn(values, zo);
+    try expectEqual(if (want.order) |w| @as(i32, @backingInt(w)) else -1, got.order);
+    try expectEqual(@as(u32, @as(u3, @bitCast(want.fits))), got.fits);
+    try expectEqual(want.order != null and want.options.prefer_day_first, got.prefer_day_first);
+    try expectEqual(want.order != null and want.options.prefer_year_first, got.prefer_year_first);
+    try expectEqual(want.values, got.values);
+    try expectEqual(want.voted, got.voted);
+    try expectEqual(want.failed, got.failed);
+    try expectEqual(want.conflicts, got.conflicts);
+    try expectEqual(if (want.settled_by) |i| @as(i64, @intCast(i)) else -1, got.settled_by);
+    try expectEqual(if (want.first_conflict) |i| @as(i64, @intCast(i)) else -1, got.first_conflict);
+}
+
+test "through the header, a column reports what Column does" {
+    const columns = [_][]const []const u8{
+        &.{ "01/02/2024", "05/06/2024", "13/02/2024" },
+        &.{ "01/02/2024", "02/13/2024" },
+        &.{ "01/02/2024", "03/04/2024" },
+        &.{ "13/02/03", "05/06/31" },
+        &.{ "32/01/02", "01/02/03" },
+        &.{ "13/02/2024", "02/13/2024", "14/02/2024" },
+        &.{ "13/02/2024", "02/13/2024" },
+        &.{ "2024-03-15", "nonsense", "yesterday" },
+        &.{},
+    };
+    for (columns) |col| try expectColumnAgrees(col, .{}, .{});
+
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    const inputs = try goldenInputs(arena.allocator());
+    try expectColumnAgrees(inputs, .{ .base_time = &golden_base }, .{ .base_time = toZig(golden_base) });
+
+    // A column the library never set up is refused, not read.
+    var zeroed = std.mem.zeroes(h.dateparsa_column);
+    var report: h.dateparsa_column_report = undefined;
+    try expectEqual(status(h.DATEPARSA_INVALID_ARGUMENT), status(h.dateparsa_column_add(&zeroed, "x", 1)));
+    try expectEqual(status(h.DATEPARSA_INVALID_ARGUMENT), status(h.dateparsa_column_summarize(&zeroed, &report)));
+    try expectEqual(status(h.DATEPARSA_INVALID_ARGUMENT), status(h.dateparsa_column_init(null, null)));
+    const bad: h.dateparsa_options = .{ .timezone_offset = 86_400 };
+    try expectEqual(status(h.DATEPARSA_INVALID_ARGUMENT), status(h.dateparsa_column_init(&zeroed, &bad)));
 }
 
 test "what crosses in is checked, and a refusal says why" {
