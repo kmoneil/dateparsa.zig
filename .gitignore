@@ -24,6 +24,10 @@ CLAUDE.md
 .karte/
 
 
+# Python bytecode, from running python/tests.
+__pycache__/
+*.pyc
+
 # Zig build output
 .zig-cache/
 zig-out/

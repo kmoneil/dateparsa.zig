@@ -308,6 +308,27 @@ values from a database row or anything else already typed, and
 `FlexTime.fromValueWith(&parser, value)` reads strings with your `Options`,
 strict mode included.
 
+### From Python
+
+```sh
+pip install dateparsa
+```
+
+```python
+import dateparsa
+
+r = dateparsa.parse("13/02/2024 10:30")
+r.datetime                    # datetime(2024, 2, 13, 10, 30, tzinfo=timezone.utc)
+r.layout.format_string()      # '%d/%m/%Y %H:%M', for pandas
+dateparsa.detect_column(["01/02/2024", "13/02/2024"]).order   # 'day_first'
+```
+
+Wheels for Linux (glibc and musl), macOS 13 and later, and Windows, on x86_64
+and arm64, for Python 3.9 and later: the release libraries below behind a
+`ctypes` binding, so nothing compiles on install. Every release installs each
+wheel on its own platform and runs the Python tests against it first.
+[python/README.md](python/README.md) has the rest.
+
 ### From C and other languages
 
 Each [release](https://github.com/kmoneil/dateparsa.zig/releases) attaches
@@ -431,6 +452,7 @@ zig build docs          # API documentation into zig-out/docs
 zig build lib           # libdateparsa and its C header into zig-out (-Dlinkage=dynamic)
 tools/dist.sh           # every release platform's library, archived into zig-out/dist
 tools/format_check.sh   # format strings, parsed by Python, Go and Java (needs all three)
+python3 -I tools/python_wheels.py   # after tools/dist.sh: the wheels, into zig-out/wheels
 zig build fuzz          # replay the fuzz seeds alone
 zig build bench         # the benchmarks (-- -bench NAME -count N -benchtime MS)
 tools/bench.sh          # against the Go library, on this machine (needs go)
@@ -438,6 +460,14 @@ tools/fuzz.sh [LIMIT]   # fuzz them, LIMIT runs each (default 1M), failing on a 
 zig build locales       # regenerate src/locale/ from the Go repository's tables
 zig build unicode       # regenerate src/unicode_data.zig (needs go)
 tools/oracle.sh         # diff against the Go library (needs go and a Go checkout)
+```
+
+The Python tests run against an installed wheel, or against a library you
+built:
+
+```sh
+zig build lib -Dlinkage=dynamic
+DATEPARSA_LIB=zig-out/lib/libdateparsa.dylib PYTHONPATH=python/src python3 -m unittest discover -s python/tests
 ```
 
 ## License
