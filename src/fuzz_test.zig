@@ -22,6 +22,8 @@
 //!   the edge of what it allows trips no safety check inside.
 //! - The C column call, on any bytes split at any separator, answers for
 //!   each value what a Parser answers parsing them in turn.
+//! - An input rfc2822 gives a shape to is one the textual detector reads
+//!   with that shape's fields, and its layout reads it to the same time.
 //!
 //! The seeds are the Go targets' seeds and committed crashers, every format's
 //! example and every row of the golden corpus.
@@ -32,6 +34,9 @@ const formats = @import("formats.zig");
 const golden = @import("golden_test.zig");
 const c = @import("c_api.zig");
 const locale = @import("locale.zig");
+const rfc2822 = @import("rfc2822.zig");
+const textual = @import("textual.zig");
+const Layout = @import("Layout.zig");
 
 const Allocator = std.mem.Allocator;
 const Smith = std.testing.Smith;
@@ -407,6 +412,26 @@ fn cOne(_: void, smith: *Smith) anyerror!void {
     try expectEqual(r.unix_seconds, unix);
 }
 
+fn mailOne(_: void, smith: *Smith) anyerror!void {
+    var buf: [max_input]u8 = undefined;
+    const s = input(smith, &buf);
+    const locales = options(smith).locales;
+    const m = rfc2822.match(s, locales) orelse return;
+    errdefer report(s, null, .{ .locales = locales });
+    // What the textual detector, which match stands in for, makes of s.
+    const want = textual.detectTextual(s, .{ .locales = locales }) orelse return error.TestUnexpectedResult;
+    const got = rfc2822.result(m);
+    try std.testing.expectEqualStrings(want.def.name, got.def.name);
+    try std.testing.expectEqualSlices(@import("compile.zig").Field, want.def.fields(), got.def.fields());
+    try expectEqual(want.ambiguity, got.ambiguity);
+    try expectEqual(want.prone, got.prone);
+    try expect(!textual.skipRunCarriesMeaning(s, want.def.fields(), locales));
+    const l = try Layout.fromDetection(&want, .{});
+    const want_t = l.program.execute(s) catch null;
+    const got_t = rfc2822.layout(m).program.execute(s) catch null;
+    try expectEqual(want_t, got_t);
+}
+
 fn cColumnOne(_: void, smith: *Smith) anyerror!void {
     var buf: [max_input]u8 = undefined;
     var sep_buf: [max_input]u8 = undefined;
@@ -742,6 +767,35 @@ fn cColumnSeeds(arena: Allocator) ![]const []const u8 {
     return out.items;
 }
 
+/// Email and HTTP dates in every shape rfc2822 holds, in other cases and
+/// with other words, then the singles.
+fn mailSeeds(arena: Allocator) ![]const []const u8 {
+    var out: std.ArrayList([]const u8) = .empty;
+    const mail = [_][]const u8{
+        "Fri, 15 Mar 2024 10:30:00 +0000", "Fri, 5 Mar 2024 10:30:00 +0000",  "15 Mar 2024 10:30:00 +0000",
+        "5 Mar 2024 10:30:00 +0000",       "Fri, 15 Mar 2024 10:30 +0000",    "Fri, 15 Mar 2024 10:30:00 GMT",
+        "Fri, 5 Mar 2024 10:30:00 GMT",    "sun, 06 nov 1994 08:49:37 GMT",   "Tue, 31 Dec 2024 23:59:59 -1200",
+        "Wed, 29 Feb 2023 10:30:00 +0000", "Mon, 15 May 0032 10:30:00 +0000", "Sat, 99 Jan 9999 99:99:99 +9999",
+        "Thu, 15 Sep 2024 10:30:00 UTC",   "Fri, 15 Mar 0031 10:30:00 +0000", "Fri+ 15 Mar 2024 10:30:00 +0000",
+        "Next 15 Mar 2024 10:30:00 +0000", "Fri, 15 May 2024 10:30:00 MAR",
+        // Where the detector's answer turns on what match checks: a weekday
+        // slot holding a month or a word that changes the date, and a day
+        // past 31 before a year at or under it.
+          "Mar, 15 Mar 2024 10:30:00 +0000",
+        "May, 15 Mar 2024 10:30:00 +0000", "Now, 15 Mar 2024 10:30:00 +0000", "End, 15 Mar 2024 10:30:00 +0000",
+        "Fri, 45 Mar 0031 10:30:00 +0000", "45 Mar 0031 10:30:00 +0000",
+    };
+    // Each with the default options, and with every locale (bit 32 of the
+    // options byte).
+    for (mail) |m| {
+        try out.append(arena, try seed(arena, &.{m}));
+        const with_all = try std.mem.concat(arena, u8, &.{ try seed(arena, &.{m}), &.{32} });
+        try out.append(arena, with_all);
+    }
+    for (singles) |s| try out.append(arena, try seed(arena, &.{s}));
+    return out.items;
+}
+
 /// The JSON pairs, then every pair as two strings.
 fn jsonPairSeeds(arena: Allocator) ![]const []const u8 {
     var out: std.ArrayList([]const u8) = .empty;
@@ -802,6 +856,12 @@ test "fuzz: the C API refuses what it must and otherwise answers as parseWith" {
     var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
     defer arena.deinit();
     try std.testing.fuzz({}, cOne, .{ .corpus = try cSeeds(arena.allocator()) });
+}
+
+test "fuzz: an email or HTTP date's shape reads it as the textual detector does" {
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    try std.testing.fuzz({}, mailOne, .{ .corpus = try mailSeeds(arena.allocator()) });
 }
 
 test "fuzz: the C column call answers as a Parser down its values" {

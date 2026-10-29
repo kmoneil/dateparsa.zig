@@ -635,7 +635,7 @@ fn runCarriesMeaning(run: []const u8, locales: locale.LocaleSet) bool {
     return false;
 }
 
-fn wordCarriesMeaning(w: []const u8, locales: locale.LocaleSet) bool {
+pub fn wordCarriesMeaning(w: []const u8, locales: locale.LocaleSet) bool {
     if (w.len == 0) return false;
     if (w.len <= max_meaning_word) {
         var buf: [max_meaning_word]u8 = undefined;
