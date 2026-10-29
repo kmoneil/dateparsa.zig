@@ -142,6 +142,7 @@ jobs:
           "$py" -c "import dateparsa, sys; print(dateparsa.__version__, dateparsa.__file__, sys.version)"
           "$py" -m unittest discover -v -s "$tests"
           # ParsedColumn.datetime64 needs numpy, which the package does not
-          # depend on: with it installed, its test may not skip.
+          # depend on: with it installed, its test may not skip, and what
+          # numpy deprecates fails it before a later numpy fails users.
           "$py" -m pip install --only-binary :all: numpy
-          DATEPARSA_TEST_NUMPY=1 "$py" -m unittest discover -v -s "$tests" -k datetime64
+          DATEPARSA_TEST_NUMPY=1 "$py" -W error::DeprecationWarning -m unittest discover -v -s "$tests" -k datetime64
