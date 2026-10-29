@@ -37,6 +37,11 @@ report = dateparsa.detect_column(column)
 report.order                                                  # 'day_first', settled by row 2
 [dateparsa.parse(v, **report.preferences) for v in column]   # each read day first
 
+# A whole column in one call, each value as parse reads it.
+col = dateparsa.parse_column(["2024-03-15", "N/A", "2024-03-17T10:30:00Z"])
+col.failed                                                    # [1]
+col.datetimes()                                               # [datetime(2024, 3, 15, ...), None, datetime(...)]
+
 # Hand the format to pandas, Go or Java.
 dateparsa.parse("13/02/2024 10:30").layout.format_string()   # '%d/%m/%Y %H:%M'
 
@@ -49,7 +54,11 @@ dateparsa.parse("vor 3 Tagen", base_time=datetime(2024, 3, 15, tzinfo=timezone.u
 `prefer_day_first`, `prefer_year_first`, `prefer_future`, `strict` and
 `locales`. A failed parse raises `NoMatch`, `Ambiguous` or `NoBaseTime`, all
 `ValueError`s. `Parser` reads a column, reusing the first value's layout, and
-`Layout.parse` reads a value with no detection at all.
+`Layout.parse` reads a value with no detection at all. `parse_column` reads a
+whole column in one call into the library, several times as fast as one call
+a value: `datetimes()`, `times()` and `failed` on what it returns, and
+`datetime64()` for a numpy array pandas takes, with `NaT` where a value did not
+parse (numpy is not a dependency).
 
 This package is a thin `ctypes` binding to libdateparsa, the C interface of the
 Zig library [dateparsa.zig](https://github.com/kmoneil/dateparsa.zig), whose

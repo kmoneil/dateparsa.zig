@@ -107,6 +107,15 @@ pub const Result = extern struct {
     layout: LayoutBlob,
 };
 
+/// One value of a column: a Result's first fields, and its status.
+pub const Value = extern struct {
+    time: DateTime,
+    unix_seconds: i64,
+    kind: u8,
+    ambiguous: bool,
+    status: u8,
+};
+
 /// The longest RFC 3339 form, its NUL included: an 11-character year,
 /// nanoseconds, and an offset.
 pub const rfc3339_max = 48;
@@ -282,6 +291,59 @@ pub export fn dateparsa_parser_parse(parser: ?*ParserBlob, input: ?[*]const u8, 
     return .ok;
 }
 
+/// Every value in data, down one Parser, into out: what dateparsa_parser_parse
+/// would answer for each in turn, in one call. A value ends at separator or
+/// at the end of data, so a separator ending data ends the last value
+/// rather than starting an empty one.
+pub export fn dateparsa_parse_column(
+    data: ?[*]const u8,
+    len: usize,
+    separator: u8,
+    options: ?*const Options,
+    out: ?[*]Value,
+    cap: usize,
+    count: ?*usize,
+) Status {
+    const o = options orelse &Options{};
+    const n = count orelse return refuse(o.diagnostics, "count is NULL");
+    const s = bytes(data, len) orelse return refuse(o.diagnostics, "data is NULL and len is not 0");
+    const zo = toZig(o) catch |err| return refuse(o.diagnostics, refusal(err));
+    const values = valueCount(s, separator);
+    n.* = values;
+    if (values > cap) return .buffer_too_small;
+    if (values == 0) return .ok;
+    const dst = out orelse return refuse(o.diagnostics, "out is NULL");
+    var p: dp.Parser = .init(zo);
+    var it = std.mem.splitScalar(u8, s, separator);
+    for (dst[0..values]) |*v| {
+        const r = p.parse(it.next().?) catch |err| {
+            v.* = .{
+                .time = std.mem.zeroes(DateTime),
+                .unix_seconds = 0,
+                .kind = 0,
+                .ambiguous = false,
+                .status = @intCast(@backingInt(statusOf(err))),
+            };
+            continue;
+        };
+        v.* = .{
+            .time = fromZig(r.time),
+            .unix_seconds = r.time.toEpoch().seconds,
+            .kind = kindOf(r.kind),
+            .ambiguous = r.ambiguous,
+            .status = @backingInt(Status.ok),
+        };
+    }
+    return .ok;
+}
+
+/// How many values dateparsa_parse_column finds in s.
+fn valueCount(s: []const u8, separator: u8) usize {
+    if (s.len == 0) return 0;
+    const separators = std.mem.countScalar(u8, s, separator);
+    return if (s[s.len - 1] == separator) separators else separators + 1;
+}
+
 pub export fn dateparsa_parser_reset(parser: ?*ParserBlob) void {
     const blob = parser orelse return;
     const st = parserState(blob);
@@ -446,16 +508,21 @@ fn fromResult(r: *const dp.Result) Result {
     return .{
         .time = fromZig(r.time),
         .unix_seconds = r.time.toEpoch().seconds,
-        .kind = switch (r.kind) {
-            .absolute => 0,
-            .relative => 1,
-            .now => 2,
-        },
+        .kind = kindOf(r.kind),
         .ambiguous = r.ambiguous,
         .reusable = r.layout.reusable(),
         .label = r.layout.label.ptr,
         .label_len = r.layout.label.len,
         .layout = storeLayout(&r.layout),
+    };
+}
+
+/// A dateparsa_kind.
+fn kindOf(k: dp.Kind) u8 {
+    return switch (k) {
+        .absolute => 0,
+        .relative => 1,
+        .now => 2,
     };
 }
 
@@ -502,6 +569,10 @@ fn failed(err: dp.ParseError, diag: *const dp.Diagnostics, out: ?*Diagnostics) S
             .label_len = in.label.len,
         };
     }
+    return statusOf(err);
+}
+
+fn statusOf(err: dp.ParseError) Status {
     return switch (err) {
         error.NoMatch => .no_match,
         error.Ambiguous => .ambiguous,

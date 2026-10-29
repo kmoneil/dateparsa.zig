@@ -20,6 +20,8 @@
 //! - The C API refuses exactly the options it must, whatever a C caller's
 //!   struct holds, and otherwise answers as parseWith does; a base time at
 //!   the edge of what it allows trips no safety check inside.
+//! - The C column call, on any bytes split at any separator, answers for
+//!   each value what a Parser answers parsing them in turn.
 //!
 //! The seeds are the Go targets' seeds and committed crashers, every format's
 //! example and every row of the golden corpus.
@@ -405,6 +407,57 @@ fn cOne(_: void, smith: *Smith) anyerror!void {
     try expectEqual(r.unix_seconds, unix);
 }
 
+fn cColumnOne(_: void, smith: *Smith) anyerror!void {
+    var buf: [max_input]u8 = undefined;
+    var sep_buf: [max_input]u8 = undefined;
+    var params_buf: [max_input]u8 = undefined;
+    const data = input(smith, &buf);
+    const sep_input = input(smith, &sep_buf);
+    const sep: u8 = if (sep_input.len > 0) sep_input[0] else '\n';
+    var base_time: c.DateTime = undefined;
+    var o = cOptions(input(smith, &params_buf), &base_time);
+    var diag: c.Diagnostics = undefined;
+    diag.message_len = 0;
+    o.diagnostics = &diag;
+    errdefer std.debug.print("data \"{f}\" separator {d}\nC options {any}\nbase time {any}\n", .{ std.zig.fmtString(data), sep, o, base_time });
+
+    var out: [max_input]c.Value = undefined;
+    var n: usize = 0;
+    const got = c.dateparsa_parse_column(data.ptr, data.len, sep, &o, &out, out.len, &n);
+    const opts = cExpected(&o) orelse {
+        try expectEqual(c.Status.invalid_argument, got);
+        try expect(diag.message_len > 0);
+        return;
+    };
+    try expectEqual(c.Status.ok, got);
+    // The values a separator ends, the last of them perhaps unended.
+    var values = std.mem.splitScalar(u8, data, sep);
+    var p: dp.Parser = .init(opts);
+    var i: usize = 0;
+    while (values.next()) |v| : (i += 1) {
+        if (values.index == null and v.len == 0) break; // what a final separator ends is no value
+        try expect(i < n);
+        errdefer std.debug.print("value {d}, \"{f}\"\n", .{ i, std.zig.fmtString(v) });
+        const want = p.parse(v) catch |err| {
+            try expectEqual(@backingInt(@as(c.Status, switch (err) {
+                error.NoMatch => .no_match,
+                error.Ambiguous => .ambiguous,
+                error.NoBaseTime => .no_base_time,
+            })), out[i].status);
+            continue;
+        };
+        try expectEqual(@backingInt(c.Status.ok), out[i].status);
+        try expectEqual(want.time.year, out[i].time.year);
+        try expectEqual(want.time.toEpoch().seconds, out[i].unix_seconds);
+        try expectEqual(want.time.nanosecond, out[i].time.nanosecond);
+        try expectEqual(want.time.offset_seconds, out[i].time.offset_seconds);
+        try expectEqual(want.ambiguous, out[i].ambiguous);
+    }
+    try expectEqual(i, n);
+    // Diagnostics are the call's, and the call did not fail.
+    try expectEqual(0, diag.message_len);
+}
+
 /// Go's FuzzParse and FuzzDetect seeds and committed crashers, and inputs
 /// past the length bounds.
 const singles = [_][]const u8{
@@ -660,6 +713,35 @@ fn cSeeds(arena: Allocator) ![]const []const u8 {
     return out.items;
 }
 
+/// Columns for the C column call: the pairs as lines, each format's example
+/// either side of the next, runs of eight golden rows split by NUL, and the
+/// separator's edges, which run again with no base time, day first and
+/// strict.
+fn cColumnSeeds(arena: Allocator) ![]const []const u8 {
+    var data: std.ArrayList([]const u8) = .empty;
+    for (pairs) |p| try data.append(arena, try std.mem.join(arena, "\n", &p));
+    const ex = formats.examples;
+    for (ex, 0..) |e, i| try data.append(arena, try std.mem.join(arena, "\n", &.{ e[1], ex[(i + 1) % ex.len][1], e[1] }));
+    const golden_rows = try goldenInputs(arena);
+    var i: usize = 0;
+    while (i + 8 <= golden_rows.len) : (i += 97) {
+        const run = try std.mem.join(arena, "\x00", golden_rows[i .. i + 8]);
+        if (run.len < max_input) try data.append(arena, run);
+    }
+    const edges = [_][]const u8{ "", "\n", "\n\n", "2024-03-15\n", "2024-03-15\n\nnonsense\n13/02/2024", "01/02/2024\n13/02/2024\n01/02/2024" };
+    for (edges) |e| try data.append(arena, e);
+
+    var out: std.ArrayList([]const u8) = .empty;
+    for (data.items) |d| {
+        const sep: []const u8 = if (std.mem.indexOfScalar(u8, d, 0) != null) "\x00" else "\n";
+        try out.append(arena, try seed(arena, &.{ d, sep }));
+    }
+    for (edges) |e| for ([_]u8{ 1, 2, 16 }) |switches| {
+        try out.append(arena, try seed(arena, &.{ e, "\n", try cParams(arena, switches, 2024, 0, 0) }));
+    };
+    return out.items;
+}
+
 /// The JSON pairs, then every pair as two strings.
 fn jsonPairSeeds(arena: Allocator) ![]const []const u8 {
     var out: std.ArrayList([]const u8) = .empty;
@@ -720,6 +802,12 @@ test "fuzz: the C API refuses what it must and otherwise answers as parseWith" {
     var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
     defer arena.deinit();
     try std.testing.fuzz({}, cOne, .{ .corpus = try cSeeds(arena.allocator()) });
+}
+
+test "fuzz: the C column call answers as a Parser down its values" {
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    try std.testing.fuzz({}, cColumnOne, .{ .corpus = try cColumnSeeds(arena.allocator()) });
 }
 
 test seed {
