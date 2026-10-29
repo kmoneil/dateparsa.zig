@@ -10,7 +10,27 @@ the difference. Before 1.0 a breaking change is a minor bump.
 
 ## [Unreleased]
 
-Nothing yet.
+A column in one call, from C and from Python. Every input parses to what it
+did in 0.3.3.
+
+### Added
+
+- `dateparsa_parse_column`: every value in a buffer, each ending at a
+  separator byte, parsed down one parser in one call, into an array of the
+  new `dateparsa_value` (the time, Unix seconds, kind, whether it was a
+  guess, and a status saying why a value did not parse). It allocates
+  nothing; every array is the caller's. For a language where a call into C
+  costs more than a parse does.
+- `dateparsa.parse_column(values, **options)` in Python, on top of it: one
+  call into the library for the whole column, several times as fast as a
+  `Parser` called once a value (10,000 RFC 3339 values to datetimes took
+  234 ns a value, against 1.9 µs through a `Parser`, on Python 3.9 on an M5
+  Max), with `None` read as a value that does not parse. What it returns
+  gives `datetimes()`, `times()`,
+  `failed` and `ambiguous`, and `datetime64()` for a numpy array pandas
+  takes, `NaT` where a value did not parse; numpy is not a dependency.
+- A fuzz target: the column call, on any bytes split at any separator,
+  answers for each value what a `Parser` answers parsing them in turn.
 
 ## [0.3.3] - 2026-10-29
 

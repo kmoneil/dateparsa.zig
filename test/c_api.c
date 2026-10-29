@@ -87,6 +87,22 @@ static void parse_a_column(void) {
     CHECK(dateparsa_parser_parse(&p, S("nonsense"), &r) == DATEPARSA_NO_MATCH);
 }
 
+/* A column in one call: values a separator ends, down one parser. */
+static void parse_column(void) {
+    const char data[] = "2024-01-01\n2024-06-15\nnonsense\nMarch 3, 2024\n";
+    dateparsa_value out[4];
+    size_t n = 0;
+    CHECK(dateparsa_parse_column(data, sizeof data - 1, '\n', NULL, out, 4, &n) == DATEPARSA_OK);
+    CHECK(n == 4);
+    CHECK(out[0].status == DATEPARSA_OK && out[0].time.year == 2024 && out[0].time.month == 1);
+    CHECK(out[1].status == DATEPARSA_OK && out[1].unix_seconds == 1718409600);
+    CHECK(out[2].status == DATEPARSA_NO_MATCH && out[2].unix_seconds == 0);
+    CHECK(out[3].status == DATEPARSA_OK && out[3].time.month == 3 && out[3].kind == DATEPARSA_KIND_ABSOLUTE);
+    /* Too small an array: nothing written, and n says how many it needs. */
+    CHECK(dateparsa_parse_column(data, sizeof data - 1, '\n', NULL, out, 2, &n) == DATEPARSA_BUFFER_TOO_SMALL);
+    CHECK(n == 4);
+}
+
 static void ambiguity(void) {
     dateparsa_result r;
     CHECK(dateparsa_parse(S("01/02/2024"), NULL, &r) == DATEPARSA_OK);
@@ -257,6 +273,7 @@ int main(void) {
     readme_example();
     reuse_the_layout();
     parse_a_column();
+    parse_column();
     ambiguity();
     settle_a_column();
     format_strings();

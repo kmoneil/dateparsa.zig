@@ -199,6 +199,19 @@ typedef union dateparsa_parser {
     void *align_ptr_;
 } dateparsa_parser;
 
+/* One value of a column, as dateparsa_parse_column reads it: the fields of
+ * a dateparsa_result a column needs, and whether it parsed. */
+typedef struct dateparsa_value {
+    /* As in dateparsa_result when status is DATEPARSA_OK; zero otherwise. */
+    dateparsa_datetime time;
+    int64_t unix_seconds;
+    uint8_t kind;
+    bool ambiguous;
+    /* A dateparsa_status: DATEPARSA_OK, or why the value did not parse
+     * (DATEPARSA_NO_MATCH, DATEPARSA_AMBIGUOUS or DATEPARSA_NO_BASE_TIME). */
+    uint8_t status;
+} dateparsa_value;
+
 /* The order a numeric date writes its year, month and day in. */
 typedef enum dateparsa_order {
     /* Nothing settled it, or the values contradict each other evenly. */
@@ -308,6 +321,23 @@ dateparsa_status dateparsa_parser_parse(dateparsa_parser *parser,
 
 /* Forgets the cached layout. */
 void dateparsa_parser_reset(dateparsa_parser *parser);
+
+/* Every value in data parsed down one parser, as dateparsa_parser_parse
+ * would parse them in turn, into out[0] onward: a column in one call,
+ * where a call a value costs more than the parse, as from Python. A value
+ * ends at separator or at the end of data, so a separator that ends data
+ * ends the last value rather than starting an empty one (a column whose
+ * last value is empty ends with the separator), and no value can hold the
+ * separator. *count is how many values data holds: when that is
+ * more than cap, the call writes none of them and returns
+ * DATEPARSA_BUFFER_TOO_SMALL. A value that does not parse says why in its
+ * status, and options' diagnostics are written only when the call refuses
+ * its arguments. */
+dateparsa_status dateparsa_parse_column(const char *data, size_t len,
+                                        unsigned char separator,
+                                        const dateparsa_options *options,
+                                        dateparsa_value *out, size_t cap,
+                                        size_t *count);
 
 /* A column with no values yet, read with options (strict mode and the
  * diagnostics pointer set aside). */

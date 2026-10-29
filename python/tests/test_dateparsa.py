@@ -10,6 +10,7 @@ naming a libdateparsa built by `zig build lib -Dlinkage=dynamic`.
 import dataclasses
 import datetime as dt
 import gc
+import os
 import threading
 import unittest
 
@@ -166,6 +167,85 @@ class Parse(unittest.TestCase):
         self.assertEqual(errors, [])
 
 
+class ParseColumn(unittest.TestCase):
+    VALUES = [
+        "2024-01-01", "2024-06-15", "nonsense", "March 3, 2024", "", None, "2024-12-31T23:59:59.5+05:30",
+        "01/02/2024", "13/02/2024", "3 days ago", "1710504800", "15.03.2024",
+    ]
+
+    def expect_as_parse(self, values, **options):
+        col = dateparsa.parse_column(values, **options)
+        self.assertEqual(len(col), len(values))
+        want, failed, ambiguous = [], [], []
+        for i, v in enumerate(values):
+            try:
+                r = dateparsa.parse("" if v is None else v, **options)
+            except dateparsa.Error:
+                want.append(None)
+                failed.append(i)
+                continue
+            want.append(r.time)
+            if r.ambiguous:
+                ambiguous.append(i)
+        self.assertEqual(col.times(), want)
+        self.assertEqual(col.datetimes(), [t and t.to_datetime() for t in want])
+        self.assertEqual(col.failed, failed)
+        self.assertEqual(col.ambiguous, ambiguous)
+        return col
+
+    def test_each_value_as_parse_gives_it(self):
+        col = self.expect_as_parse(self.VALUES)
+        self.assertEqual(col.failed, [2, 4, 5, 9])
+        self.expect_as_parse(self.VALUES, base_time=BASE)
+        self.expect_as_parse(self.VALUES, base_time=BASE, prefer_day_first=True, timezone_offset=3600)
+        col = self.expect_as_parse(self.VALUES, base_time=BASE, strict=True)
+        self.assertIn(7, col.failed)  # 01/02/2024, ambiguous, refused
+        self.expect_as_parse(["2024-03-15T10:30:00Z"] * 1000 + ["March 3, 2024"])
+        days = ["2024-03-%02d" % d for d in range(1, 29)]
+        self.expect_as_parse(days)
+        self.assertEqual(dateparsa.parse_column(iter(days)).times(), dateparsa.parse_column(days).times())
+
+    def test_edges(self):
+        self.assertEqual(len(dateparsa.parse_column([])), 0)
+        self.assertEqual(dateparsa.parse_column([""]).failed, [0])
+        self.assertEqual(dateparsa.parse_column(["2024-03-15", ""]).failed, [1])
+        # A value holding the NUL that separates values goes one call each.
+        self.expect_as_parse(["2024-03-15", "2024\x00-03-15", "2024-03-16"])
+        self.assertEqual(repr(dateparsa.parse_column(["2024-03-15", "x"])), "ParsedColumn(2 values, 1 failed)")
+        col = dateparsa.parse_column(["0000-01-01"])
+        self.assertEqual(col.times()[0].year, 0)
+        with self.assertRaises(ValueError):
+            col.datetimes()
+
+    def test_bad_arguments(self):
+        with self.assertRaisesRegex(ValueError, "timezone_offset"):
+            dateparsa.parse_column(["2024-03-15"], timezone_offset=86400)
+        with self.assertRaises(TypeError):
+            dateparsa.parse_column(["2024-03-15"], prefer_dayfirst=True)
+        with self.assertRaises(TypeError):
+            dateparsa.parse_column(["2024-03-15", 20240315])
+
+    def test_datetime64(self):
+        try:
+            import numpy
+        except ImportError:
+            # CI installs numpy and sets this, so the test cannot skip there.
+            if os.environ.get("DATEPARSA_TEST_NUMPY"):
+                raise
+            self.skipTest("no numpy")
+        col = dateparsa.parse_column(self.VALUES, base_time=BASE)
+        got = col.datetime64()
+        self.assertEqual(got.dtype, numpy.dtype("datetime64[ns]"))
+        for i, t in enumerate(col.times()):
+            if t is None:
+                self.assertTrue(numpy.isnat(got[i]))
+            else:
+                r = dateparsa.parse(self.VALUES[i], base_time=BASE)
+                self.assertEqual(int(got[i].astype("int64")), r.unix_seconds * 10**9 + r.time.nanosecond)
+        with self.assertRaises(ValueError):
+            dateparsa.parse_column(["2300-01-01"]).datetime64()
+
+
 class Columns(unittest.TestCase):
     def test_settle_a_column(self):
         column = ["01/02/2024", "05/06/2024", "13/02/2024", "03/04/2024"]
@@ -223,8 +303,6 @@ class FormatStrings(unittest.TestCase):
 class Readme(unittest.TestCase):
     def test_the_example_runs(self):
         # python/README.md is the PyPI page: its example has to run.
-        import os
-
         path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "README.md")
         with open(path, encoding="utf-8") as f:
             text = f.read()
@@ -233,6 +311,7 @@ class Readme(unittest.TestCase):
         exec(compile(code, "python/README.md", "exec"), scope)
         self.assertEqual(scope["report"].order, "day_first")
         self.assertEqual(scope["r"].label, "MONTH_DAY_YEAR")
+        self.assertEqual(scope["col"].failed, [1])
 
 
 if __name__ == "__main__":

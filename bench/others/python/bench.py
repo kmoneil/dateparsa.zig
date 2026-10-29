@@ -246,21 +246,30 @@ def dateparsa_column_layout(fmt):
     if not dateparsa.detect(START.strftime(fmt)).reusable:
         return None
 
-    def parse_column(values):
+    def read_column(values):
         parse = dateparsa.detect(values[0]).parse
         return [parse(v) for v in values]
 
-    return parse_column, lambda got: [micros(t.to_datetime()) for t in got]
+    return read_column, lambda got: [micros(t.to_datetime()) for t in got]
 
 
 def pandas_read(got):
     return [int(x) for x in got.as_unit("us").asi8]
 
 
+def datetime64_read(got):
+    return [int(x) // 1000 for x in got.astype("int64")]
+
+
 # As IMPLS, for a column: what each is given for a column's format.
 COLUMN_IMPLS = [
     ("dateparsa Parser", lambda fmt: (dateparsa_column_parser, lambda got: [micros(r.datetime) for r in got])),
     ("dateparsa layout", dateparsa_column_layout),
+    (
+        "parse_column datetimes",
+        lambda fmt: ((lambda values: dateparsa.parse_column(values).datetimes()), lambda got: [micros(t) for t in got]),
+    ),
+    ("parse_column datetime64", lambda fmt: ((lambda values: dateparsa.parse_column(values).datetime64()), datetime64_read)),
     ("fromisoformat", lambda fmt: each(dt.datetime.fromisoformat) if fmt.startswith("%Y-") else None),
     ("strptime", lambda fmt: each(lambda s: dt.datetime.strptime(s, fmt))),
     ("ciso8601", lambda fmt: each(ciso8601.parse_datetime) if fmt.startswith("%Y-") else None),

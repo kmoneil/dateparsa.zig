@@ -33,6 +33,7 @@ test "the header lays out every type as the library does" {
         .{ c.Diagnostics, h.dateparsa_diagnostics },
         .{ c.Options, h.dateparsa_options },
         .{ c.Result, h.dateparsa_result },
+        .{ c.Value, h.dateparsa_value },
         .{ c.LayoutBlob, h.dateparsa_layout },
         .{ c.ParserBlob, h.dateparsa_parser },
         .{ c.ColumnBlob, h.dateparsa_column },
@@ -182,6 +183,125 @@ test "through the header, a parser agrees with parse down the golden corpus" {
         const got = status(h.dateparsa_parser_parse(&p, s.ptr, s.len, &r));
         try expectAgrees(s, got, &r, .{ .base_time = toZig(golden_base) });
     }
+}
+
+/// values joined by separator, each followed by it when terminated.
+fn join(a: std.mem.Allocator, values: []const []const u8, separator: u8, terminated: bool) ![]const u8 {
+    var out: std.ArrayList(u8) = .empty;
+    for (values, 0..) |v, i| {
+        try out.appendSlice(a, v);
+        if (terminated or i + 1 < values.len) try out.append(a, separator);
+    }
+    return out.items;
+}
+
+/// dateparsa_parse_column's answer for values, against a Parser parsing
+/// them in turn.
+fn expectColumnParses(a: std.mem.Allocator, values: []const []const u8, separator: u8, o: h.dateparsa_options, zo: dp.Options) !void {
+    // Unterminated, a last empty value is no value at all.
+    const last_empty = values.len > 0 and values[values.len - 1].len == 0;
+    for ([_]bool{ false, true }) |terminated| {
+        if (!terminated and last_empty) continue;
+        const data = try join(a, values, separator, terminated);
+        const out = try a.alloc(h.dateparsa_value, values.len);
+        var n: usize = 0;
+        try expectEqual(status(h.DATEPARSA_OK), status(h.dateparsa_parse_column(data.ptr, data.len, separator, &o, out.ptr, out.len, &n)));
+        try expectEqual(values.len, n);
+        var p: dp.Parser = .init(zo);
+        for (values, out) |s, v| {
+            errdefer std.debug.print("value \"{f}\"\n", .{std.zig.fmtString(s)});
+            const want = p.parse(s) catch |err| {
+                try expectEqual(status(switch (err) {
+                    error.NoMatch => h.DATEPARSA_NO_MATCH,
+                    error.Ambiguous => h.DATEPARSA_AMBIGUOUS,
+                    error.NoBaseTime => h.DATEPARSA_NO_BASE_TIME,
+                }), status(v.status));
+                var zeroed = std.mem.zeroes(h.dateparsa_value);
+                zeroed.status = v.status;
+                try expectEqual(zeroed, v);
+                continue;
+            };
+            try expectEqual(status(h.DATEPARSA_OK), status(v.status));
+            try expectEqual(want.time, toZig(v.time));
+            try expectEqual(want.time.toEpoch().seconds, v.unix_seconds);
+            try expectEqual(@backingInt(want.kind), v.kind);
+            try expectEqual(want.ambiguous, v.ambiguous);
+        }
+    }
+}
+
+/// A byte none of values holds.
+fn absentByte(values: []const []const u8) u8 {
+    var seen: [256]bool = @splat(false);
+    for (values) |v| for (v) |b| {
+        seen[b] = true;
+    };
+    return @intCast(std.mem.indexOfScalar(bool, &seen, false).?);
+}
+
+test "through the header, a column call agrees with a parser down the golden corpus" {
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const inputs = try goldenInputs(a);
+    const sep = absentByte(inputs);
+    const zig_base = toZig(golden_base);
+    try expectColumnParses(a, inputs, sep, .{ .base_time = &golden_base }, .{ .base_time = zig_base });
+    try expectColumnParses(a, inputs, sep, .{}, .{});
+    try expectColumnParses(a, inputs, sep, .{ .base_time = &golden_base, .strict = true }, .{ .base_time = zig_base, .strict = true });
+    try expectColumnParses(
+        a,
+        inputs,
+        sep,
+        .{ .base_time = &golden_base, .prefer_day_first = true, .timezone_offset = 19800 },
+        .{ .base_time = zig_base, .prefer_day_first = true, .timezone_offset = 19800 },
+    );
+    // Columns of one format, where the parser's cached layout reads most
+    // rows, and lines with an empty one among them.
+    try expectColumnParses(a, &.{ "2024-03-15", "2025-01-01", "March 3, 2024", "2024-12-31", "", "13/02/2024" }, '\n', .{}, .{});
+    try expectColumnParses(a, &.{ "01/02/2024", "13/02/2024", "01/02/2024" }, ',', .{}, .{});
+    try expectColumnParses(a, &.{""}, '\n', .{}, .{});
+}
+
+test "a column call counts its values, and refuses what it must" {
+    var out: [4]h.dateparsa_value = undefined;
+    var n: usize = 99;
+    // A separator ends a value; one that ends data ends the last.
+    const counts = [_]struct { []const u8, usize }{
+        .{ "", 0 },           .{ "\n", 1 },     .{ "a", 1 },    .{ "a\n", 1 },
+        .{ "a\nb", 2 },       .{ "a\nb\n", 2 }, .{ "\n\n", 2 }, .{ "a\n\nb", 3 },
+        .{ "a\nb\nc\nd", 4 },
+    };
+    for (counts) |want| {
+        try expectEqual(status(h.DATEPARSA_OK), status(h.dateparsa_parse_column(want[0].ptr, want[0].len, '\n', null, &out, out.len, &n)));
+        try expectEqual(want[1], n);
+    }
+    try expectEqual(status(h.DATEPARSA_NO_MATCH), status(out[0].status)); // "a"
+
+    // Too many values for cap: none is written, and *count says how many.
+    out[0].status = 77;
+    try expectEqual(status(h.DATEPARSA_BUFFER_TOO_SMALL), status(h.dateparsa_parse_column("2024-03-15\nx\ny", 14, '\n', null, &out, 2, &n)));
+    try expectEqual(3, n);
+    try expectEqual(77, out[0].status);
+    try expectEqual(status(h.DATEPARSA_OK), status(h.dateparsa_parse_column(null, 0, '\n', null, null, 0, &n)));
+    try expectEqual(0, n);
+
+    // A value that fails writes no diagnostics; a refused argument does.
+    var diag: h.dateparsa_diagnostics = undefined;
+    diag.message_len = 12345;
+    const with_diag: h.dateparsa_options = .{ .diagnostics = &diag };
+    try expectEqual(status(h.DATEPARSA_OK), status(h.dateparsa_parse_column("nonsense", 8, '\n', &with_diag, &out, out.len, &n)));
+    try expectEqual(status(h.DATEPARSA_NO_MATCH), status(out[0].status));
+    try expectEqual(12345, diag.message_len);
+    try expectEqual(status(h.DATEPARSA_INVALID_ARGUMENT), status(h.dateparsa_parse_column("x", 1, '\n', &with_diag, &out, out.len, null)));
+    try expectEqualStrings("count is NULL", diag.message[0..diag.message_len]);
+    try expectEqual(status(h.DATEPARSA_INVALID_ARGUMENT), status(h.dateparsa_parse_column(null, 1, '\n', &with_diag, &out, out.len, &n)));
+    try expectEqualStrings("data is NULL and len is not 0", diag.message[0..diag.message_len]);
+    try expectEqual(status(h.DATEPARSA_INVALID_ARGUMENT), status(h.dateparsa_parse_column("x", 1, '\n', &with_diag, null, 1, &n)));
+    try expectEqualStrings("out is NULL", diag.message[0..diag.message_len]);
+    const bad: h.dateparsa_options = .{ .timezone_offset = 86_400, .diagnostics = &diag };
+    try expectEqual(status(h.DATEPARSA_INVALID_ARGUMENT), status(h.dateparsa_parse_column("x", 1, '\n', &bad, &out, out.len, &n)));
+    try expectEqualStrings("timezone_offset is a day or more", diag.message[0..diag.message_len]);
 }
 
 /// A column through the header, against Column over the same values.

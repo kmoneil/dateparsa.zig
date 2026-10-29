@@ -39,6 +39,7 @@ __all__ = [
     "Layout",
     "NoBaseTime",
     "NoMatch",
+    "ParsedColumn",
     "Parser",
     "Result",
     "Time",
@@ -46,6 +47,7 @@ __all__ = [
     "detect",
     "detect_column",
     "parse",
+    "parse_column",
 ]
 
 # Every locale there is, in the order of the C header's DATEPARSA_LOCALE_*
@@ -126,13 +128,30 @@ class _Result(ctypes.Structure):
     ]
 
 
-# _DateTime, and _Result up to its layout, as struct formats, natively
-# aligned as ctypes lays the structs out: one unpack_from reads every field
-# a result needs, where reading them one by one through ctypes costs four
-# times as much.
+class _Value(ctypes.Structure):
+    _fields_ = [
+        ("time", _DateTime),
+        ("unix_seconds", ctypes.c_int64),
+        ("kind", ctypes.c_uint8),
+        ("ambiguous", ctypes.c_bool),
+        ("status", ctypes.c_uint8),
+    ]
+
+
+# _DateTime, _Result up to its layout, and _Value as struct formats,
+# natively aligned as ctypes lays the structs out: one unpack reads every
+# field a result needs, where reading them one by one through ctypes costs
+# four times as much. _VALUE's 0q pads it to _Value's size, as an array of
+# them is laid out.
 _DATETIME = struct.Struct("@iBBBBBIi")
 _RESULT = struct.Struct("@iBBBBBIiqB??PN")
-if _DATETIME.size != ctypes.sizeof(_DateTime) or _RESULT.size != _Result.layout.offset:
+_VALUE = struct.Struct("@iBBBBBIiqB?B0q")
+if (
+    _DATETIME.size != ctypes.sizeof(_DateTime)
+    or _RESULT.size != _Result.layout.offset
+    or _VALUE.size != ctypes.sizeof(_Value)
+    or _Value.status.offset != struct.calcsize("@iBBBBBIiqB?")
+):
     raise ImportError("dateparsa: the struct formats do not match the C structs on this platform")
 
 
@@ -180,6 +199,10 @@ def _load() -> ctypes.CDLL:
         "dateparsa_parser_init": ([P(_ParserBlob), P(_Options)], ctypes.c_int),
         "dateparsa_parser_parse": ([P(_ParserBlob), *text, P(_Result)], ctypes.c_int),
         "dateparsa_parser_reset": ([P(_ParserBlob)], None),
+        "dateparsa_parse_column": (
+            [*text, ctypes.c_ubyte, P(_Options), P(_Value), ctypes.c_size_t, P(ctypes.c_size_t)],
+            ctypes.c_int,
+        ),
         "dateparsa_column_init": ([P(_ColumnBlob), P(_Options)], ctypes.c_int),
         "dateparsa_column_add": ([P(_ColumnBlob), *text], ctypes.c_int),
         "dateparsa_column_summarize": ([P(_ColumnBlob), P(_ColumnReport)], ctypes.c_int),
@@ -571,6 +594,126 @@ class Parser:
         """Forgets the cached layout."""
         _lib.dateparsa_parser_reset(ctypes.byref(self._blob))
         self._layout = b""
+
+
+class ParsedColumn:
+    """A column parsed in one call: entry i is what values[i] parsed to.
+    Each value has the answer parse gives it."""
+
+    __slots__ = ("_data", "_n")
+
+    def __init__(self, data: bytearray, n: int):
+        # n _Values, as the C call wrote them.
+        self._data = data
+        self._n = n
+
+    def __len__(self) -> int:
+        return self._n
+
+    def __repr__(self) -> str:
+        return "ParsedColumn(%d values, %d failed)" % (self._n, len(self.failed))
+
+    @property
+    def failed(self) -> List[int]:
+        """The indexes of the values that did not parse. parse on one of
+        them raises the error that says why."""
+        return [i for i, v in enumerate(_VALUE.iter_unpack(self._data)) if v[11] != _OK]
+
+    @property
+    def ambiguous(self) -> List[int]:
+        """The indexes of the values that needed a guess ("01/02/2024")."""
+        return [i for i, v in enumerate(_VALUE.iter_unpack(self._data)) if v[10]]
+
+    def times(self) -> List[Optional[Time]]:
+        """Each value's Time, or None where it did not parse."""
+        return [_time(v) if v[11] == _OK else None for v in _VALUE.iter_unpack(self._data)]
+
+    def datetimes(self) -> List[Optional[_dt.datetime]]:
+        """Each value as an aware datetime, to the microsecond, or None
+        where it did not parse. ValueError for a year outside 1 to 9999."""
+        zone, datetime = _zone, _dt.datetime
+        return [
+            datetime(y, mo, d, h, mi, s, ns // 1000, zone(off)) if st == _OK else None
+            for y, mo, d, h, mi, s, ns, off, _, _, _, st in _VALUE.iter_unpack(self._data)
+        ]
+
+    def datetime64(self):
+        """The column as a numpy array of datetime64[ns] in UTC, NaT where a
+        value did not parse: pandas reads it as a datetime column. Needs
+        numpy, which this package does not depend on. ValueError for a time
+        outside what datetime64[ns] holds (1677 to 2262)."""
+        import numpy
+
+        fields = numpy.frombuffer(self._data, dtype=_value_dtype(numpy))
+        ok = fields["status"] == _OK
+        seconds = numpy.where(ok, fields["unix_seconds"], 0)
+        if seconds.size and (seconds.min() < -9_223_372_035 or seconds.max() > 9_223_372_035):
+            raise ValueError("a time in the column is outside what datetime64[ns] holds")
+        out = (seconds * 1_000_000_000 + fields["nanosecond"]).astype("datetime64[ns]")
+        out[~ok] = numpy.datetime64("NaT")
+        return out
+
+
+def _value_dtype(numpy):
+    """_Value as a numpy structured dtype, the fields datetime64 reads."""
+    return numpy.dtype({
+        "names": ["nanosecond", "unix_seconds", "status"],
+        "formats": ["=u4", "=i8", "u1"],
+        "offsets": [_DateTime.nanosecond.offset, _Value.unix_seconds.offset, _Value.status.offset],
+        "itemsize": ctypes.sizeof(_Value),
+    })
+
+
+def parse_column(values: Iterable[Optional[str]], **options) -> ParsedColumn:
+    """values parsed in one call, each as parse would parse it with these
+    options, reusing one value's layout for the next where it can. A None
+    is a value that does not parse. Takes the options parse takes.
+
+    For a column, this is several times as fast as calling parse or a
+    Parser once a value: the values cross into the library together."""
+    values = list(values)
+    n = len(values)
+    data = bytearray(n * ctypes.sizeof(_Value))
+    if n == 0:
+        return ParsedColumn(data, 0)
+    try:
+        text = "\0".join(values)
+    except TypeError:
+        text = "\0".join("" if v is None else v for v in values)
+    if text.count("\0") != n - 1:
+        # A value holds the NUL that splits them: one call each instead.
+        return _parse_each(values, options, data)
+    b = (text + "\0").encode("utf-8")
+    out = (_Value * n).from_buffer(data)
+    count = ctypes.c_size_t()
+    if _lib.dateparsa_parse_column(b, len(b), 0, _options(options), out, n, ctypes.byref(count)) != _OK:
+        # Only the arguments fail a column call: run it again with
+        # diagnostics, for why.
+        call = _Call(**options)
+        call.raise_for(_lib.dateparsa_parse_column(b, len(b), 0, call.opts, out, n, ctypes.byref(count)), "")
+    return ParsedColumn(data, n)
+
+
+def _parse_each(values: List[Optional[str]], options: dict, data: bytearray) -> ParsedColumn:
+    """values parsed down a parser one call each, into data as
+    parse_column fills it: for the column no separator can split."""
+    call = _Call(**options)
+    p = _ParserBlob()
+    status = _lib.dateparsa_parser_init(p, call.opts)
+    if status != _OK:
+        call.raise_for(status, "")
+    out = (_Value * len(values)).from_buffer(data)
+    r = _Result()
+    for i, v in enumerate(values):
+        b = b"" if v is None else v.encode("utf-8")
+        status = _lib.dateparsa_parser_parse(p, b, len(b), r)
+        out[i].status = status
+        if status == _OK:
+            out[i].time = r.time
+            out[i].unix_seconds = r.unix_seconds
+            out[i].kind = r.kind
+            out[i].ambiguous = r.ambiguous
+    return ParsedColumn(data, len(values))
 
 
 @dataclass(frozen=True)
