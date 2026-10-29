@@ -513,10 +513,12 @@ Against other parsers on the same machine: a reused layout reads ISO 8601
 and RFC 3339 in 0.6 to 0.8 of zeit's time, and through the C interface
 Rust's fastest parsers, told the format, take 0.4 to 0.9 of a layout's time.
 Working the format out, dateparsa is faster than Rust's dateparser on all but
-RFC 3339, RFC 2822 and a non-date. From Python it is 6 to 14 times as fast as
-dateutil's `parse`, 140 to 810 times as fast as dateparser, and faster than
+RFC 3339, RFC 2822 and a non-date. From Python it is 6 to 13 times as fast as
+dateutil's `parse`, 140 to 730 times as fast as dateparser, and faster than
 `strptime` is when told the format, though the binding still costs about ten
-times what the parse does.
+times what the parse does. A whole column from Python, through
+`parse_column`, goes into numpy in 0.3 to 0.4 of the time pandas takes to
+work out its format.
 
 [docs/PERF.md](docs/PERF.md) has the tables, how they are measured, and why
 a number from them means nothing on another machine.

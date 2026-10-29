@@ -22,13 +22,14 @@ did in 0.3.3.
   nothing; every array is the caller's. For a language where a call into C
   costs more than a parse does.
 - `dateparsa.parse_column(values, **options)` in Python, on top of it: one
-  call into the library for the whole column, several times as fast as a
-  `Parser` called once a value (10,000 RFC 3339 values to datetimes took
-  234 ns a value, against 1.9 µs through a `Parser`, on Python 3.9 on an M5
-  Max), with `None` read as a value that does not parse. What it returns
-  gives `datetimes()`, `times()`,
-  `failed` and `ambiguous`, and `datetime64()` for a numpy array pandas
-  takes, `NaT` where a value did not parse; numpy is not a dependency.
+  call into the library for the whole column, with `None` read as a value
+  that does not parse. Down 10,000 RFC 3339 values on Python 3.13
+  (docs/PERF.md) it takes 169 ns a value to datetimes, where a `Parser`
+  called once a value takes 1.12 µs, and 32.9 ns into numpy, where pandas
+  working out the format takes 78.2. What it returns gives `datetimes()`,
+  `times()`, `failed` and `ambiguous`, and `datetime64()` for a numpy array
+  pandas takes, `NaT` where a value did not parse; numpy is not a
+  dependency.
 - A fuzz target: the column call, on any bytes split at any separator,
   answers for each value what a `Parser` answers parsing them in turn.
 
