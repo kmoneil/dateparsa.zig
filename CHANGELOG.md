@@ -10,6 +10,10 @@ the difference. Before 1.0 a breaking change is a minor bump.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.4.0] - 2026-10-29
+
 A column in one call, from C and from Python. Every input parses to what it
 did in 0.3.3.
 
@@ -186,7 +190,8 @@ what was changed on purpose.
 - No allocation on any path and no clock: an input that needs a base time and
   was given none fails with `error.NoBaseTime`.
 
-[Unreleased]: https://github.com/kmoneil/dateparsa.zig/compare/v0.3.3...HEAD
+[Unreleased]: https://github.com/kmoneil/dateparsa.zig/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/kmoneil/dateparsa.zig/compare/v0.3.3...v0.4.0
 [0.3.3]: https://github.com/kmoneil/dateparsa.zig/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/kmoneil/dateparsa.zig/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/kmoneil/dateparsa.zig/compare/v0.3.0...v0.3.1
