@@ -1,11 +1,11 @@
-# libdateparsa as a release ships it, and the Python wheels around it.
-# tools/dist.sh builds every platform's archive on one Linux runner, and
-# tools/python_wheels.py a wheel from each. Then each runner OS unpacks its
-# own platform's archive and links test/c_api.c against it, static and
-# shared, with the C compiler it already has (gcc on Linux, clang on macOS and
-# Windows), and runs it; and installs the wheel pip picks for it and runs the
-# Python tests. No Zig on that side: it is what someone downloading a release
-# does.
+# libdateparsa and the dateparsa command as a release ships them, and the
+# Python wheels around them. tools/dist.sh builds every platform's archive on
+# one Linux runner, and tools/python_wheels.py a wheel from each. Then each
+# runner OS unpacks its own platform's archive and links test/c_api.c against
+# it, static and shared, with the C compiler it already has (gcc on Linux,
+# clang on macOS and Windows), and runs it; runs the command; and installs the
+# wheel pip picks for it and runs the Python tests. No Zig on that side: it is
+# what someone downloading a release does.
 #
 # ci.yml calls this on every change, so a tag never finds a platform that does
 # not build or link. release.yml calls it on the tagged commit and attaches
@@ -111,6 +111,17 @@ jobs:
           PATH="$PKG/bin:$PATH" ./c_api_shared.exe
           clang $flags test/c_api.c "$PKG/lib/dateparsa_static.lib" -o c_api_static.exe
           ./c_api_static.exe
+      # The dateparsa command beside the libraries, run as it ships: a file
+      # read twice, and standard input held for the second pass.
+      - name: the dateparsa command
+        run: |
+          exe="$PKG/bin/dateparsa"
+          if [ "$RUNNER_OS" = Windows ]; then exe="$exe.exe"; fi
+          "$exe" --version
+          "$exe" detect testdata/cli/orders.csv --col date
+          printf '01/02/2024\n13/02/2024\n' | "$exe" normalize > got.txt
+          printf '2024-02-01T00:00:00Z\n2024-02-13T00:00:00Z\n' > want.txt
+          diff want.txt got.txt
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: wheels

@@ -10,7 +10,20 @@ the difference. Before 1.0 a breaking change is a minor bump.
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- The `dateparsa` command. `dateparsa detect` reports how a column is
+  written: the formats its values take, each spelled for strftime, Go and
+  Java, the order its numeric dates are in and the value that settled it, the
+  values that needed the column's order, and the values it could not read, by
+  line. `dateparsa normalize` writes the input back with the column as RFC
+  3339, changing no other byte, and refuses to guess an order nothing in the
+  column settles. CSV with `--col N` or `--col NAME` (quoted fields, any
+  one-byte separator), or one value a line, from a file or standard input;
+  `--order`, `--base`, `--tz`, `--utc`, `--locale` and `detect --json`. The
+  release archives carry it in `bin/` for every platform, and each release
+  runs it on Linux, macOS and Windows before publishing. No library code
+  changed.
 
 ## [0.3.0] - 2026-10-28
 
