@@ -650,7 +650,7 @@ class ParsedColumn:
         if seconds.size and (seconds.min() < -9_223_372_035 or seconds.max() > 9_223_372_035):
             raise ValueError("a time in the column is outside what datetime64[ns] holds")
         out = (seconds * 1_000_000_000 + fields["nanosecond"]).astype("datetime64[ns]")
-        out[~ok] = numpy.datetime64("NaT")
+        out[~ok] = numpy.datetime64("NaT", "ns")
         return out
 
 
