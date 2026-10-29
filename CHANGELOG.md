@@ -10,6 +10,13 @@ the difference. Before 1.0 a breaking change is a minor bump.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.3.3] - 2026-10-29
+
+A faster Python package. No library code changed, and every input parses
+to what it did in 0.3.2.
+
 ### Changed
 
 - The Python package spends far less of each call in Python: `parse`
@@ -158,7 +165,8 @@ what was changed on purpose.
 - No allocation on any path and no clock: an input that needs a base time and
   was given none fails with `error.NoBaseTime`.
 
-[Unreleased]: https://github.com/kmoneil/dateparsa.zig/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/kmoneil/dateparsa.zig/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/kmoneil/dateparsa.zig/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/kmoneil/dateparsa.zig/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/kmoneil/dateparsa.zig/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/kmoneil/dateparsa.zig/compare/v0.2.1...v0.3.0
