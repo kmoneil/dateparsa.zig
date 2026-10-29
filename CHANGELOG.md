@@ -10,6 +10,12 @@ the difference. Before 1.0 a breaking change is a minor bump.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.4.2] - 2026-10-29
+
+Faster email and HTTP dates. Every input parses to what it did in 0.4.1.
+
 ### Changed
 
 - An email or HTTP date ("Fri, 15 Mar 2024 10:30:00 +0000", "Sun, 06 Nov
@@ -19,7 +25,7 @@ the difference. Before 1.0 a breaking change is a minor bump.
   shapes email and HTTP write now have their fields and a layout for each
   month built at comptime, from the detector's own answer, and an input of
   one of them is checked against its shape instead. A fuzz target holds the
-  two to the same answer. Every input parses to what it did in 0.4.1.
+  two to the same answer.
 
 ## [0.4.1] - 2026-10-29
 
@@ -214,7 +220,8 @@ what was changed on purpose.
 - No allocation on any path and no clock: an input that needs a base time and
   was given none fails with `error.NoBaseTime`.
 
-[Unreleased]: https://github.com/kmoneil/dateparsa.zig/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/kmoneil/dateparsa.zig/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/kmoneil/dateparsa.zig/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/kmoneil/dateparsa.zig/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/kmoneil/dateparsa.zig/compare/v0.3.3...v0.4.0
 [0.3.3]: https://github.com/kmoneil/dateparsa.zig/compare/v0.3.2...v0.3.3
