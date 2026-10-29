@@ -10,7 +10,17 @@ the difference. Before 1.0 a breaking change is a minor bump.
 
 ## [Unreleased]
 
-Nothing yet.
+### Changed
+
+- A first parse of a format the signature trie knows takes about 0.6 of
+  the time it did, and so does everything built on parse (`Parser` on a
+  value its cached layout cannot read, the C interface, Python, the
+  command): detection hands the format back by its table index instead of
+  copying its 168-byte definition out of the trie and twice more on the
+  way up, and looks for a CJK date only when 年 is the fifth byte. Against
+  the Go library's benchmarks, ISO 8601, RFC 3339, SQL and compact forms
+  now take 0.54 to 0.66 of Go's time, where they took 0.88 to 1.05. Every
+  input parses to what it did in 0.4.0.
 
 ## [0.4.0] - 2026-10-29
 

@@ -505,9 +505,9 @@ Each is deliberate.
 ## Performance
 
 Measured against the Go library on one machine, by the Go library's own
-benchmarks: reusing a layout takes 0.6 to 0.8 of Go's time, natural language
-0.3 to 0.5, a miss 0.2 to 0.8 and a textual date 0.5 to 0.6, and the first
-parse of the other structured formats is at or near Go's.
+benchmarks: the first parse of a structured format takes 0.4 to 0.7 of Go's
+time, reusing a layout 0.6 to 0.8, a textual date 0.5 to 0.6, natural
+language 0.3 to 0.5 and a miss 0.2 to 0.8.
 
 Against other parsers on the same machine: a reused layout reads ISO 8601
 and RFC 3339 in 0.6 to 0.8 of zeit's time, and through the C interface
