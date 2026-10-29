@@ -13,8 +13,10 @@ the difference. Before 1.0 a breaking change is a minor bump.
 ### Changed
 
 - The Python package spends far less of each call in Python: `parse`
-  takes about a quarter of the time it did, `Parser.parse` about a third,
-  and `Layout.parse` and `detect` about half, with the same answers. The
+  takes a quarter to a third of the time it did (3.5 µs to 1.1 on Python
+  3.13, in docs/PERF.md), `Parser.parse` about half, and `Layout.parse`
+  and `detect` a half to two thirds, with the same answers. From Python,
+  `parse` is now faster than `strptime` given the format. The
   default options go to the library as NULL and other options are built
   once and shared; a result's fields are read in one `struct` unpack, its
   `Time` and `Result` built without the dataclass `__init__`, and its
