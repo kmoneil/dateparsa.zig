@@ -150,7 +150,11 @@ pub fn parseWith(input: []const u8, opts: Options) ParseError!Result {
         .prefer_year_first = opts.prefer_year_first,
         .locales = opts.locales,
     };
-    if (detection.detect(s, cfg)) |r| return structured(s, &r, opts);
+    var scratch: detection.Result = undefined;
+    if (detection.find(s, cfg, &scratch)) |found| switch (found) {
+        .table => |i| return tableFormat(s, i, opts),
+        .built => |r| return structured(s, r, opts),
+    };
     if (epoch.detect(s)) |e| {
         return .{ .time = e.time, .layout = Layout.epoch, .ambiguous = false, .kind = .absolute };
     }
@@ -173,6 +177,17 @@ fn configFor(fields: []const compile.Field, opts: Options) ParseError!compile.Co
         c.base_year = base.year;
     }
     return c;
+}
+
+/// An unambiguous trie format: what structured does with its Result, with
+/// the Def built only where its shared layout cannot serve.
+fn tableFormat(s: []const u8, i: u8, opts: Options) ParseError!Result {
+    if (opts.timezone_offset == 0) if (Layout.interned(i)) |l| {
+        const t = l.program.execute(s) catch return fail(opts, error.NoMatch, no_match);
+        return .{ .time = t, .layout = l.*, .ambiguous = false, .kind = .absolute };
+    };
+    const r = detection.tableResult(i);
+    return structured(s, &r, opts);
 }
 
 fn structured(s: []const u8, r: *const detection.Result, opts: Options) ParseError!Result {

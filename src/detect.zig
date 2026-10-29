@@ -96,21 +96,60 @@ const prebuilt = blk: {
 
 /// The format s is written in, or null when no detector recognises it.
 pub fn detect(s: []const u8, cfg: Config) ?Result {
-    const r = detectFormat(s, cfg) orelse return null;
+    var scratch: Result = undefined;
+    return switch (find(s, cfg, &scratch) orelse return null) {
+        .table => |i| tableResult(i),
+        .built => |r| r.*,
+    };
+}
+
+/// The Result a .table answer stands for.
+pub fn tableResult(i: u8) Result {
+    return .{ .def = prebuilt[i], .trie_index = i };
+}
+
+/// What find found.
+pub const Found = union(enum) {
+    /// The formats.table entry an unambiguous trie hit matched: prebuilt
+    /// holds its Def, and nothing is copied.
+    table: u8,
+    /// Any other answer, in the scratch find was given.
+    built: *const Result,
+};
+
+/// detect's answer without copying a Def when it can: a Def is most of a
+/// Result's 176 bytes, and copying one out of the trie and up the calls
+/// was a fifth of parsing an ISO 8601 date.
+pub fn find(s: []const u8, cfg: Config, scratch: *Result) ?Found {
+    const found = findFormat(s, cfg, scratch) orelse return null;
     // A format whose skipped runs hold a word that decides the answer has
     // not described the input, it has discarded part of it: "first monday
     // of march 2024" is not the 1st of March.
-    if (textual.skipRunCarriesMeaning(s, r.def.fields(), cfg.locales)) return null;
-    return r;
+    const skips_meaning = switch (found) {
+        .table => |i| has_skips[i] and textual.skipRunCarriesMeaning(s, prebuilt[i].fields(), cfg.locales),
+        .built => |r| textual.skipRunCarriesMeaning(s, r.def.fields(), cfg.locales),
+    };
+    return if (skips_meaning) null else found;
 }
 
-fn detectFormat(s: []const u8, cfg: Config) ?Result {
+/// Whether each trie entry's Def has a field it skips, so that the meaning
+/// of a skipped run is only looked for where there is one.
+const has_skips = blk: {
+    var out: [formats.table.len]bool = undefined;
+    for (&prebuilt, &out) |*d, *o| {
+        o.* = false;
+        for (d.fields()) |f| o.* = o.* or f.kind == .skip;
+    }
+    break :blk out;
+};
+
+fn findFormat(s: []const u8, cfg: Config, scratch: *Result) ?Found {
     // Nothing longer can be described, and the fallbacks are linear in the
     // input: refusing here bounds the work as well as the answer.
     if (s.len > compile.max_describable_len) return null;
 
-    if (detectIsoWeekOrOrdinal(s)) |r| return r;
-    if (detectCjkDate(s)) |r| return r;
+    if (detectIsoWeekOrOrdinal(s)) |r| return built(scratch, r);
+    if (detectCjkDate(s)) |r| return built(scratch, r);
 
     const sig = signature.scan(s);
     const hit = trie.lookup(&sig);
@@ -118,19 +157,24 @@ fn detectFormat(s: []const u8, cfg: Config) ?Result {
     // letter can sit past the bytes scan classified: a date behind 64 bytes
     // of padding once went to natural language and lost its year.
     if (hit == null and (sig.has_letter or signature.hasLetterPastSignature(s))) {
-        if (textual.detectTextual(s, cfg)) |r| return r;
+        if (textual.detectTextual(s, cfg)) |r| return built(scratch, r);
     }
     const index = hit orelse {
-        if (detectIso8601Frac(s)) |r| return r;
-        if (ambiguity.detectVariableNumeric(s, cfg)) |r| return r;
-        if (detectGoTimeString(s)) |r| return r;
-        if (detectDatePlusTz(s)) |r| return r;
+        if (detectIso8601Frac(s)) |r| return built(scratch, r);
+        if (ambiguity.detectVariableNumeric(s, cfg)) |r| return built(scratch, r);
+        if (detectGoTimeString(s)) |r| return built(scratch, r);
+        if (detectDatePlusTz(s)) |r| return built(scratch, r);
         return null;
     };
     // NUMERIC_SEP ("03/15/2024") is ambiguous by signature and is resolved
     // by value and preference.
-    if (formats.table[index].ambiguous) return ambiguity.resolve(s, cfg);
-    return .{ .def = prebuilt[index], .trie_index = index };
+    if (formats.table[index].ambiguous) return built(scratch, ambiguity.resolve(s, cfg) orelse return null);
+    return .{ .table = index };
+}
+
+fn built(scratch: *Result, r: Result) Found {
+    scratch.* = r;
+    return .{ .built = scratch };
 }
 
 fn isLetter(c: u8) bool {
@@ -335,10 +379,14 @@ fn detectIsoWeekOrOrdinal(s: []const u8) ?Result {
 /// "2014年04月08日": four year digits, then month and day of one or two.
 fn detectCjkDate(s: []const u8) ?Result {
     const mark_len = "年".len;
-    const y = std.mem.indexOf(u8, s, "年") orelse return null;
+    // 年 four bytes in, ahead of any search: most inputs are refused by
+    // their fifth byte. A 年 earlier would leave the four year bytes not
+    // all digits, refused below all the same.
+    if (s.len < 4 + mark_len or !std.mem.eql(u8, s[4..][0..mark_len], "年")) return null;
+    const y = 4;
     const m = std.mem.indexOf(u8, s, "月") orelse return null;
     const d = std.mem.indexOf(u8, s, "日") orelse return null;
-    if (y != 4 or y >= m or m >= d) return null;
+    if (y >= m or m >= d) return null;
     const month = s[y + mark_len .. m];
     const day = s[m + mark_len .. d];
     if (!signature.allDigits(s[0..4]) or !signature.allDigits(month) or !signature.allDigits(day))
