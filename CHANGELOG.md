@@ -10,7 +10,16 @@ the difference. Before 1.0 a breaking change is a minor bump.
 
 ## [Unreleased]
 
-Nothing yet.
+### Changed
+
+- An email or HTTP date ("Fri, 15 Mar 2024 10:30:00 +0000", "Sun, 06 Nov
+  1994 08:49:37 GMT") parses in about a quarter of the time it did, whatever
+  locales are on: 79 ns where it took 324, on an M5 Max. The textual
+  detector they went through finds a month name anywhere in any input; the
+  shapes email and HTTP write now have their fields and a layout for each
+  month built at comptime, from the detector's own answer, and an input of
+  one of them is checked against its shape instead. A fuzz target holds the
+  two to the same answer. Every input parses to what it did in 0.4.1.
 
 ## [0.4.1] - 2026-10-29
 
