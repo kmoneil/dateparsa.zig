@@ -53,7 +53,7 @@ does something differently, it is on purpose and [listed below](#differences-fro
 ## Install
 
 ```sh
-zig fetch --save git+https://github.com/kmoneil/dateparsa.zig#v0.3.2
+zig fetch --save git+https://github.com/kmoneil/dateparsa.zig#v0.3.3
 ```
 
 Then in `build.zig`:
