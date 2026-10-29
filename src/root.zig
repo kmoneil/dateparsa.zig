@@ -13,6 +13,7 @@
 const std = @import("std");
 const compile = @import("compile.zig");
 const detection = @import("detect.zig");
+const rfc2822 = @import("rfc2822.zig");
 const ambiguity = @import("ambiguity.zig");
 const epoch = @import("epoch.zig");
 const natural = @import("natural.zig");
@@ -153,6 +154,7 @@ pub fn parseWith(input: []const u8, opts: Options) ParseError!Result {
     var scratch: detection.Result = undefined;
     if (detection.find(s, cfg, &scratch)) |found| switch (found) {
         .table => |i| return tableFormat(s, i, opts),
+        .mail => |m| return mailFormat(s, m, opts),
         .built => |r| return structured(s, r, opts),
     };
     if (epoch.detect(s)) |e| {
@@ -187,6 +189,17 @@ fn tableFormat(s: []const u8, i: u8, opts: Options) ParseError!Result {
         return .{ .time = t, .layout = l.*, .ambiguous = false, .kind = .absolute };
     };
     const r = detection.tableResult(i);
+    return structured(s, &r, opts);
+}
+
+/// An email or HTTP date: tableFormat's shortcut, through its shape's layout.
+fn mailFormat(s: []const u8, m: rfc2822.Match, opts: Options) ParseError!Result {
+    if (opts.timezone_offset == 0) {
+        const l = rfc2822.layout(m);
+        const t = l.program.execute(s) catch return fail(opts, error.NoMatch, no_match);
+        return .{ .time = t, .layout = l.*, .ambiguous = false, .kind = .absolute };
+    }
+    const r = rfc2822.result(m);
     return structured(s, &r, opts);
 }
 
@@ -286,6 +299,7 @@ test {
     _ = @import("ambiguity.zig");
     _ = @import("locale.zig");
     _ = @import("textual.zig");
+    _ = @import("rfc2822.zig");
     _ = @import("epoch.zig");
     _ = @import("unicode.zig");
     _ = @import("natural.zig");

@@ -15,6 +15,7 @@ const trie = @import("trie.zig");
 const ambiguity = @import("ambiguity.zig");
 const textual = @import("textual.zig");
 const locale = @import("locale.zig");
+const rfc2822 = @import("rfc2822.zig");
 
 const Field = compile.Field;
 const FieldKind = compile.FieldKind;
@@ -99,6 +100,7 @@ pub fn detect(s: []const u8, cfg: Config) ?Result {
     var scratch: Result = undefined;
     return switch (find(s, cfg, &scratch) orelse return null) {
         .table => |i| tableResult(i),
+        .mail => |m| rfc2822.result(m),
         .built => |r| r.*,
     };
 }
@@ -113,6 +115,9 @@ pub const Found = union(enum) {
     /// The formats.table entry an unambiguous trie hit matched: prebuilt
     /// holds its Def, and nothing is copied.
     table: u8,
+    /// An email or HTTP date, as the textual detector would read it: its
+    /// shape's prebuilt fields and layout serve.
+    mail: rfc2822.Match,
     /// Any other answer, in the scratch find was given.
     built: *const Result,
 };
@@ -127,6 +132,8 @@ pub fn find(s: []const u8, cfg: Config, scratch: *Result) ?Found {
     // of march 2024" is not the 1st of March.
     const skips_meaning = switch (found) {
         .table => |i| has_skips[i] and textual.skipRunCarriesMeaning(s, prebuilt[i].fields(), cfg.locales),
+        // Its only skipped word is an English weekday, which never does.
+        .mail => false,
         .built => |r| textual.skipRunCarriesMeaning(s, r.def.fields(), cfg.locales),
     };
     return if (skips_meaning) null else found;
@@ -157,6 +164,7 @@ fn findFormat(s: []const u8, cfg: Config, scratch: *Result) ?Found {
     // letter can sit past the bytes scan classified: a date behind 64 bytes
     // of padding once went to natural language and lost its year.
     if (hit == null and (sig.has_letter or signature.hasLetterPastSignature(s))) {
+        if (rfc2822.match(s, cfg.locales)) |m| return .{ .mail = m };
         if (textual.detectTextual(s, cfg)) |r| return built(scratch, r);
     }
     const index = hit orelse {
@@ -301,6 +309,12 @@ pub fn coverGaps(def: *Def, s: []const u8) error{ TooManyFields, OutOfRange }!vo
         const lo = @min(f.offset, s.len);
         covered.setRangeValue(.{ .start = lo, .end = @min(lo + w, s.len) }, true);
     }
+    // The skips come out in input order, so only the detector's own fields
+    // need sorting, and a merge puts the two together: sorting every field
+    // and skip was half of covering an RFC 2822 date's gaps. On one offset
+    // the detector's field comes first, as the stable sort put it.
+    std.sort.insertion(Field, def.buf[0..def.len], {}, byOffset);
+    var skips: Def = .{ .name = def.name };
     var i: usize = 0;
     while (i < s.len) {
         if (covered.isSet(i)) {
@@ -309,9 +323,23 @@ pub fn coverGaps(def: *Def, s: []const u8) error{ TooManyFields, OutOfRange }!vo
         }
         const start = i;
         while (i < s.len and !covered.isSet(i)) i += 1;
-        try appendSkip(def, s, start, i - start);
+        try appendSkip(&skips, s, start, i - start);
     }
-    std.sort.insertion(Field, def.buf[0..def.len], {}, byOffset);
+    if (@as(usize, def.len) + skips.len > def.buf.len) return error.TooManyFields;
+    var merged: [compile.max_instructions]Field = undefined;
+    var a: usize = 0;
+    var b: usize = 0;
+    for (merged[0 .. def.len + skips.len]) |*f| {
+        if (b == skips.len or (a < def.len and def.buf[a].offset <= skips.buf[b].offset)) {
+            f.* = def.buf[a];
+            a += 1;
+        } else {
+            f.* = skips.buf[b];
+            b += 1;
+        }
+    }
+    def.len += skips.len;
+    @memcpy(def.buf[0..def.len], merged[0..def.len]);
 }
 
 fn field(kind: FieldKind, offset: u8, len: u8) Field {
