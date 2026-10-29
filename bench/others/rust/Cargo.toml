@@ -1,0 +1,18 @@
+# dateparsa, through its C interface, against Rust's date parsers.
+# tools/bench_others.sh runs it; build.rs builds the library with zig.
+[package]
+name = "dateparsa-bench-rust"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+chrono = "0.4.45"
+dateparser = "0.3.1"
+jiff = "0.2.38"
+speedate = "0.18.0"
+time = { version = "0.3.55", features = ["parsing", "macros"] }
+
+[profile.release]
+codegen-units = 1
+lto = true

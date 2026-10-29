@@ -1,0 +1,14 @@
+.{
+    .name = .dateparsa_bench_zeit,
+    .version = "0.0.0",
+    .fingerprint = 0xac002cd676b14a28, // Changing this has security and trust implications.
+    .minimum_zig_version = "0.17.0",
+    .dependencies = .{
+        .dateparsa = .{ .path = "../../.." },
+        .zeit = .{
+            .url = "git+https://github.com/rockorager/zeit#06bb7b462b4218770fb5438ebe6b0c0c5ef18888",
+            .hash = "zeit-0.10.0-5I6bkxS-AgAaI3lI3RsXsWnPw7sMCqJKoFnSB8_QRAoo",
+        },
+    },
+    .paths = .{ "build.zig", "build.zig.zon", "main.zig" },
+}

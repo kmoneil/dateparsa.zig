@@ -502,8 +502,17 @@ Measured against the Go library on one machine, by the Go library's own
 benchmarks: reusing a layout takes 0.6 to 0.8 of Go's time, natural language
 0.3 to 0.5, a miss 0.2 to 0.8 and a textual date 0.5 to 0.6, and the first
 parse of the other structured formats is at or near Go's.
-[docs/PERF.md](docs/PERF.md) has the table, how it is measured, and why a
-number from it means nothing on another machine.
+
+Against other parsers on the same machine: a reused layout reads ISO 8601
+and RFC 3339 in 0.6 to 0.8 of zeit's time, and through the C interface
+Rust's fastest parsers, told the format, take 0.4 to 0.9 of a layout's time.
+Working the format out, dateparsa is faster than Rust's dateparser on all but
+RFC 3339, RFC 2822 and a non-date, and from Python 1.8 to 4.7 times as fast as
+dateutil's `parse` and 50 to 240 times as fast as dateparser, though there
+the binding costs more than the parse.
+
+[docs/PERF.md](docs/PERF.md) has the tables, how they are measured, and why
+a number from them means nothing on another machine.
 
 ## Development
 
@@ -520,6 +529,7 @@ python3 -I tools/python_wheels.py   # after tools/dist.sh: the wheels, into zig-
 zig build fuzz          # replay the fuzz seeds alone
 zig build bench         # the benchmarks (-- -bench NAME -count N -benchtime MS)
 tools/bench.sh          # against the Go library, on this machine (needs go)
+tools/bench_others.sh   # against parsers in Zig, Rust and Python (needs cargo and uv)
 tools/fuzz.sh [LIMIT]   # fuzz them, LIMIT runs each (default 1M), failing on a find
 zig build locales       # regenerate src/locale/ from the Go repository's tables
 zig build unicode       # regenerate src/unicode_data.zig (needs go)

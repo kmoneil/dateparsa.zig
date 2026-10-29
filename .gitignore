@@ -4,8 +4,10 @@ _plans/
 _tmp/
 _reviews/
 _reports/
-# Benchmark staging.
+# Benchmark staging, and cargo's output when bench/others/rust is built
+# without tools/bench_others.sh.
 _bench/
+bench/others/rust/target/
 # karte export's snapshot of this repo's own board: the board lives in the
 # shared data dir, and a committed copy only goes stale.
 BOARD.md
