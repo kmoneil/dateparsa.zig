@@ -246,22 +246,30 @@ Heap allocations per parse, Rust parsers:
 | `March 15, 2024` | 0 | 0 | 0 | no | 3 |
 | `not a date at all` | 0 | 2 | 0 | 0 | 2 |
 
-Python, ciso8601 2.3.3, dateparser 1.4.3, pandas 3.1.0, python-dateutil
-3.0.0 (Python 3.13.16), one value at a time:
+Python, from a later run on the same machine, with the binding cut down
+(see [Changes measured](#changes-measured-with-these-harnesses) for the
+first run's Python figures):
+
+dateparsa.zig with the Python binding's per-call work cut (Zig 0.17.0)  
+Apple M5 Max, Darwin arm64, 2026-10-29, 10 rounds of 200ms runs  
+Load averages at the start 9.02 10.27 9.40, at the end 9.05 9.66 9.33  
+
+ciso8601 2.3.3, dateparser 1.4.3, pandas 3.1.0, python-dateutil 3.0.0
+(Python 3.13.16), one value at a time:
 
 | Input | dateparsa parse | dateparsa layout | fromisoformat | strptime | ciso8601 | dateutil isoparse | dateutil parse | dateparser |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|
-| `2024-03-15T10:30:00Z` | 3.45 µs | 856 ns | 27.6 ns | 2.33 µs | 21.4 ns | 1.55 µs | 11.26 µs | 691.95 µs |
-| `2024-03-15T10:30:00+05:30` | 3.47 µs | 873 ns | 44.9 ns | 2.74 µs | 22.1 ns | 2.10 µs | 12.79 µs | 542.20 µs |
-| `2024-03-15T10:30:00.123456789Z` | 3.51 µs | 885 ns | 32.1 ns | refuses | 23.1 ns | 2.02 µs | 12.75 µs | 827.38 µs |
-| `2024-03-15 10:30:00` | 3.45 µs | 848 ns | 26.1 ns | 1.90 µs | 20.2 ns | 1.38 µs | 9.89 µs | 431.25 µs |
-| `2024-03-15` | 3.38 µs | 847 ns | 20.7 ns | 1.37 µs | 18.3 ns | 478 ns | 6.02 µs | 342.19 µs |
-| `20240315T103000Z` | 3.49 µs | 848 ns | 26.5 ns | 2.32 µs | 21.8 ns | 1.48 µs | 8.21 µs | refuses |
-| `Fri, 15 Mar 2024 10:30:00 +0000` | 3.78 µs | 876 ns | no | 2.98 µs | no | no | 17.89 µs | 689.49 µs |
-| `03/15/2024` | 3.44 µs | no | no | 1.38 µs | no | no | 6.09 µs | 318.31 µs |
-| `March 15, 2024` | 3.53 µs | 850 ns | no | 1.47 µs | no | no | 9.96 µs | 407.20 µs |
-| `3 days ago` | 4.13 µs | no | no | no | no | no | refuses | 215.44 µs |
-| `not a date at all` | 1.75 µs | no | 156 ns | 1.02 µs | 214 ns | 1.08 µs | 5.42 µs | 129.16 µs |
+| `2024-03-15T10:30:00Z` | 1.07 µs | 572 ns | 28.8 ns | 2.51 µs | 22.8 ns | 1.63 µs | 12.38 µs | 802.83 µs |
+| `2024-03-15T10:30:00+05:30` | 1.11 µs | 579 ns | 47.5 ns | 2.93 µs | 23.4 ns | 2.20 µs | 14.25 µs | 623.79 µs |
+| `2024-03-15T10:30:00.123456789Z` | 1.19 µs | 592 ns | 33.9 ns | refuses | 24.5 ns | 2.09 µs | 14.24 µs | 964.46 µs |
+| `2024-03-15 10:30:00` | 1.16 µs | 576 ns | 28.2 ns | 2.00 µs | 21.6 ns | 1.45 µs | 11.13 µs | 507.83 µs |
+| `2024-03-15` | 1.09 µs | 555 ns | 22.1 ns | 1.49 µs | 19.6 ns | 523 ns | 6.85 µs | 399.48 µs |
+| `20240315T103000Z` | 1.18 µs | 570 ns | 28.5 ns | 2.49 µs | 23.1 ns | 1.55 µs | 9.44 µs | refuses |
+| `Fri, 15 Mar 2024 10:30:00 +0000` | 1.54 µs | 573 ns | no | 3.16 µs | no | no | 20.96 µs | 853.82 µs |
+| `03/15/2024` | 1.17 µs | no | no | 1.49 µs | no | no | 6.87 µs | 368.23 µs |
+| `March 15, 2024` | 1.21 µs | 569 ns | no | 1.60 µs | no | no | 11.20 µs | 464.85 µs |
+| `3 days ago` | 1.64 µs | no | no | no | no | no | refuses | 236.31 µs |
+| `not a date at all` | 1.57 µs | no | 158 ns | 1.09 µs | 210 ns | 1.14 µs | 5.85 µs | 141.64 µs |
 
 Python, a column of 10,000 different values, per value (dateparser left
 out: at about a millisecond a value, a loop over the column says what its
@@ -269,8 +277,8 @@ row above says):
 
 | Input | dateparsa Parser | dateparsa layout | fromisoformat | strptime | ciso8601 | dateutil parse | pandas | pandas format= |
 |---|--:|--:|--:|--:|--:|--:|--:|--:|
-| RFC 3339, `2000-01-01T00:00:00Z` on by minutes | 2.87 µs | 855 ns | 28.3 ns | 1.87 µs | 22.5 ns | 11.23 µs | 81.0 ns | 505 ns |
-| US dates, `01/01/2000` on by days | 3.00 µs | no | no | 1.39 µs | no | 6.10 µs | 330 ns | 324 ns |
+| RFC 3339, `2000-01-01T00:00:00Z` on by minutes | 1.28 µs | 606 ns | 31.2 ns | 2.05 µs | 24.4 ns | 13.05 µs | 98.7 ns | 572 ns |
+| US dates, `01/01/2000` on by days | 1.49 µs | no | no | 1.56 µs | no | 7.31 µs | 392 ns | 374 ns |
 
 What the shared library imports, `nm -u`:
 
@@ -281,8 +289,8 @@ What the shared library imports, `nm -u`:
 
 ### Reading the numbers
 
-The load average stayed near 10 through the run, so a cell is good to 10 to
-20%, and a difference smaller than that is not a result.
+The load average stayed near 10 through both runs, so a cell is good to 10
+to 20%, and a difference smaller than that is not a result.
 
 **Told the format.** In Zig, a reused layout reads every ISO 8601 and RFC
 3339 form in 0.58 to 0.79 of zeit's time, and RFC 5322 in 1.40 of it. In
@@ -292,9 +300,10 @@ layout's time. Parsers that follow a format string at run time take longer
 than a layout: chrono's `parse_from_str` 2.8 to 6.3 times as long, and
 time's format descriptions 1.5 to 3.2 times. A month name reads faster from
 a layout (16.2 ns) than from any Rust parser. From Python, ciso8601 and
-`fromisoformat` take 18 to 45 ns where a layout takes 850 ns, nearly all of
-it the binding (below); the layout is still 1.6 to 3.4 times as fast as
-`strptime`.
+`fromisoformat` take 20 to 48 ns where a layout takes 555 to 592 ns, most
+of it the binding (below). The layout is 2.7 to 5.5 times as fast as
+`strptime`, and down a column about even with pandas given `format=` (606
+against 572 ns a value).
 
 **Working the format out.** Against Rust's dateparser, through the C
 interface, dateparsa takes 0.22 to 0.77 of its time on a SQL date-time, a
@@ -302,17 +311,19 @@ date, a US date and a month name, and reads the compact form dateparser
 refuses. It takes 2.9 to 3.6 times as long on RFC 3339 and 8 times on RFC
 2822: dateparser tries chrono's RFC 2822 and RFC 3339 parsers before any of
 its patterns, so those are its fastest inputs, and dateparsa's slowest
-structured input is RFC 2822. From Python, dateutil's `parse` takes 1.8 to
-4.7 times as long as dateparsa's, and dateparser 52 to 236 times. pandas
-without `format=` is the exception: it infers a column's format from its
-first value and reads the rest in compiled code, 81 ns a value of RFC 3339
-and 330 ns of US dates, where dateparsa's `Parser` through Python takes 2.87
-and 3.00 µs.
+structured input is RFC 2822. From Python, dateutil's `parse` takes 5.9 to
+13.6 times as long as dateparsa's on a date, and dateparser 144 to 810
+times, and dateparsa working the format out is 1.3 to 2.6 times as fast as
+`strptime` told it. pandas without `format=` is the exception: it infers a
+column's format from its first value and reads the rest in compiled code,
+99 ns a value of RFC 3339 and 392 ns of US dates, where dateparsa's `Parser`
+takes 1.28 and 1.49 µs.
 
-**The Python binding.** A parse takes 3.4 µs from Python, 87 ns from Rust
-through the same C interface and 61 ns from Zig, so over 97% of the Python
-figure is the binding: the ctypes structs and the result objects it builds
-on every call.
+**The Python binding.** A parse takes 1.1 µs from Python, 87 ns from Rust
+through the same C interface and 61 ns from Zig, so the binding is still
+over 90% of the Python figure: a ctypes call alone costs about a quarter of
+a microsecond, and the Python objects a result is made of most of the rest.
+It was 3.4 µs, and slower than `strptime`, before the change below.
 
 **The C interface.** In the same run, a reused layout costs 2 to 3 ns more
 called from Rust than from Zig, and a parse 24 to 45 ns more.
@@ -320,7 +331,7 @@ called from Rust than from Zig, and a parse 24 to 45 ns more.
 **A non-date.** A parser told the format turns one down within its first few
 bytes, in 1.6 to 23 ns. dateparsa takes 143 to 172 ns, because it has tried
 every structured format, a Unix timestamp and natural language before it
-says no; dateparser takes 124 ns and dateutil 5.4 µs.
+says no; dateparser takes 124 ns and dateutil 5.9 µs.
 
 **Allocations.** The Rust parsers allocate nothing when they read a date
 either, apart from dateparser on a month name, three times a parse; jiff and
@@ -332,3 +343,14 @@ and `dyld_stub_binder` is the dynamic loader's own. On macOS every system
 call goes through libSystem, so a library that imports none cannot ask the
 system for memory. On Linux Zig makes system calls without libc, and `nm`
 there cannot show the same.
+
+### Changes measured with these harnesses
+
+| Change | Rows it moved, Python |
+|---|---|
+| The binding does less per call: the default options go as NULL and others are built once and shared, a result's fields come out of one `struct` unpack, `Time` and `Result` are built without the dataclass `__init__`, and a result's layout is a view of it rather than a copy and two more C calls | `parse` 3.38-4.13 µs to 1.07-1.64; a layout 847-885 ns to 555-592; `Parser` down a column 2.87-3.00 µs to 1.28-1.49; a non-date 1.75 µs to 1.57 |
+
+The first run's Python figures are the left side of each pair. Both runs
+were on this machine with load averages near 10, and `strptime`, which did
+not change, took 5 to 9% longer in the second: the machine was if anything
+slower for it.
