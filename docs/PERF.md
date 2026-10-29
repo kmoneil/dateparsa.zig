@@ -206,30 +206,34 @@ alone: a C library's allocations would not pass through it.
 
 ### Results
 
-dateparsa.zig c1e122b with these harnesses added, no library code changed (Zig 0.17.0)  
+Zig, from a run after detection stopped copying a format's definition:
+
+dateparsa.zig 0.4.1 (Zig 0.17.0)  
 Apple M5 Max, Darwin arm64, 2026-10-29, 10 rounds of 200ms runs  
-Load averages at the start 10.17 9.99 9.70, at the end 6.82 10.24 10.19  
+Load averages at the start 10.33 9.42 8.46, at the end 7.28 8.69 8.27  
 
-These Zig and Rust tables predate the detection change in the table of
-[changes measured](#changes-measured-with-this-harness) against Go, which
-took the first parse of ISO 8601, RFC 3339 and SQL forms to about 0.6 of
-what they show in the dateparsa parse column; the layout columns did not
-move.
-
-Zig, zeit 0.10.0 (06bb7b4):
+zeit 0.10.0 (06bb7b4):
 
 | Input | dateparsa parse | dateparsa layout | zeit |
 |---|--:|--:|--:|
-| `2024-03-15T10:30:00Z` | 61.2 ns | 10.3 ns | 14.2 ns |
-| `2024-03-15T10:30:00+05:30` | 81.6 ns | 12.6 ns | 17.3 ns |
-| `2024-03-15T10:30:00.123456789Z` | 80.0 ns | 13.4 ns | 23.1 ns |
-| `2024-03-15 10:30:00` | 60.2 ns | 9.4 ns | 13.7 ns |
-| `2024-03-15` | 43.4 ns | 7.6 ns | 9.6 ns |
-| `20240315T103000Z` | 52.0 ns | 9.6 ns | 14.1 ns |
-| `Fri, 15 Mar 2024 10:30:00 +0000` | 343 ns | 25.4 ns | 18.1 ns |
-| `03/15/2024` | 79.5 ns | no | no |
-| `March 15, 2024` | 140 ns | 13.6 ns | no |
-| `not a date at all` | 143 ns | no | 4.6 ns |
+| `2024-03-15T10:30:00Z` | 38.1 ns | 10.1 ns | 14.1 ns |
+| `2024-03-15T10:30:00+05:30` | 49.6 ns | 12.4 ns | 16.8 ns |
+| `2024-03-15T10:30:00.123456789Z` | 67.0 ns | 13.2 ns | 23.1 ns |
+| `2024-03-15 10:30:00` | 37.3 ns | 9.3 ns | 13.4 ns |
+| `2024-03-15` | 27.0 ns | 7.5 ns | 9.3 ns |
+| `20240315T103000Z` | 30.6 ns | 9.6 ns | 14.1 ns |
+| `Fri, 15 Mar 2024 10:30:00 +0000` | 324 ns | 25.0 ns | 18.3 ns |
+| `03/15/2024` | 68.5 ns | no | no |
+| `March 15, 2024` | 126 ns | 13.4 ns | no |
+| `not a date at all` | 135 ns | no | 4.5 ns |
+
+Rust, from the first run, before that change: its dateparsa parse column
+took about 0.6 of these times after it, as the Zig one did, and the other
+columns did not move.
+
+dateparsa.zig c1e122b with these harnesses added, no library code changed (Zig 0.17.0)  
+Apple M5 Max, Darwin arm64, 2026-10-29, 10 rounds of 200ms runs  
+Load averages at the start 10.17 9.99 9.70, at the end 6.82 10.24 10.19  
 
 Rust, chrono 0.4.45, dateparser 0.3.1, jiff 0.2.38, speedate 0.18.0, time
 0.3.55 (rustc 1.99.1):
@@ -308,12 +312,12 @@ What the shared library imports, `nm -u`:
 
 ### Reading the numbers
 
-The load average stayed near 10 through the Zig and Rust run, and near 4
+The load average stayed near 8 to 10 through the Zig and Rust runs, and near 4
 through the Python one. A cell is good to 10 to 20%, and a difference
 smaller than that is not a result.
 
 **Told the format.** In Zig, a reused layout reads every ISO 8601 and RFC
-3339 form in 0.58 to 0.79 of zeit's time, and RFC 5322 in 1.40 of it. In
+3339 form in 0.57 to 0.81 of zeit's time, and RFC 5322 in 1.37 of it. In
 Rust, through the C interface, the fastest parser of each ISO 8601, RFC
 3339 and RFC 2822 form (time, speedate or jiff) takes 0.37 to 0.86 of a
 layout's time. Parsers that follow a format string at run time take longer
@@ -345,17 +349,18 @@ than pandas told it (484 and 321 ns). Building a datetime for each value
 instead takes 169 and 238 ns. `fromisoformat` and ciso8601 in a loop are a
 little faster than the numpy path, 23 to 28 ns, on the one format they read.
 
-**The Python binding.** A parse takes 983 ns from Python, 87 ns from Rust
-through the same C interface and 61 ns from Zig, so the binding is still
-over 90% of the Python figure: a ctypes call alone costs about a quarter of
+**The Python binding.** A parse took 983 ns from Python and 87 ns from
+Rust through the same C interface, both before detection's change, so the
+binding was over 90% of the Python figure: a ctypes call alone costs about a quarter of
 a microsecond, and the Python objects a result is made of most of the rest.
 It was 3.4 µs, and slower than `strptime`, before the change below.
 
-**The C interface.** In the same run, a reused layout costs 2 to 3 ns more
-called from Rust than from Zig, and a parse 24 to 45 ns more.
+**The C interface.** In the first run, before detection's change, a reused
+layout cost 2 to 3 ns more called from Rust than from Zig, and a parse 24
+to 45 ns more.
 
 **A non-date.** A parser told the format turns one down within its first few
-bytes, in 1.6 to 23 ns. dateparsa takes 143 to 172 ns, because it has tried
+bytes, in 1.6 to 23 ns. dateparsa takes 135 ns, because it has tried
 every structured format, a Unix timestamp and natural language before it
 says no; dateparser takes 124 ns and dateutil 5.2 µs.
 
