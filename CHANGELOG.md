@@ -12,6 +12,24 @@ the difference. Before 1.0 a breaking change is a minor bump.
 
 Nothing yet.
 
+## [0.3.2] - 2026-10-29
+
+Benchmarks against other parsers. No library code changed, and every input
+parses to what it did in 0.3.1.
+
+### Added
+
+- `tools/bench_others.sh`: dateparsa against other date parsers on one
+  machine. In Zig, against zeit. In Rust, through the C interface, against
+  chrono, jiff, time, speedate and dateparser, with heap allocations per
+  parse counted. In Python, through the package, against `fromisoformat`,
+  `strptime`, ciso8601, dateutil, dateparser and pandas, one value at a time
+  and down a column. Every parser's answer is checked before it is timed,
+  and each harness pins the versions it compares against. `docs/PERF.md`
+  has the first run and what it shows, including what the shared library
+  imports: on macOS, `bzero`, `memcpy` and `memset`, and nothing that could
+  ask the system for memory.
+
 ## [0.3.1] - 2026-10-29
 
 The `dateparsa` command, prebuilt. No library code changed, and every input
@@ -128,7 +146,8 @@ what was changed on purpose.
 - No allocation on any path and no clock: an input that needs a base time and
   was given none fails with `error.NoBaseTime`.
 
-[Unreleased]: https://github.com/kmoneil/dateparsa.zig/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/kmoneil/dateparsa.zig/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/kmoneil/dateparsa.zig/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/kmoneil/dateparsa.zig/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/kmoneil/dateparsa.zig/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/kmoneil/dateparsa.zig/compare/v0.2.0...v0.2.1
