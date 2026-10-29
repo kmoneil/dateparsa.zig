@@ -338,9 +338,9 @@ date, a US date and a month name, and reads the compact form dateparser
 refuses. It takes 2.9 to 3.6 times as long on RFC 3339 and 8 times on RFC
 2822: dateparser tries chrono's RFC 2822 and RFC 3339 parsers before any of
 its patterns, so those are its fastest inputs, and in that run RFC 2822 was
-dateparsa's slowest structured input. Both changes since come to about a
-quarter of its time there, which leaves dateparsa about twice dateparser's
-on RFC 2822, from the Zig table's 78 ns and the C interface's cost. From Python, dateutil's `parse` takes 5.7 to
+dateparsa's slowest structured input. The Zig table's 78 ns since, plus
+the C interface's 24 to 45, would put dateparsa at about twice dateparser's
+time on RFC 2822, though the Rust run has not been repeated to show it. From Python, dateutil's `parse` takes 5.7 to
 12.8 times as long as dateparsa's on a date, and dateparser 139 to 733
 times, and dateparsa working the format out is 1.3 to 2.5 times as fast as
 `strptime` told it.
