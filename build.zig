@@ -272,16 +272,26 @@ pub fn build(b: *std.Build) void {
     const docs_step = b.step("docs", "Generate API documentation into zig-out/docs");
     docs_step.dependOn(&install_docs.step);
 
-    const fmt = b.addFmt(.{
-        .paths = &.{ b.path("build.zig"), b.path("src"), b.path("cli"), b.path("tools"), b.path("bench") },
-        .check = true,
-    });
+    // bench/others/zig by file: a build run there without --pkg-dir fetches
+    // zeit into its zig-pkg/, and zig fmt would check that too.
+    const lint_paths = [_][]const u8{
+        "build.zig",
+        "src",
+        "cli",
+        "tools",
+        "bench/main.zig",
+        "bench/others/zig/build.zig",
+        "bench/others/zig/main.zig",
+    };
+    var fmt_paths: [lint_paths.len]std.Build.LazyPath = undefined;
+    for (lint_paths, &fmt_paths) |p, *lp| lp.* = b.path(p);
+    const fmt = b.addFmt(.{ .paths = &fmt_paths, .check = true });
     const fmt_step = b.step("fmt-check", "Check source formatting");
     fmt_step.dependOn(&fmt.step);
 
     // zigvet (github.com/kmoneil/zigvet) must be on PATH. Run from the build
     // root with relative paths so its findings print as src/x.zig:line:col.
-    const vet = b.addSystemCommand(&.{ "zigvet", "src", "cli", "tools", "bench", "build.zig" });
+    const vet = b.addSystemCommand(&([_][]const u8{"zigvet"} ++ lint_paths));
     vet.setCwd(b.path("."));
     const vet_step = b.step("vet", "Check sources with zigvet");
     vet_step.dependOn(&vet.step);

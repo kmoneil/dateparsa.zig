@@ -1,0 +1,13 @@
+# What bench.py compares dateparsa against, pinned for Python 3.13:
+#   printf 'ciso8601\ndateparser\npandas\npython-dateutil\n' |
+#       uv pip compile --python-version 3.13 --no-header --no-annotate -
+ciso8601==2.3.3
+dateparser==1.4.3
+numpy==2.5.4
+pandas==3.1.0
+python-dateutil==3.0.0
+pytz==2026.6
+regex==2026.9.29
+six==1.17.0
+tzdata==2026.6
+tzlocal==5.4.5
