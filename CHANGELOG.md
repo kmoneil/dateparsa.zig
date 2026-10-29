@@ -10,6 +10,12 @@ the difference. Before 1.0 a breaking change is a minor bump.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.4.1] - 2026-10-29
+
+Faster detection. Every input parses to what it did in 0.4.0.
+
 ### Changed
 
 - A first parse of a format the signature trie knows takes about 0.6 of
@@ -19,8 +25,7 @@ the difference. Before 1.0 a breaking change is a minor bump.
   copying its 168-byte definition out of the trie and twice more on the
   way up, and looks for a CJK date only when 年 is the fifth byte. Against
   the Go library's benchmarks, ISO 8601, RFC 3339, SQL and compact forms
-  now take 0.54 to 0.66 of Go's time, where they took 0.88 to 1.05. Every
-  input parses to what it did in 0.4.0.
+  now take 0.54 to 0.66 of Go's time, where they took 0.88 to 1.05.
 
 ## [0.4.0] - 2026-10-29
 
@@ -200,7 +205,8 @@ what was changed on purpose.
 - No allocation on any path and no clock: an input that needs a base time and
   was given none fails with `error.NoBaseTime`.
 
-[Unreleased]: https://github.com/kmoneil/dateparsa.zig/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/kmoneil/dateparsa.zig/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/kmoneil/dateparsa.zig/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/kmoneil/dateparsa.zig/compare/v0.3.3...v0.4.0
 [0.3.3]: https://github.com/kmoneil/dateparsa.zig/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/kmoneil/dateparsa.zig/compare/v0.3.1...v0.3.2
