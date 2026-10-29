@@ -10,6 +10,13 @@ the difference. Before 1.0 a breaking change is a minor bump.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.3.1] - 2026-10-29
+
+The `dateparsa` command, prebuilt. No library code changed, and every input
+parses to what it did in 0.3.0.
+
 ### Added
 
 - The `dateparsa` command. `dateparsa detect` reports how a column is
@@ -22,8 +29,7 @@ the difference. Before 1.0 a breaking change is a minor bump.
   one-byte separator), or one value a line, from a file or standard input;
   `--order`, `--base`, `--tz`, `--utc`, `--locale` and `detect --json`. The
   release archives carry it in `bin/` for every platform, and each release
-  runs it on Linux, macOS and Windows before publishing. No library code
-  changed.
+  runs it on Linux, macOS and Windows before publishing.
 
 ## [0.3.0] - 2026-10-28
 
@@ -122,7 +128,8 @@ what was changed on purpose.
 - No allocation on any path and no clock: an input that needs a base time and
   was given none fails with `error.NoBaseTime`.
 
-[Unreleased]: https://github.com/kmoneil/dateparsa.zig/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/kmoneil/dateparsa.zig/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/kmoneil/dateparsa.zig/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/kmoneil/dateparsa.zig/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/kmoneil/dateparsa.zig/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/kmoneil/dateparsa.zig/compare/v0.1.0...v0.2.0
