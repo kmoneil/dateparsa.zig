@@ -1,5 +1,6 @@
 #!/bin/sh
-# Builds the libraries a release attaches (zig build dist) and archives them
+# Builds the libraries and the command a release attaches (zig build dist),
+# and archives them
 # in zig-out/dist: a .tar.gz for each Linux and macOS target, which keeps the
 # shared library's symlinks, a .zip for each Windows target, and SHA256SUMS
 # over them all.

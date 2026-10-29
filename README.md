@@ -308,6 +308,67 @@ values from a database row or anything else already typed, and
 `FlexTime.fromValueWith(&parser, value)` reads strings with your `Options`,
 strict mode included.
 
+### From the command line
+
+`dateparsa detect` says how a column is written, and `dateparsa normalize`
+writes it back as RFC 3339:
+
+```console
+$ cat orders.csv
+id,ordered_at,total
+1,03/02/2024 09:15,12.50
+2,14/02/2024 17:40,8.00
+3,,3.20
+4,TBD,4.75
+
+$ dateparsa detect orders.csv --col ordered_at
+values     3, and 1 empty
+read       2
+not read   1
+           line 5: "TBD"
+order      day first, settled by line 3: "14/02/2024 17:40"
+ambiguous  1, read day first as the column settles
+
+values  example           strftime        go                java
+     2  03/02/2024 09:15  %d/%m/%Y %H:%M  02/01/2006 15:04  dd/MM/yyyy HH:mm
+
+$ dateparsa normalize orders.csv --col ordered_at
+id,ordered_at,total
+1,2024-02-03T09:15:00Z,12.50
+2,2024-02-14T17:40:00Z,8.00
+3,,3.20
+4,TBD,4.75
+dateparsa: 1 value not read, left as it was:
+  line 5: "TBD"
+```
+
+`--col` takes a column's number, from 1, or its name in the header. A file is
+read as CSV when `--col` is given (quoted fields, line breaks inside quotes,
+`-d ';'` or `-d tab` for other separators) and as one value a line when it is
+not. With no file, standard input is read. `normalize` changes only the
+column's bytes: every other field, the quoting, the line endings and the byte
+order mark are written back as they were read, and a value it cannot read is
+left as it was and listed on standard error.
+
+The date order is settled from the whole column before the first value is
+written, so `03/02/2024` on line 2 is read day first because of line 3. That
+means two passes: a file is read twice, and standard input is held in memory.
+Where nothing in the column settles the order, `normalize` refuses to guess
+and asks for `--order day-first` (or `month-first`, `year-first`), which also
+lets it stream standard input in one pass. `detect --json` writes the report
+for a script, and both exit 0 when every value was read, 1 when some were not
+or the order is not settled, and 2 on a usage or input error.
+
+`--base now` (or any date and time) reads relative dates and dates with no
+year, `--tz +05:30` is the offset of values that write no zone, `--utc` writes
+every time in UTC, and `--locale fr,de` reads month names in more languages.
+`dateparsa --help` lists it all.
+
+Each [release](https://github.com/kmoneil/dateparsa.zig/releases) archive
+holds the command in `bin/` (`dateparsa.exe` on Windows), a single static
+executable on Linux. To build it yourself, `zig build -Doptimize=ReleaseSafe`
+puts it in `zig-out/bin`.
+
 ### From Python
 
 ```sh
@@ -334,7 +395,8 @@ wheel on its own platform and runs the Python tests against it first.
 Each [release](https://github.com/kmoneil/dateparsa.zig/releases) attaches
 `libdateparsa` for Linux, macOS (13 and later) and Windows, on x86_64 and
 arm64: one archive per platform holding the static and the shared library, the
-header [`include/dateparsa.h`](include/dateparsa.h) and the licences, with
+header [`include/dateparsa.h`](include/dateparsa.h), the `dateparsa` command
+and the licences, with
 `SHA256SUMS` and build provenance (`gh attestation verify <archive> --repo
 kmoneil/dateparsa.zig`). On Windows the DLL's import library is
 `dateparsa.lib` and the static library `dateparsa_static.lib`. To build it
@@ -429,6 +491,7 @@ Each is deliberate.
 | `tools/fuzz.sh` | Zig's fuzzer on eight properties: any bytes parse without tripping a safety check, to a time that round-trips through RFC 3339 and that the result's layout re-reads, and whose format string in every dialect is spelled or refused; a layout reused on another input refuses it or agrees with detection; a primed `Parser` agrees with `parseWith`; the fast path agrees with the interpreter; any JSON `FlexTime` reads is a valid time whose RFC 3339 reads back to it; `FlexTime`'s caches agree with cold ones; each field order a column's values are said to fit is the order their preferences read, and a column's options read every value that fits its order in it; and the C API refuses exactly the options it must, whatever a C struct holds, and otherwise answers as `parseWith` does. `zig build test` replays their seeds: the Go library's fuzz seeds and crashers, the golden corpus and every format's example |
 | CI | Every pull request runs formatting, zigvet and `zig build test` on Linux, macOS and Windows, in every optimize mode, and with only `en` or only `fr,de` compiled in. The fuzzer runs 50K times a target after each merge and 10M a night, from a corpus kept between runs; a find opens an issue |
 | C API | `zig build test` also checks `include/dateparsa.h` against the exports field by field, calls through the header on every golden row under five option sets and down the corpus with a parser, runs `test/c_api.c` against the static library on every platform CI covers, and compiles the header as C++ |
+| The command | `zig build test` runs the `dateparsa` command on CSV and line input, through every message it writes, and runs the built binary on a file and on standard input; each release runs its own prebuilt binary on Linux, macOS and Windows before publishing |
 | `tools/format_check.sh` | Every example in the format table, and variants of it, parsed with the format string each dialect gets, by Python's `strptime`, Go's `time.Parse` and Java's `DateTimeFormatter`: 155 format strings, each reading the fields it sets as dateparsa does |
 | Unicode tables | Lowercasing and word boundaries match Go's `unicode` package on all 1,114,112 code points |
 | Deliberate breaks | Each feature's tests were run against seeded bugs, and every bug that could change an answer was caught |
@@ -449,6 +512,7 @@ zig build test          # unit, golden corpus and README tests
 zig build fmt-check     # formatting
 zig build vet           # zigvet, github.com/kmoneil/zigvet
 zig build docs          # API documentation into zig-out/docs
+zig build run -- detect FILE --col N   # the dateparsa command, built and run
 zig build lib           # libdateparsa and its C header into zig-out (-Dlinkage=dynamic)
 tools/dist.sh           # every release platform's library, archived into zig-out/dist
 tools/format_check.sh   # format strings, parsed by Python, Go and Java (needs all three)

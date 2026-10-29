@@ -1,7 +1,8 @@
 # A tag is the release. For Zig the package is its source, fetched by `zig
-# fetch` from the tag; for everyone else the release attaches libdateparsa,
-# built for six platforms by libraries.yml, with SHA256SUMS and provenance,
-# and the Python wheels around it go to PyPI.
+# fetch` from the tag; for everyone else the release attaches libdateparsa
+# and the dateparsa command, built for six platforms by libraries.yml, with
+# SHA256SUMS and provenance, and the Python wheels around the library go to
+# PyPI.
 # What is published is whatever the tag points at, so this re-runs the gate
 # on the tagged commit rather than trusting that it was green on main.
 # It refuses a tag that disagrees with .version in build.zig.zon, which is

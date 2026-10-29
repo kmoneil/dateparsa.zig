@@ -22,6 +22,25 @@ pub fn build(b: *std.Build) void {
     options.addOption([]const u8, "version", zon.version);
     mod.addOptions("build_options", options);
 
+    // The dateparsa command, cli/main.zig. `zig build` installs it into
+    // zig-out/bin, and `zig build run -- detect data.csv --col 3` runs it.
+    const cli_mod = b.createModule(.{
+        .root_source_file = b.path("cli/main.zig"),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "dateparsa", .module = mod }},
+    });
+    // Its own options, the version alone: the library's are the library
+    // module's, and one file cannot be the root of two modules in a build.
+    const cli_options = b.addOptions();
+    cli_options.addOption([]const u8, "version", zon.version);
+    cli_mod.addOptions("build_options", cli_options);
+    const cli = b.addExecutable(.{ .name = "dateparsa", .root_module = cli_mod });
+    b.installArtifact(cli);
+    const run_cli = b.addRunArtifact(cli);
+    run_cli.addPassthruArgs();
+    b.step("run", "Run the dateparsa command (-- detect FILE --col N)").dependOn(&run_cli.step);
+
     // The C ABI: src/c_api.zig behind include/dateparsa.h. Position
     // independent, static library too: most C toolchains link executables
     // as PIE, and gcc on Ubuntu refused the library without it.
@@ -65,6 +84,22 @@ pub fn build(b: *std.Build) void {
     const test_step = b.step("test", "Run tests");
     test_step.dependOn(&run_mod_tests.step);
 
+    // The command's tests, then the command itself on a few inputs, for what
+    // its tests cannot see from inside: arguments, files, standard input and
+    // the exit status.
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = cli_mod })).step);
+    for (cli_checks) |check| {
+        const run = b.addRunArtifact(cli);
+        run.setCwd(b.path("."));
+        run.addArgs(check.args);
+        run.addFileInput(b.path("testdata/cli/orders.csv"));
+        if (check.stdin) |bytes| run.setStdIn(.{ .bytes = bytes });
+        run.expectStdOutEqual(check.stdout);
+        run.expectStdErrEqual(check.stderr);
+        run.expectExitCode(check.code);
+        test_step.dependOn(&run.step);
+    }
+
     // libdateparsa for other languages, static unless -Dlinkage=dynamic,
     // installed with its header by `zig build lib`. A static library
     // carries the compiler runtime, so a C toolchain links it alone.
@@ -86,10 +121,10 @@ pub fn build(b: *std.Build) void {
 
     // The libraries a release attaches: every dist target, static and
     // shared, ReleaseFast, each under zig-out/dist/dateparsa-<version>-<name>
-    // with the header and the licences. tools/dist.sh archives them. On
-    // Windows the static library is dateparsa_static.lib, since the DLL's
-    // import library is dateparsa.lib.
-    const dist_step = b.step("dist", "Build the release libraries into zig-out/dist (tools/dist.sh archives them)");
+    // with the header, the licences and the dateparsa command.
+    // tools/dist.sh archives them. On Windows the static library is
+    // dateparsa_static.lib, since the DLL's import library is dateparsa.lib.
+    const dist_step = b.step("dist", "Build the release libraries and command into zig-out/dist (tools/dist.sh archives them)");
     for (dist_targets) |dt| {
         const dist_target = b.resolveTargetQuery(std.Target.Query.parse(.{ .arch_os_abi = dt.query }) catch unreachable);
         const windows = dist_target.result.os.tag == .windows;
@@ -114,6 +149,32 @@ pub fn build(b: *std.Build) void {
             .root_module = dist_mod,
             .version = std.SemanticVersion.parse(zon.version) catch unreachable,
         });
+        // The command, in bin: its own code with safety checks, as the newer
+        // and less exercised part, and the library as fast as the libraries
+        // beside it.
+        const dist_root = b.createModule(.{
+            .root_source_file = b.path("src/root.zig"),
+            .target = dist_target,
+            .optimize = .ReleaseFast,
+            .strip = true,
+        });
+        dist_root.addOptions("build_options", options);
+        const dist_cli = b.addExecutable(.{
+            .name = "dateparsa",
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("cli/main.zig"),
+                .target = dist_target,
+                .optimize = .ReleaseSafe,
+                .strip = true,
+                .imports = &.{.{ .name = "dateparsa", .module = dist_root }},
+            }),
+        });
+        dist_cli.root_module.addOptions("build_options", cli_options);
+        dist_step.dependOn(&b.addInstallArtifact(dist_cli, .{
+            .dest_dir = .{ .override = .{ .custom = b.fmt("{s}/bin", .{dir}) } },
+            .implib_dir = .disabled,
+            .pdb_dir = .disabled,
+        }).step);
         const lib_dir: std.Build.InstallDir = .{ .custom = b.fmt("{s}/lib", .{dir}) };
         for ([_]*std.Build.Step.Compile{ dist_static, dist_shared }) |artifact| {
             dist_step.dependOn(&b.addInstallArtifact(artifact, .{
@@ -212,7 +273,7 @@ pub fn build(b: *std.Build) void {
     docs_step.dependOn(&install_docs.step);
 
     const fmt = b.addFmt(.{
-        .paths = &.{ b.path("build.zig"), b.path("src"), b.path("tools"), b.path("bench") },
+        .paths = &.{ b.path("build.zig"), b.path("src"), b.path("cli"), b.path("tools"), b.path("bench") },
         .check = true,
     });
     const fmt_step = b.step("fmt-check", "Check source formatting");
@@ -220,7 +281,7 @@ pub fn build(b: *std.Build) void {
 
     // zigvet (github.com/kmoneil/zigvet) must be on PATH. Run from the build
     // root with relative paths so its findings print as src/x.zig:line:col.
-    const vet = b.addSystemCommand(&.{ "zigvet", "src", "tools", "bench", "build.zig" });
+    const vet = b.addSystemCommand(&.{ "zigvet", "src", "cli", "tools", "bench", "build.zig" });
     vet.setCwd(b.path("."));
     const vet_step = b.step("vet", "Check sources with zigvet");
     vet_step.dependOn(&vet.step);
@@ -315,4 +376,66 @@ const dist_targets = [_]struct { name: []const u8, query: []const u8 }{
     .{ .name = "aarch64-macos", .query = "aarch64-macos.13.0" },
     .{ .name = "x86_64-windows", .query = "x86_64-windows-msvc" },
     .{ .name = "aarch64-windows", .query = "aarch64-windows-msvc" },
+};
+
+/// What `zig build test` runs the command with, and what it must write and
+/// exit with. A file is read twice, from its start; standard input is held
+/// for the second pass, or streamed when --order leaves only one.
+const cli_checks = [_]struct {
+    args: []const []const u8,
+    stdin: ?[]const u8 = null,
+    stdout: []const u8 = "",
+    stderr: []const u8 = "",
+    code: u8 = 0,
+}{
+    .{ .args = &.{"--version"}, .stdout = "dateparsa " ++ zon.version ++ "\n" },
+    .{
+        .args = &.{ "detect", "testdata/cli/orders.csv", "--col", "date" },
+        .stdout =
+        \\values     3, and 1 empty
+        \\read       3
+        \\order      day first, settled by line 3: "13/02/2024"
+        \\ambiguous  2, read day first as the column settles
+        \\
+        \\values  example     strftime  go          java
+        \\     3  01/02/2024  %d/%m/%Y  02/01/2006  dd/MM/yyyy
+        \\
+        ,
+    },
+    .{
+        .args = &.{ "normalize", "testdata/cli/orders.csv", "--col", "date" },
+        .stdout = "id,date,amount\n1,2024-02-01T00:00:00Z,10.00\n2,2024-02-13T00:00:00Z,12.50\n3,,7.25\n4,2024-03-05T00:00:00Z,3.10\n",
+    },
+    .{
+        .args = &.{"normalize"},
+        .stdin = "01/02/2024\n13/02/2024\n",
+        .stdout = "2024-02-01T00:00:00Z\n2024-02-13T00:00:00Z\n",
+    },
+    .{
+        .args = &.{ "normalize", "-", "--order", "month-first" },
+        .stdin = "01/02/2024\n",
+        .stdout = "2024-01-02T00:00:00Z\n",
+    },
+    .{
+        .args = &.{ "normalize", "-" },
+        .stdin = "01/02/2024\n",
+        .stderr = "dateparsa: the column's date order is not settled: month first or day first each read every value\n" ++
+            "Pass --order to choose one, or run dateparsa detect to see the values.\n",
+        .code = 1,
+    },
+    .{
+        .args = &.{ "detect", "testdata/cli/orders.csv", "--col", "when" },
+        .stderr = "dateparsa: no column when in the header of testdata/cli/orders.csv: \"id\", \"date\", \"amount\"\n",
+        .code = 2,
+    },
+    .{
+        .args = &.{ "detect", "testdata/cli/none.csv" },
+        .stderr = "dateparsa: cannot read testdata/cli/none.csv: no such file\n",
+        .code = 2,
+    },
+    .{
+        .args = &.{ "detect", "--colour" },
+        .stderr = "dateparsa: no option --colour\nRun dateparsa --help for the options.\n",
+        .code = 2,
+    },
 };
