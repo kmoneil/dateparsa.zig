@@ -7,7 +7,9 @@ against an installed wheel, or with PYTHONPATH=python/src and DATEPARSA_LIB
 naming a libdateparsa built by `zig build lib -Dlinkage=dynamic`.
 """
 
+import dataclasses
 import datetime as dt
+import gc
 import threading
 import unittest
 
@@ -94,18 +96,69 @@ class Parse(unittest.TestCase):
         with self.assertRaises(TypeError):
             dateparsa.parse("2024-03-15", prefer_dayfirst=True)
 
+    def test_results_are_plain_dataclasses(self):
+        # Time and Result are built without their __init__, for speed: they
+        # must be what __init__ would have made.
+        t = dateparsa.parse("2024-03-15T10:30:00.5+05:30").time
+        same = dateparsa.Time(2024, 3, 15, 10, 30, 0, 500000000, 19800)
+        self.assertEqual(t, same)
+        self.assertEqual(hash(t), hash(same))
+        self.assertEqual(repr(t), repr(same))
+        self.assertEqual(dataclasses.asdict(t), dataclasses.asdict(same))
+        with self.assertRaises(dataclasses.FrozenInstanceError):
+            t.year = 2025
+        r = dateparsa.parse("2024-03-15")
+        self.assertEqual([f.name for f in dataclasses.fields(r)], [f.name for f in dataclasses.fields(dateparsa.Result)])
+        self.assertIs(dateparsa.parse("2024-03-15T10:30:00Z").datetime.tzinfo, UTC)
+
+    def test_a_layout_outlives_its_result(self):
+        layout = dateparsa.parse("15.03.2024").layout
+        gc.collect()
+        self.assertEqual(layout.parse("16.04.2025").month, 4)
+        self.assertEqual(layout.format_string(), "%d.%m.%Y")
+        self.assertEqual(layout.label, dateparsa.detect("15.03.2024").label)
+
+    def test_options_are_shared_and_never_written(self):
+        # Equal options share one C struct, which carries no diagnostics:
+        # a failure under them still says why, and leaves them as they were.
+        shared = dateparsa._options({"strict": True})
+        self.assertIs(shared, dateparsa._options({"strict": True}))
+        self.assertFalse(shared.diagnostics, "a struct every thread passes must give the library nothing to write")
+        for _ in range(2):
+            with self.assertRaises(dateparsa.Ambiguous) as e:
+                dateparsa.parse("01/02/2024", strict=True)
+            self.assertEqual(len(e.exception.interpretations), 2)
+            with self.assertRaisesRegex(dateparsa.NoMatch, "nonsense"):
+                dateparsa.parse("nonsense", strict=True)
+        self.assertEqual(dateparsa.parse("02/01/2024", strict=False).time.month, 2)
+        self.assertEqual(dateparsa.parse("3 days ago", base_time=BASE).time.day, 12)
+        later = BASE + dt.timedelta(days=1)
+        self.assertEqual(dateparsa.parse("3 days ago", base_time=later).time.day, 13)
+        east = dt.datetime(2024, 3, 15, 12, tzinfo=dt.timezone(dt.timedelta(hours=1)))
+        self.assertEqual(dateparsa.parse("now", base_time=east).time.offset_seconds, 3600)
+
     def test_threads(self):
         # The C calls release the GIL and share nothing but their inputs.
         errors = []
 
-        def work():
+        # A failure's message comes from diagnostics the library writes, so
+        # threads failing for different reasons must each read their own.
+        def work(text, error, reason):
             try:
                 for _ in range(500):
                     assert dateparsa.parse("2024-03-15T10:30:00Z").unix_seconds == 1710498600
+                    try:
+                        dateparsa.parse(text)
+                    except error as e:
+                        assert reason in str(e), str(e)
             except Exception as e:  # pragma: no cover
                 errors.append(e)
 
-        threads = [threading.Thread(target=work) for _ in range(4)]
+        reasons = [
+            ("no date", dateparsa.NoMatch, "no matching format"),
+            ("3 days ago", dateparsa.NoBaseTime, "needs a base time"),
+        ]
+        threads = [threading.Thread(target=work, args=reasons[i % 2]) for i in range(4)]
         for t in threads:
             t.start()
         for t in threads:

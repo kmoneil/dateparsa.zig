@@ -10,7 +10,17 @@ the difference. Before 1.0 a breaking change is a minor bump.
 
 ## [Unreleased]
 
-Nothing yet.
+### Changed
+
+- The Python package spends far less of each call in Python: `parse`
+  takes about a quarter of the time it did, `Parser.parse` about a third,
+  and `Layout.parse` and `detect` about half, with the same answers. The
+  default options go to the library as NULL and other options are built
+  once and shared; a result's fields are read in one `struct` unpack, its
+  `Time` and `Result` built without the dataclass `__init__`, and its
+  layout is a view of the result rather than a copy. A failed call is
+  run again with diagnostics, for its message, so a parse that succeeds
+  never pays for them.
 
 ## [0.3.2] - 2026-10-29
 

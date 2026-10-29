@@ -21,10 +21,13 @@ from __future__ import annotations
 
 import ctypes
 import datetime as _dt
+import functools
 import os
+import struct
 import sys
+import threading
 from dataclasses import dataclass
-from typing import FrozenSet, Iterable, List, Optional, Tuple, Union
+from typing import Dict, FrozenSet, Iterable, List, NoReturn, Optional, Tuple, Union
 
 __all__ = [
     "Ambiguous",
@@ -121,6 +124,16 @@ class _Result(ctypes.Structure):
         ("label_len", ctypes.c_size_t),
         ("layout", _LayoutBlob),
     ]
+
+
+# _DateTime, and _Result up to its layout, as struct formats, natively
+# aligned as ctypes lays the structs out: one unpack_from reads every field
+# a result needs, where reading them one by one through ctypes costs four
+# times as much.
+_DATETIME = struct.Struct("@iBBBBBIi")
+_RESULT = struct.Struct("@iBBBBBIiqB??PN")
+if _DATETIME.size != ctypes.sizeof(_DateTime) or _RESULT.size != _Result.layout.offset:
+    raise ImportError("dateparsa: the struct formats do not match the C structs on this platform")
 
 
 class _ColumnReport(ctypes.Structure):
@@ -229,19 +242,51 @@ class Time:
 
     @property
     def tzinfo(self) -> _dt.timezone:
-        return _dt.timezone(_dt.timedelta(seconds=self.offset_seconds))
+        return _zone(self.offset_seconds)
 
     def to_datetime(self) -> _dt.datetime:
         """An aware datetime, to the microsecond. ValueError for a year
         outside 1 to 9999."""
         return _dt.datetime(
             self.year, self.month, self.day, self.hour, self.minute, self.second,
-            self.nanosecond // 1000, tzinfo=self.tzinfo,
+            self.nanosecond // 1000, tzinfo=_zone(self.offset_seconds),
         )
 
     @classmethod
     def _from(cls, t: _DateTime) -> "Time":
-        return cls(t.year, t.month, t.day, t.hour, t.minute, t.second, t.nanosecond, t.offset_seconds)
+        return _time(_DATETIME.unpack_from(t))
+
+
+def _frozen(cls: type, fields: Dict[str, object]):
+    """An instance of the frozen dataclass cls with these fields, which must
+    be all of its own. A frozen dataclass's __init__ sets each field through
+    object.__setattr__, and building a parse's Time and Result that way was
+    a fifth of the call; this sets them in one step. eq, hash and repr read
+    the same fields."""
+    o = object.__new__(cls)
+    object.__setattr__(o, "__dict__", fields)
+    return o
+
+
+def _time(f: Tuple) -> Time:
+    """A Time from _DATETIME's fields, the first eight of f."""
+    return _frozen(Time, {
+        "year": f[0], "month": f[1], "day": f[2], "hour": f[3], "minute": f[4], "second": f[5],
+        "nanosecond": f[6], "offset_seconds": f[7],
+    })
+
+
+_ZONES: Dict[int, _dt.timezone] = {0: _dt.timezone.utc}
+
+
+def _zone(offset_seconds: int) -> _dt.timezone:
+    """The timezone offset_seconds east of UTC, one object per offset."""
+    zone = _ZONES.get(offset_seconds)
+    if zone is None:
+        zone = _dt.timezone(_dt.timedelta(seconds=offset_seconds))
+        if len(_ZONES) < 256:
+            _ZONES[offset_seconds] = zone
+    return zone
 
 
 @dataclass(frozen=True)
@@ -256,6 +301,19 @@ def _str(ptr: Optional[int], n: int) -> str:
     return ctypes.string_at(ptr, n).decode("utf-8") if n else ""
 
 
+_LABELS: Dict[Tuple[int, int], str] = {}
+
+
+def _label(ptr: int, n: int) -> str:
+    """A format's name. The library's names are constants in its own memory,
+    so a pointer and length always name the same one, and each is decoded
+    once."""
+    label = _LABELS.get((ptr, n))
+    if label is None:
+        label = _LABELS[(ptr, n)] = _str(ptr, n)
+    return label
+
+
 class Layout:
     """A detected format, compiled, to read the rest of a column with."""
 
@@ -265,21 +323,32 @@ class Layout:
         self._blob = blob
         self._sample = sample
         n = ctypes.c_size_t()
-        self.label: str = _str(_lib.dateparsa_layout_label(ctypes.byref(blob), ctypes.byref(n)), n.value)
+        self.label: str = _label(_lib.dateparsa_layout_label(blob, ctypes.byref(n)), n.value)
         #: Whether the rest of a column can be read with this layout: false
         #: for timestamps, natural language, and formats whose month and day
         #: are decided per value.
-        self.reusable: bool = bool(_lib.dateparsa_layout_reusable(ctypes.byref(blob)))
+        self.reusable: bool = bool(_lib.dateparsa_layout_reusable(blob))
+
+    @classmethod
+    def _of(cls, r: _Result, sample: bytes, label: str, reusable: bool) -> "Layout":
+        """The layout in a result, which already says its label and whether
+        it is reusable: a view of the result's bytes, with no copy and no
+        call."""
+        layout = object.__new__(cls)
+        layout._blob = r.layout
+        layout._sample = sample
+        layout.label = label
+        layout.reusable = reusable
+        return layout
 
     def parse(self, text: str) -> Time:
         """text read in this layout's format, with no detection. NoMatch
         when it is not written that way."""
         b = text.encode("utf-8")
         t = _DateTime()
-        status = _lib.dateparsa_layout_parse(ctypes.byref(self._blob), b, len(b), ctypes.byref(t))
-        if status != _OK:
+        if _lib.dateparsa_layout_parse(self._blob, b, len(b), t) != _OK:
             raise NoMatch("%r is not written as %s" % (text, self.label))
-        return Time._from(t)
+        return _time(_DATETIME.unpack_from(t))
 
     def format_string(self, dialect: str = "strftime") -> str:
         """The format as another tool's format string: "strftime" (C,
@@ -290,7 +359,7 @@ class Layout:
         buf = ctypes.create_string_buffer(1024)
         n = ctypes.c_size_t()
         status = _lib.dateparsa_format_string(
-            ctypes.byref(self._blob), _DIALECTS.index(dialect), self._sample, len(self._sample),
+            self._blob, _DIALECTS.index(dialect), self._sample, len(self._sample),
             buf, len(buf), ctypes.byref(n),
         )
         if status == _UNSUPPORTED:
@@ -326,10 +395,13 @@ class Result:
 
 
 def _bits(locales: Union[str, Iterable[str]]) -> int:
-    if isinstance(locales, str):
-        locales = [locales]
+    return _locale_bits((locales,) if isinstance(locales, str) else tuple(locales))
+
+
+@functools.lru_cache(maxsize=64)
+def _locale_bits(tags: Tuple[str, ...]) -> int:
     bits = 0
-    for tag in locales:
+    for tag in tags:
         b = tag.encode("utf-8")
         bit = ctypes.c_uint32()
         if _lib.dateparsa_locale_lookup(b, len(b), ctypes.byref(bit)) != _OK:
@@ -338,36 +410,64 @@ def _bits(locales: Union[str, Iterable[str]]) -> int:
     return bits
 
 
-class _Call:
-    """Options for one call, with the structs they point at kept alive."""
-
-    def __init__(
-        self,
-        base_time: Optional[_dt.datetime] = None,
-        timezone_offset: Union[int, _dt.timedelta] = 0,
-        prefer_day_first: bool = False,
-        prefer_year_first: bool = False,
-        prefer_future: bool = False,
-        strict: bool = False,
-        locales: Union[str, Iterable[str]] = (),
-    ):
-        self.diag = _Diagnostics()
-        self.base = None
-        if base_time is not None:
-            off = base_time.utcoffset()
-            self.base = _DateTime(
-                base_time.year, base_time.month, base_time.day, base_time.hour, base_time.minute,
-                base_time.second, base_time.microsecond * 1000, int(off.total_seconds()) if off else 0,
-            )
-        if isinstance(timezone_offset, _dt.timedelta):
-            timezone_offset = int(timezone_offset.total_seconds())
-        self.opts = _Options(
-            ctypes.pointer(self.base) if self.base is not None else None,
-            timezone_offset, _bits(locales), prefer_day_first, prefer_year_first, prefer_future, strict,
-            ctypes.pointer(self.diag),
+def _normalize(
+    base_time: Optional[_dt.datetime] = None,
+    timezone_offset: Union[int, _dt.timedelta] = 0,
+    prefer_day_first: bool = False,
+    prefer_year_first: bool = False,
+    prefer_future: bool = False,
+    strict: bool = False,
+    locales: Union[str, Iterable[str]] = (),
+) -> Tuple:
+    """The keyword options as what _Options holds, in its order, with
+    base_time as _DateTime's fields: a key for _shared_options."""
+    base = None
+    if base_time is not None:
+        off = base_time.utcoffset()
+        base = (
+            base_time.year, base_time.month, base_time.day, base_time.hour, base_time.minute,
+            base_time.second, base_time.microsecond * 1000, int(off.total_seconds()) if off else 0,
         )
+    if isinstance(timezone_offset, _dt.timedelta):
+        timezone_offset = int(timezone_offset.total_seconds())
+    return (
+        base, timezone_offset, _bits(locales),
+        bool(prefer_day_first), bool(prefer_year_first), bool(prefer_future), bool(strict),
+    )
 
-    def raise_for(self, status: int, text: str) -> None:
+
+def _make_options(key: Tuple, diag: Optional[_Diagnostics]) -> _Options:
+    # A pointer stored in a field keeps what it points at alive.
+    base, offset, bits, day_first, year_first, future, strict = key
+    return _Options(
+        ctypes.pointer(_DateTime(*base)) if base is not None else None,
+        offset, bits, day_first, year_first, future, strict,
+        ctypes.pointer(diag) if diag is not None else None,
+    )
+
+
+@functools.lru_cache(maxsize=64)
+def _shared_options(key: Tuple) -> _Options:
+    """The options for key, built once. They point at no diagnostics, so the
+    library only reads them, and every call and thread may share them."""
+    return _make_options(key, None)
+
+
+def _options(options: dict) -> Optional[_Options]:
+    """parse's and detect's keyword options for the C call: NULL for the
+    defaults, else the shared struct for them."""
+    return _shared_options(_normalize(**options)) if options else None
+
+
+class _Call:
+    """Options with diagnostics of their own to fill in: for a Parser or a
+    Column, which keep their options, and for saying why a call failed."""
+
+    def __init__(self, **options):
+        self.diag = _Diagnostics()
+        self.opts = _make_options(_normalize(**options), self.diag)
+
+    def raise_for(self, status: int, text: str) -> NoReturn:
         d = self.diag
         message = _str(d.message, d.message_len)
         if status == _NO_MATCH:
@@ -383,17 +483,36 @@ class _Call:
         raise ValueError(message or "invalid argument")
 
 
+def _fail(fn, b: bytes, text: str, options: dict, out) -> NoReturn:
+    """Raises for a parse or detect that failed. The first call passes no
+    diagnostics, since a parse that succeeds has no use for them: this one
+    runs it again with them, for the message and any readings. The library
+    keeps no state, so it fails again the same way."""
+    if options:
+        call = _Call(**options)
+    else:
+        # The default options' diagnostics, one set a thread, since the
+        # library writes them.
+        call = getattr(_default_calls, "call", None)
+        if call is None:
+            call = _default_calls.call = _Call()
+    call.raise_for(fn(b, len(b), call.opts, out), text)
+
+
+_default_calls = threading.local()
+
+
 def _result(r: _Result, sample: bytes) -> Result:
-    blob = _LayoutBlob()
-    ctypes.memmove(ctypes.byref(blob), ctypes.byref(r.layout), ctypes.sizeof(blob))
-    return Result(
-        time=Time._from(r.time),
-        unix_seconds=r.unix_seconds,
-        kind=_KINDS[r.kind],
-        ambiguous=bool(r.ambiguous),
-        label=_str(r.label, r.label_len),
-        layout=Layout(blob, sample),
-    )
+    f = _RESULT.unpack_from(r)
+    label = _label(f[12], f[13])
+    return _frozen(Result, {
+        "time": _time(f),
+        "unix_seconds": f[8],
+        "kind": _KINDS[f[9]],
+        "ambiguous": f[10],
+        "label": label,
+        "layout": Layout._of(r, sample, label, f[11]),
+    })
 
 
 def parse(text: str, **options) -> Result:
@@ -405,23 +524,19 @@ def parse(text: str, **options) -> Result:
     prefer_day_first, prefer_year_first, prefer_future, strict (raise
     Ambiguous instead of guessing), locales (BCP 47 tags besides English).
     """
-    call = _Call(**options)
     b = text.encode("utf-8")
     r = _Result()
-    status = _lib.dateparsa_parse(b, len(b), ctypes.byref(call.opts), ctypes.byref(r))
-    if status != _OK:
-        call.raise_for(status, text)
+    if _lib.dateparsa_parse(b, len(b), _options(options), r) != _OK:
+        _fail(_lib.dateparsa_parse, b, text, options, r)
     return _result(r, b)
 
 
 def detect(text: str, **options) -> Layout:
     """The layout text is written in, without its time."""
-    call = _Call(**options)
     b = text.encode("utf-8")
     blob = _LayoutBlob()
-    status = _lib.dateparsa_detect(b, len(b), ctypes.byref(call.opts), ctypes.byref(blob))
-    if status != _OK:
-        call.raise_for(status, text)
+    if _lib.dateparsa_detect(b, len(b), _options(options), blob) != _OK:
+        _fail(_lib.dateparsa_detect, b, text, options, blob)
     return Layout(blob, b)
 
 
@@ -435,14 +550,14 @@ class Parser:
         self._blob = _ParserBlob()
         self._layout = b""
         self._sample = b""
-        status = _lib.dateparsa_parser_init(ctypes.byref(self._blob), ctypes.byref(self._call.opts))
+        status = _lib.dateparsa_parser_init(self._blob, self._call.opts)
         if status != _OK:
             self._call.raise_for(status, "")
 
     def parse(self, text: str) -> Result:
         b = text.encode("utf-8")
         r = _Result()
-        status = _lib.dateparsa_parser_parse(ctypes.byref(self._blob), b, len(b), ctypes.byref(r))
+        status = _lib.dateparsa_parser_parse(self._blob, b, len(b), r)
         if status != _OK:
             self._call.raise_for(status, text)
         # The layout a format string is spelled from is the value it was
@@ -500,7 +615,7 @@ class Column:
 
     def add(self, value: str) -> None:
         b = value.encode("utf-8")
-        _lib.dateparsa_column_add(ctypes.byref(self._blob), b, len(b))
+        _lib.dateparsa_column_add(self._blob, b, len(b))
 
     def report(self) -> ColumnReport:
         r = _ColumnReport()
