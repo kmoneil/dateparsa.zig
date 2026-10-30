@@ -24,6 +24,11 @@
 //!   each value what a Parser answers parsing them in turn.
 //! - An input rfc2822 gives a shape to is one the textual detector reads
 //!   with that shape's fields, and its layout reads it to the same time.
+//! - A layout's format string, read back in its dialect, reads the value
+//!   it was spelled from to the same time, and agrees with the layout on
+//!   any other value both read.
+//! - A layout read from any format string answers valid times, and its
+//!   format string in every dialect, read back, answers the same.
 //!
 //! The seeds are the Go targets' seeds and committed crashers, every format's
 //! example and every row of the golden corpus.
@@ -432,6 +437,66 @@ fn mailOne(_: void, smith: *Smith) anyerror!void {
     try expectEqual(want_t, got_t);
 }
 
+const dialects = [_]dp.Layout.Dialect{ .strftime, .go, .java };
+
+fn spellOne(_: void, smith: *Smith) anyerror!void {
+    var buf_a: [max_input]u8 = undefined;
+    var buf_b: [max_input]u8 = undefined;
+    const a = input(smith, &buf_a);
+    const b = input(smith, &buf_b);
+    const opts = options(smith);
+    errdefer report(a, b, opts);
+
+    const r = dp.parseWith(a, opts) catch return;
+    if (r.layout.source != .program) return;
+    for (dialects) |d| {
+        var fmt_buf: [1024]u8 = undefined;
+        var w: std.Io.Writer = .fixed(&fmt_buf);
+        r.layout.formatString(d, a, &w) catch |err| switch (err) {
+            error.Unsupported => continue,
+            else => return err,
+        };
+        errdefer std.debug.print("{t} format \"{f}\"\n", .{ d, std.zig.fmtString(w.buffered()) });
+        const l = try Layout.fromFormatString(d, w.buffered(), opts);
+        try expectEqual(r.time, try l.parse(a));
+        // Each may refuse what the other reads: the format holds text byte
+        // for byte where the layout took a class, and reads any month
+        // where the layout read one.
+        const want = r.layout.parse(b) catch continue;
+        const got = l.parse(b) catch continue;
+        try expectEqual(want, got);
+    }
+}
+
+fn formatStringOne(_: void, smith: *Smith) anyerror!void {
+    var buf_f: [max_input]u8 = undefined;
+    var buf_v: [max_input]u8 = undefined;
+    const f = input(smith, &buf_f);
+    const v = input(smith, &buf_v);
+    const opts = options(smith);
+    const dialect = dialects[smith.value(u8) % dialects.len];
+    errdefer {
+        report(v, null, opts);
+        std.debug.print("{t} format \"{f}\"\n", .{ dialect, std.zig.fmtString(f) });
+    }
+
+    const l = Layout.fromFormatString(dialect, f, opts) catch return;
+    try expect(l.reusable());
+    const t = l.parse(v) catch return;
+    try expect(t.isValid());
+    for (dialects) |d| {
+        var fmt_buf: [1024]u8 = undefined;
+        var w: std.Io.Writer = .fixed(&fmt_buf);
+        l.formatString(d, v, &w) catch |err| switch (err) {
+            error.Unsupported => continue,
+            else => return err,
+        };
+        errdefer std.debug.print("spelled {t} \"{f}\"\n", .{ d, std.zig.fmtString(w.buffered()) });
+        const again = try Layout.fromFormatString(d, w.buffered(), opts);
+        try expectEqual(t, try again.parse(v));
+    }
+}
+
 fn cColumnOne(_: void, smith: *Smith) anyerror!void {
     var buf: [max_input]u8 = undefined;
     var sep_buf: [max_input]u8 = undefined;
@@ -622,6 +687,17 @@ fn seed(arena: Allocator, strings: []const []const u8) ![]const u8 {
     return out;
 }
 
+/// strings as seed lays them out, then values as Smith reads a value from a
+/// seed: eight little-endian bytes each. Fewer than eight read as zero, so a
+/// lone options byte is the default options.
+fn seedWith(arena: Allocator, strings: []const []const u8, values: []const u64) ![]const u8 {
+    const head = try seed(arena, strings);
+    const out = try arena.alloc(u8, head.len + 8 * values.len);
+    @memcpy(out[0..head.len], head);
+    for (values, 0..) |v, i| std.mem.writeInt(u64, out[head.len + 8 * i ..][0..8], v, .little);
+    return out;
+}
+
 fn goldenInputs(arena: Allocator) ![]const []const u8 {
     var out: std.ArrayList([]const u8) = .empty;
     var lines = std.mem.splitScalar(u8, @import("golden_corpus").text, '\n');
@@ -789,10 +865,66 @@ fn mailSeeds(arena: Allocator) ![]const []const u8 {
     // options byte).
     for (mail) |m| {
         try out.append(arena, try seed(arena, &.{m}));
-        const with_all = try std.mem.concat(arena, u8, &.{ try seed(arena, &.{m}), &.{32} });
-        try out.append(arena, with_all);
+        try out.append(arena, try seedWith(arena, &.{m}, &.{32}));
     }
     for (singles) |s| try out.append(arena, try seed(arena, &.{s}));
+    return out.items;
+}
+
+/// Each pair seed, then values beside others their format reads in another
+/// order or month than detection would pick.
+fn spellSeeds(arena: Allocator) ![]const []const u8 {
+    var out: std.ArrayList([]const u8) = .empty;
+    try out.appendSlice(arena, try pairSeeds(arena));
+    for ([_][2][]const u8{
+        .{ "13/02/2024", "01/02/2024" },                   .{ "March 15, 2024", "April 20, 2024" },
+        .{ "3/15/2024 10:30 PM", "12/1/2024 9:05 AM" },    .{ "2024-03-15T10:30:00Z", "2024-03-15T10:30:00+05:30" },
+        .{ "10:30:00.123", "10:30:00.123456" },            .{ "Fri, 15 Mar 2024 10:30:00 +0000", "Wednesday, 20 March 2024 10:30:00 -0700" },
+        // Found by the fuzzer: a quote Java spells '''', and a weekday
+        // glued to a non-ASCII byte.
+        .{ "$19/Jun/2005:00:20:20 +0000'", "1904-02-29" }, .{ "\xda\xc9\xd3;`%\xcfFri, 15 Mar 2024 10:30:00", "Sat, 16 Mar 2024 11:30:00 -0700" },
+    }) |p| try out.append(arena, try seed(arena, &p));
+    // Found by the fuzzer, with every locale on (options byte 61): a second
+    // weekday, "Pe", Thursday in Turkish.
+    try out.append(arena, try seedWith(arena, &.{ "Fri, 15 Mar 2024 10:30:00 +0000\x03\xd7\xb0]PE", "Fri, 15 Mar 2024 10:30:00 +0000" }, &.{61}));
+    // And options 57: control bytes the layout skipped as one run, which a
+    // format string holds a byte at a time, past a layout's fields.
+    try out.append(arena, try seedWith(arena, &.{
+        "\xf5\x84\r\xdc\x7fFri, 15 Mar 2024 10:30:00 UTC\xf1\x8b*\xc3\xaa\xb9\xda\xeb(\x92\xed\x87",
+        "n 1980Fri, 18 Jan 1980 15\x9a\xc3\x13\xc5h\x05",
+    }, &.{57}));
+    return out.items;
+}
+
+/// Every format string the golden corpus and the format examples spell, in
+/// each dialect, with the value spelled from; then formats each dialect
+/// reads in ways no detected layout spells.
+fn formatStringSeeds(arena: Allocator) ![]const []const u8 {
+    var out: std.ArrayList([]const u8) = .empty;
+    var values: std.ArrayList([]const u8) = .empty;
+    try values.appendSlice(arena, try goldenInputs(arena));
+    for (formats.examples) |ex| try values.append(arena, ex[1]);
+    for (values.items) |v| {
+        const r = dp.parseWith(v, .{ .base_time = base }) catch continue;
+        for (dialects, 0..) |d, i| {
+            var fmt_buf: [1024]u8 = undefined;
+            var w: std.Io.Writer = .fixed(&fmt_buf);
+            r.layout.formatString(d, v, &w) catch continue;
+            try out.append(arena, try seedWith(arena, &.{ try arena.dupe(u8, w.buffered()), v }, &.{ 0, i }));
+        }
+    }
+    const hand = [_]struct { u8, []const u8, []const u8 }{
+        .{ 0, "%d/%m/%Y %H:%M", "01/02/2024 9:05" },                                       .{ 0, "%Y%m%d%H%M%S%f", "20240315103000123" },
+        .{ 0, "%b%d %Y", "Mar15 2024" },                                                   .{ 0, "%be %Y", "Mare 2024" },
+        .{ 0, "%A, %B %e %Y %I:%M:%S.%f %p %z", "Friday, March  5 2024 09:05:00.5 PM Z" }, .{ 0, "%G-W%V", "2020-W53" },
+        .{ 0, "%Y-%j %H%%", "2024-366 23%" },                                              .{ 1, "Jan _2 15:04:05", "Mar  5 9:30:00" },
+        .{ 1, "Monday, 02-Jan-06 15:04:05 MST", "Friday, 15-Mar-24 10:30:00 UTC" },        .{ 1, "2006-01-02T15:04:05,000000Z0700", "2024-03-15T10:30:00,123456+0530" },
+        .{ 2, "'it''s' EEEE d MMMM uuuu h:mm a", "it's Friday 15 March 2024 9:05 PM" },    .{ 2, "yyyyMMddHHmmssSSSX", "20240315103000123Z" },
+        .{ 2, "MMM ppd HH:mm:ss z", "Mar  5 10:30:00 EST" },
+    };
+    for (hand) |h| {
+        try out.append(arena, try seedWith(arena, &.{ h[1], h[2] }, &.{ 0, h[0] }));
+    }
     return out.items;
 }
 
@@ -868,6 +1000,18 @@ test "fuzz: the C column call answers as a Parser down its values" {
     var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
     defer arena.deinit();
     try std.testing.fuzz({}, cColumnOne, .{ .corpus = try cColumnSeeds(arena.allocator()) });
+}
+
+test "fuzz: a layout's format string reads back what the layout reads" {
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    try std.testing.fuzz({}, spellOne, .{ .corpus = try spellSeeds(arena.allocator()) });
+}
+
+test "fuzz: a layout from any format string spells a format that reads back" {
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    try std.testing.fuzz({}, formatStringOne, .{ .corpus = try formatStringSeeds(arena.allocator()) });
 }
 
 test seed {

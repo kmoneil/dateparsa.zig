@@ -11,6 +11,7 @@ const std = @import("std");
 const build_options = @import("build_options");
 const dp = @import("root.zig");
 const locale = @import("locale.zig");
+const format_string = @import("format_string.zig");
 
 const assert = std.debug.assert;
 
@@ -120,10 +121,9 @@ pub const Value = extern struct {
 /// nanoseconds, and an offset.
 pub const rfc3339_max = 48;
 
-/// The longest format string, its NUL included. A program has at most 24
-/// instructions over at most 255 bytes: fields of at most 9 bytes, and text
-/// Java's quoting at most doubles, comes to under 800.
-pub const format_string_max = 1024;
+/// The longest format string, its NUL included: the longest the library
+/// writes, and its NUL.
+pub const format_string_max = format_string.max_len + 1;
 
 /// What a blob holds. The magic number tells a layout or parser the library
 /// filled in from a zeroed or stale one.
@@ -241,12 +241,7 @@ pub export fn dateparsa_format_string(
     len: ?*usize,
 ) Status {
     const l = loadLayout(layout) orelse return .invalid_argument;
-    const d: dp.Layout.Dialect = switch (dialect) {
-        0 => .strftime,
-        1 => .go,
-        2 => .java,
-        else => return .invalid_argument,
-    };
+    const d = dialectOf(dialect) orelse return .invalid_argument;
     const s = bytes(detected_from, from_len) orelse return .invalid_argument;
     var scratch: [format_string_max - 1]u8 = undefined;
     var w: std.Io.Writer = .fixed(&scratch);
@@ -262,6 +257,37 @@ pub export fn dateparsa_format_string(
     dst[text.len] = 0;
     if (len) |n| n.* = text.len;
     return .ok;
+}
+
+pub export fn dateparsa_layout_from_format(
+    dialect: c_int,
+    format: ?[*]const u8,
+    len: usize,
+    options: ?*const Options,
+    out: ?*LayoutBlob,
+) Status {
+    const o = options orelse &Options{};
+    const blob = out orelse return refuse(o.diagnostics, "out is NULL");
+    const d = dialectOf(dialect) orelse return refuse(o.diagnostics, "dialect is not a dateparsa_dialect");
+    const f = bytes(format, len) orelse return refuse(o.diagnostics, "format is NULL and len is not 0");
+    const zo = toZig(o) catch |err| return refuse(o.diagnostics, refusal(err));
+    const l = dp.Layout.fromFormatString(d, f, zo) catch |err| return switch (err) {
+        error.Unsupported => noted(o.diagnostics, .unsupported, "the format has a field no layout reads"),
+        error.InvalidFormat => refuse(o.diagnostics, "the format string is not a date format a layout can read"),
+        error.NoBaseTime => noted(o.diagnostics, .no_base_time, "the format has no year and options.base_time is NULL"),
+    };
+    blob.* = storeLayout(&l);
+    return .ok;
+}
+
+/// A dateparsa_dialect.
+fn dialectOf(dialect: c_int) ?dp.Layout.Dialect {
+    return switch (dialect) {
+        0 => .strftime,
+        1 => .go,
+        2 => .java,
+        else => null,
+    };
 }
 
 pub export fn dateparsa_parser_init(parser: ?*ParserBlob, options: ?*const Options) Status {
@@ -581,11 +607,16 @@ fn statusOf(err: dp.ParseError) Status {
 }
 
 fn refuse(out: ?*Diagnostics, message: []const u8) Status {
+    return noted(out, .invalid_argument, message);
+}
+
+/// status, with message in the diagnostics when they were asked for.
+fn noted(out: ?*Diagnostics, status: Status, message: []const u8) Status {
     if (out) |d| d.* = .{
         .interpretations = @splat(no_interpretation),
         .interpretation_count = 0,
         .message = message.ptr,
         .message_len = message.len,
     };
-    return .invalid_argument;
+    return status;
 }

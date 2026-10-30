@@ -396,6 +396,51 @@ test "through the header, format strings are the ones Layout gives, on every gol
     try expectEqual(status(h.DATEPARSA_INVALID_ARGUMENT), status(h.dateparsa_format_string(&zeroed, 0, "13/02/2024", 10, &buf, buf.len, &n)));
 }
 
+test "through the header, a format string's layout reads what Layout's does" {
+    const Case = struct { c_int, []const u8, []const u8 };
+    const cases = [_]Case{
+        .{ h.DATEPARSA_DIALECT_STRFTIME, "%d/%m/%Y %H:%M", "01/02/2024 9:05" },
+        .{ h.DATEPARSA_DIALECT_STRFTIME, "%a, %d %b %Y %H:%M:%S %z", "Wed, 20 March 2024 10:30:00 -0700" },
+        .{ h.DATEPARSA_DIALECT_GO, "Jan _2 15:04:05", "Mar  5 10:30:00" },
+        .{ h.DATEPARSA_DIALECT_JAVA, "yyyy-MM-dd'T'HH:mm:ss.SSSXXX", "2024-03-15T10:30:00.123+05:30" },
+    };
+    const o: h.dateparsa_options = .{ .base_time = &golden_base };
+    for (cases) |cs| {
+        errdefer std.debug.print("{d} \"{s}\"\n", .{ cs[0], cs[1] });
+        var l: h.dateparsa_layout = undefined;
+        try expectEqual(status(h.DATEPARSA_OK), status(h.dateparsa_layout_from_format(cs[0], cs[1].ptr, cs[1].len, &o, &l)));
+        try expect(h.dateparsa_layout_reusable(&l));
+        var t: h.dateparsa_datetime = undefined;
+        try expectEqual(status(h.DATEPARSA_OK), status(h.dateparsa_layout_parse(&l, cs[2].ptr, cs[2].len, &t)));
+        const d: dp.Layout.Dialect = @fromBackingInt(@intCast(cs[0]));
+        const want = try (try dp.Layout.fromFormatString(d, cs[1], .{ .base_time = toZig(golden_base) })).parse(cs[2]);
+        try expectEqual(want, toZig(t));
+        // And spells its format back.
+        var buf: [h.DATEPARSA_FORMAT_STRING_MAX]u8 = undefined;
+        var n: usize = 0;
+        try expectEqual(status(h.DATEPARSA_OK), status(h.dateparsa_format_string(&l, cs[0], cs[2].ptr, cs[2].len, &buf, buf.len, &n)));
+    }
+
+    // Each refusal has its status and says why.
+    var diag: h.dateparsa_diagnostics = undefined;
+    const with_diag: h.dateparsa_options = .{ .diagnostics = &diag };
+    var l: h.dateparsa_layout = undefined;
+    const Refusal = struct { c_int, []const u8, c_int, []const u8 };
+    const refusals = [_]Refusal{
+        .{ 0, "%Y-%U", h.DATEPARSA_UNSUPPORTED, "the format has a field no layout reads" },
+        .{ 0, "%d %Y", h.DATEPARSA_INVALID_ARGUMENT, "the format string is not a date format a layout can read" },
+        .{ 0, "%H:%M", h.DATEPARSA_NO_BASE_TIME, "the format has no year and options.base_time is NULL" },
+        .{ 3, "%Y", h.DATEPARSA_INVALID_ARGUMENT, "dialect is not a dateparsa_dialect" },
+    };
+    for (refusals) |rf| {
+        errdefer std.debug.print("{d} \"{s}\"\n", .{ rf[0], rf[1] });
+        try expectEqual(status(rf[2]), status(h.dateparsa_layout_from_format(rf[0], rf[1].ptr, rf[1].len, &with_diag, &l)));
+        try expectEqualStrings(rf[3], diag.message[0..diag.message_len]);
+    }
+    try expectEqual(status(h.DATEPARSA_INVALID_ARGUMENT), status(h.dateparsa_layout_from_format(0, null, 2, null, &l)));
+    try expectEqual(status(h.DATEPARSA_INVALID_ARGUMENT), status(h.dateparsa_layout_from_format(0, "%Y", 2, null, null)));
+}
+
 test "what crosses in is checked, and a refusal says why" {
     var diag: h.dateparsa_diagnostics = undefined;
     var r: h.dateparsa_result = undefined;

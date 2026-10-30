@@ -42,8 +42,9 @@ col = dateparsa.parse_column(["2024-03-15", "N/A", "2024-03-17T10:30:00Z"])
 col.failed                                                    # [1]
 col.datetimes()                                               # [datetime(2024, 3, 15, ...), None, datetime(...)]
 
-# Hand the format to pandas, Go or Java.
+# Hand the format to pandas, Go or Java, or read one you were given.
 dateparsa.parse("13/02/2024 10:30").layout.format_string()   # '%d/%m/%Y %H:%M'
+dateparsa.Layout.from_format("%d/%m/%Y").parse("01/02/2024")  # February 1st, no detection
 
 # Natural language and other languages, against a base time you choose.
 from datetime import datetime, timezone
@@ -54,7 +55,9 @@ dateparsa.parse("vor 3 Tagen", base_time=datetime(2024, 3, 15, tzinfo=timezone.u
 `prefer_day_first`, `prefer_year_first`, `prefer_future`, `strict` and
 `locales`. A failed parse raises `NoMatch`, `Ambiguous` or `NoBaseTime`, all
 `ValueError`s. `Parser` reads a column, reusing the first value's layout, and
-`Layout.parse` reads a value with no detection at all. `parse_column` reads a
+`Layout.parse` reads a value with no detection at all; `Layout.from_format`
+makes a layout from a strftime, Go or Java format string you already have.
+`parse_column` reads a
 whole column in one call into the library, several times as fast as one call
 a value: `datetimes()`, `times()` and `failed` on what it returns, and
 `datetime64()` for a numpy array pandas takes, with `NaT` where a value did not

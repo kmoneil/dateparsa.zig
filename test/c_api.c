@@ -168,6 +168,17 @@ static void format_strings(void) {
     base.base_time = &t;
     CHECK(dateparsa_parse(S("December 23rd"), &base, &r) == DATEPARSA_OK);
     CHECK(dateparsa_format_string(&r.layout, DATEPARSA_DIALECT_STRFTIME, S("December 23rd"), buf, sizeof buf, &n) == DATEPARSA_UNSUPPORTED);
+
+    /* And back: the format's order, whatever the first value could be. */
+    dateparsa_layout l;
+    dateparsa_datetime got;
+    CHECK(dateparsa_layout_from_format(DATEPARSA_DIALECT_STRFTIME, S("%d/%m/%Y"), NULL, &l) == DATEPARSA_OK);
+    CHECK(dateparsa_layout_reusable(&l));
+    CHECK(dateparsa_layout_parse(&l, S("01/02/2024"), &got) == DATEPARSA_OK);
+    CHECK(got.year == 2024 && got.month == 2 && got.day == 1);
+    CHECK(dateparsa_layout_from_format(DATEPARSA_DIALECT_STRFTIME, S("%Y-%U"), NULL, &l) == DATEPARSA_UNSUPPORTED);
+    CHECK(dateparsa_layout_from_format(DATEPARSA_DIALECT_GO, S("15:04"), NULL, &l) == DATEPARSA_NO_BASE_TIME);
+    CHECK(dateparsa_layout_from_format(DATEPARSA_DIALECT_GO, S("15:04"), &base, &l) == DATEPARSA_OK);
 }
 
 static void natural_language(void) {

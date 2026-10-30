@@ -194,6 +194,54 @@ pub fn matchesMonth(name: []const u8, month: u8, set: LocaleSet) bool {
     return false;
 }
 
+/// The month a word names and whether its spelling took the dot after it.
+pub const FoundMonth = struct { month: u8, took_dot: bool };
+
+/// The month word names in the first locale of set, in tag order, that
+/// spells one, with matchesMonth's spellings and case folding. dot_follows
+/// says a dot comes after the word with no letter after that, so an
+/// abbreviation spelled with its dot ("janv.") matches and takes it, as
+/// detection matches it. A locale's spellings are tried in detection's
+/// order: per month the wide name, the abbreviation, then the abbreviation
+/// without its dot.
+pub fn findMonth(word: []const u8, dot_follows: bool, set: LocaleSet) ?FoundMonth {
+    if (word.len == 0 or isEmpty(set)) return null;
+    for (compiled, 0..) |d, i| {
+        if (!contains(set, i)) continue;
+        for (d.months_wide, d.months_abbr, 1..) |wide, abbr, month| {
+            const m: u8 = @intCast(month);
+            for ([_][]const u8{ wide, abbr }) |spelling| {
+                if (std.ascii.eqlIgnoreCase(word, spelling)) return .{ .month = m, .took_dot = false };
+                const bare = std.mem.trimEnd(u8, spelling, ".");
+                if (bare.len + 1 == spelling.len and dot_follows and std.ascii.eqlIgnoreCase(word, bare))
+                    return .{ .month = m, .took_dot = true };
+            }
+            const bare = std.mem.trimEnd(u8, abbr, ".");
+            if (bare.len != 0 and bare.len != abbr.len and std.ascii.eqlIgnoreCase(word, bare))
+                return .{ .month = m, .took_dot = false };
+        }
+    }
+    return null;
+}
+
+/// Whether word names a weekday, wide or abbreviated, the abbreviation with
+/// or without its dot, in English or a locale of set. ASCII case folds.
+pub fn isWeekday(word: []const u8, set: LocaleSet) bool {
+    if (word.len == 0) return false;
+    for (compiled, 0..) |d, i| {
+        if (i != english and !contains(set, i)) continue;
+        for (d.weekdays_wide ++ d.weekdays_abbr) |spelling| {
+            if (std.ascii.eqlIgnoreCase(word, spelling)) return true;
+            const bare = std.mem.trimEnd(u8, spelling, ".");
+            if (bare.len != 0 and std.ascii.eqlIgnoreCase(word, bare)) return true;
+        }
+    }
+    return false;
+}
+
+/// English's index in compiled: always compiled in.
+const english = indexOf("en").?;
+
 test {
     std.testing.refAllDecls(@This());
 }

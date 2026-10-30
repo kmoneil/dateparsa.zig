@@ -196,6 +196,7 @@ def _load() -> ctypes.CDLL:
             [P(_LayoutBlob), ctypes.c_int, *text, ctypes.c_char_p, ctypes.c_size_t, P(ctypes.c_size_t)],
             ctypes.c_int,
         ),
+        "dateparsa_layout_from_format": ([ctypes.c_int, *text, P(_Options), P(_LayoutBlob)], ctypes.c_int),
         "dateparsa_parser_init": ([P(_ParserBlob), P(_Options)], ctypes.c_int),
         "dateparsa_parser_parse": ([P(_ParserBlob), *text, P(_Result)], ctypes.c_int),
         "dateparsa_parser_reset": ([P(_ParserBlob)], None),
@@ -338,11 +339,12 @@ def _label(ptr: int, n: int) -> str:
 
 
 class Layout:
-    """A detected format, compiled, to read the rest of a column with."""
+    """A detected format, compiled, to read the rest of a column with; or
+    one read from a format string, with Layout.from_format."""
 
     __slots__ = ("_blob", "_sample", "label", "reusable")
 
-    def __init__(self, blob, sample: bytes):
+    def __init__(self, blob, sample: Optional[bytes]):
         self._blob = blob
         self._sample = sample
         n = ctypes.c_size_t()
@@ -364,6 +366,32 @@ class Layout:
         layout.reusable = reusable
         return layout
 
+    @classmethod
+    def from_format(cls, format: str, dialect: str = "strftime", **options) -> "Layout":
+        """The layout a format string reads, the inverse of format_string,
+        for a column whose format is known: Layout.from_format("%d/%m/%Y")
+        reads "01/02/2024" as the 1st of February, and is always reusable.
+
+        Options: base_time, for a format with no year; timezone_offset, for
+        one with no zone; locales, whose month and weekday names it reads
+        besides English. Unsupported for a field no layout reads, such as
+        %U; NoBaseTime for a format with no year and no base_time; and
+        ValueError for a string that is no date format ("%d %Y")."""
+        if dialect not in _DIALECTS:
+            raise ValueError("dialect must be one of %s" % ", ".join(_DIALECTS))
+        b = format.encode("utf-8")
+        call = _Call(**options)
+        blob = _LayoutBlob()
+        status = _lib.dateparsa_layout_from_format(_DIALECTS.index(dialect), b, len(b), call.opts, blob)
+        if status == _OK:
+            return cls(blob, None)
+        message = "%r: %s" % (format, _str(call.diag.message, call.diag.message_len))
+        if status == _UNSUPPORTED:
+            raise Unsupported(message)
+        if status == _NO_BASE_TIME:
+            raise NoBaseTime(message)
+        raise ValueError(message)
+
     def parse(self, text: str) -> Time:
         """text read in this layout's format, with no detection. NoMatch
         when it is not written that way."""
@@ -373,22 +401,28 @@ class Layout:
             raise NoMatch("%r is not written as %s" % (text, self.label))
         return _time(_DATETIME.unpack_from(t))
 
-    def format_string(self, dialect: str = "strftime") -> str:
+    def format_string(self, dialect: str = "strftime", value: Optional[str] = None) -> str:
         """The format as another tool's format string: "strftime" (C,
-        Python, pandas), "go", or "java" (Java, Kotlin, Spark). Unsupported
-        when the dialect cannot spell a field, such as an ordinal suffix."""
+        Python, pandas), "go", or "java" (Java, Kotlin, Spark). Its
+        separators and words are value's, a value the layout reads; by
+        default the one it was detected from, which a layout from
+        from_format does not have. Unsupported when the dialect cannot spell
+        a field, such as an ordinal suffix."""
         if dialect not in _DIALECTS:
             raise ValueError("dialect must be one of %s" % ", ".join(_DIALECTS))
+        sample = self._sample if value is None else value.encode("utf-8")
+        if sample is None:
+            raise ValueError("a layout from a format string spells it from a value it reads: pass value")
         buf = ctypes.create_string_buffer(1024)
         n = ctypes.c_size_t()
         status = _lib.dateparsa_format_string(
-            self._blob, _DIALECTS.index(dialect), self._sample, len(self._sample),
+            self._blob, _DIALECTS.index(dialect), sample, len(sample),
             buf, len(buf), ctypes.byref(n),
         )
         if status == _UNSUPPORTED:
             raise Unsupported("%s cannot spell the format %s" % (dialect, self.label))
         if status != _OK:
-            raise ValueError("this layout was not detected from %r" % self._sample.decode("utf-8", "replace"))
+            raise ValueError("this layout does not read %r" % sample.decode("utf-8", "replace"))
         return buf.raw[: n.value].decode("utf-8")
 
     def __repr__(self) -> str:
