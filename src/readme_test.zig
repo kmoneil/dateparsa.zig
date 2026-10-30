@@ -99,6 +99,16 @@ test "hand the format to another tool" {
     try std.testing.expectError(error.Unsupported, ordinal.layout.formatString(.strftime, "December 23rd", &w));
 }
 
+test "when the format is already known" {
+    const l = try dateparsa.Layout.fromFormatString(.strftime, "%d/%m/%Y %H:%M", .{});
+    const t = try l.parse("01/02/2024 9:05");
+    try expectEqual(dateparsa.DateTime{ .year = 2024, .month = 2, .day = 1, .hour = 9, .minute = 5 }, t);
+    try expect(l.reusable());
+    try expect(!(try dateparsa.parse("13/02/2024")).layout.reusable());
+    try std.testing.expectError(error.Unsupported, dateparsa.Layout.fromFormatString(.strftime, "%U", .{}));
+    try std.testing.expectError(error.InvalidFormat, dateparsa.Layout.fromFormatString(.strftime, "%d %Y", .{}));
+}
+
 test "natural language, against an explicit base time" {
     const base: dateparsa.DateTime = .{ .year = 2024, .month = 3, .day = 15, .hour = 12 };
 

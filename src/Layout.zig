@@ -17,6 +17,11 @@
 //! - A format detection resolves per value (DD/MM against MM/DD, a day or a
 //!   two-digit year) still parses, the first value's way, but reports
 //!   reusable() false: which part is the month is decided per row.
+//!
+//! A layout compiled from a format string (fromFormatString) keeps the same
+//! contract where it applies: it trims padding, and reads month names in the
+//! locales it was given. It reads any month a %B names, not only one, and
+//! is always reusable: the format says the order.
 
 const std = @import("std");
 const DateTime = @import("DateTime.zig");
@@ -25,6 +30,7 @@ const detect = @import("detect.zig");
 const formats = @import("formats.zig");
 const signature = @import("signature.zig");
 const format_string = @import("format_string.zig");
+const root = @import("root.zig");
 
 const Layout = @This();
 
@@ -36,8 +42,8 @@ label: []const u8,
 ambiguous: bool = false,
 /// The format can need a guess on some value, whether or not this one did.
 ambiguity_prone: bool = false,
-/// Trim surrounding padding before executing, as detection did. Only a
-/// layout from detection does.
+/// Trim surrounding padding before executing, as detection did. A layout
+/// from detection or a format string does.
 trims_padding: bool = false,
 
 /// Where a layout came from: a compiled format, or one of the sentinels.
@@ -49,6 +55,36 @@ pub const epoch: Layout = .{ .source = .epoch, .label = "UNIX_TIMESTAMP" };
 /// What a natural-language result carries: the answer depends on the base
 /// time, so re-running it is not re-parsing.
 pub const natural_language: Layout = .{ .source = .natural_language, .label = "NATURAL_LANGUAGE" };
+
+pub const FromFormatError = format_string.ReadError || error{
+    /// The format has no year and opts.base_time is null.
+    NoBaseTime,
+};
+
+/// The layout a format string reads, the inverse of formatString:
+/// "%d/%m/%Y %H:%M" in strftime, "02/01/2006 15:04" in Go, "dd/MM/yyyy
+/// HH:mm" in Java. For a column whose format is known, so that no value is
+/// detected: the order is the format's, so "%d/%m/%Y" is reusable where a
+/// layout detected from "13/02/2024" is not.
+///
+/// opts gives the base time a format with no year reads against, the
+/// offset for a format with no zone, and the locales whose month and
+/// weekday names it reads besides English; its preferences play no part.
+/// error.Unsupported for a field no layout reads, such as %U; the fields
+/// formatString writes all read back. format_string.read says what each
+/// dialect's fields read.
+pub fn fromFormatString(dialect: Dialect, format: []const u8, opts: root.Options) FromFormatError!Layout {
+    const fields = try format_string.read(dialect, format);
+    var config: compile.Config = .{ .offset_seconds = opts.timezone_offset, .locales = opts.locales };
+    if (compile.needsBaseYear(fields.slice())) {
+        config.base_year = (opts.base_time orelse return error.NoBaseTime).year;
+    }
+    return .{
+        .program = compile.compile(fields.slice(), config) catch return error.Unsupported,
+        .label = "FORMAT_STRING",
+        .trims_padding = true,
+    };
+}
 
 /// The layout for a detection result, compiled under config.
 pub fn fromDetection(r: *const detect.Result, config: compile.Config) error{TooManyFields}!Layout {
@@ -84,7 +120,7 @@ pub fn dateOrder(l: *const Layout) ?Order {
             .year4, .year2 => 'Y',
             .month2, .month1or2 => 'M',
             .day2, .day1or2, .day_space_pad => 'D',
-            .month_name, .iso_week, .iso_week_day, .ordinal_day => return null,
+            .month_name, .month_any, .iso_week, .iso_week_day, .ordinal_day => return null,
             else => continue,
         };
         if (n == roles.len) return null;
@@ -103,12 +139,12 @@ pub const Dialect = format_string.Dialect;
 
 /// The format this layout reads, spelled as another tool's format string,
 /// into w: "%d/%m/%Y %H:%M" for strftime, "02/01/2006 15:04" for Go,
-/// "dd/MM/yyyy HH:mm" for Java. detected_from is the value the layout was
-/// detected from: a layout keeps no input bytes, and the string spells that
-/// value's separators and words. error.Unsupported when the dialect cannot
-/// spell a field, such as an ordinal suffix ("23rd").
-pub fn formatString(l: *const Layout, dialect: Dialect, detected_from: []const u8, w: *std.Io.Writer) format_string.Error!void {
-    return format_string.write(l, dialect, detected_from, w);
+/// "dd/MM/yyyy HH:mm" for Java. value is one the layout reads, such as the
+/// one it was detected from: a layout keeps no input bytes, and the string
+/// spells that value's separators and words. error.Unsupported when the
+/// dialect cannot spell a field, such as an ordinal suffix ("23rd").
+pub fn formatString(l: *const Layout, dialect: Dialect, value: []const u8, w: *std.Io.Writer) format_string.Error!void {
+    return format_string.write(l, dialect, value, w);
 }
 
 /// Whether the rest of a column can be parsed with this layout: false for

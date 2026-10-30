@@ -43,6 +43,10 @@ pub const FieldKind = enum(u8) {
     tz_z_or_offset, // 'Z' for UTC, or an offset
     tail, // everything from offset to the end of the input is ignored
     day_space_pad, // a space and a digit, or two digits
+    month_any, // any month's name, as wide as the name
+    weekday_name, // a weekday's name, as wide as the name; checked, not read
+    frac_any, // one to nine fractional digits, as many as the input has
+    tz_any, // 'Z', +HH:MM or +HHMM, whichever the input writes
 };
 
 /// One component of a format. A format cannot address a byte past 255, so
@@ -86,7 +90,7 @@ pub fn fixedWidth(k: FieldKind) ?u8 {
         // Exactly len.
         .month_name, .frac_sec, .tz_offset, .tz_name, .ordinal_day, .literal, .skip => null,
         // Depends on the input.
-        .tz_z_or_offset, .tail => null,
+        .tz_z_or_offset, .tail, .month_any, .weekday_name, .frac_any, .tz_any => null,
     };
 }
 
@@ -139,6 +143,10 @@ pub const Op = enum(u8) {
     tz_z_or_offset,
     tail,
     day_space_pad,
+    month_any,
+    weekday_name,
+    frac_any,
+    tz_any,
     nop,
 };
 
@@ -157,6 +165,8 @@ pub fn opFor(k: FieldKind) Op {
 ///   month_name     the month, 1..12, resolved when the format was detected
 ///   literal, skip  what each byte has to be
 ///   numeric ops    sep_none, or a separator fused onto the field
+///   hour1or2       twelve_hour for a 12-hour clock's hour, 1 to 12; else
+///                  sep_none, 0 to 23
 ///
 /// The two readings that describe a byte share one encoding (litAccepts):
 ///
@@ -174,6 +184,10 @@ pub const nop: Inst = .{ .op = .nop, .offset = 0, .len = 0 };
 
 /// Aux on a numeric op that carries no fused separator.
 pub const sep_none: u16 = 0;
+
+/// Aux on hour1or2 for a 12-hour clock's hour, which reads 1 to 12. A
+/// one-or-two-digit field fuses no separator, so its aux is free.
+pub const twelve_hour: u16 = 12;
 
 /// Marks an aux holding a class mask: the first bit above byte range, so a
 /// class cannot collide with an exact byte, and truncating to a byte leaves
@@ -336,6 +350,10 @@ fn fusesSeparator(k: FieldKind) ?u8 {
     };
 }
 
+/// Where an instruction read: the bytes s[off..][0..len], a fused separator
+/// included.
+pub const Span = struct { off: usize, len: usize };
+
 pub const Program = struct {
     /// insts[0..n] is the program as compiled. A fast program also keeps a
     /// copy of each instruction at insts[fast.slot_base + slot].
@@ -362,7 +380,14 @@ pub const Program = struct {
 
     pub fn execute(p: *const Program, s: []const u8) Error!DateTime {
         if (p.isFast()) return fast.execute(p, s);
-        return interpret(p, s);
+        return interpret(p, s, false, {});
+    }
+
+    /// What execute answers, and where in s each instruction read, by the
+    /// interpreter: a field the input decides the width of reads where no
+    /// offset in the program says.
+    pub fn trace(p: *const Program, s: []const u8, spans: *[max_instructions]Span) Error!DateTime {
+        return interpret(p, s, true, spans);
     }
 };
 
@@ -493,14 +518,19 @@ fn isoWeek1(year: i32) struct { monday: i64, weeks: u8 } {
 /// bytes than its len; that is only right because instructions ascend by
 /// offset. end and covered must both equal s.len at the end: end alone let a
 /// byte between two fields go unexamined, and the sum alone cannot see a gap
-/// that an overlap cancels.
-fn interpret(p: *const Program, s: []const u8) Error!DateTime {
+/// that an overlap cancels. A traced run also records each instruction's span.
+fn interpret(
+    p: *const Program,
+    s: []const u8,
+    comptime traced: bool,
+    spans: if (traced) *[max_instructions]Span else void,
+) Error!DateTime {
     if (p.n > max_instructions) return error.NoMatch;
     var r: Reading = .{ .offset_seconds = p.offset_seconds };
     var delta: isize = 0;
     var end: usize = 0;
     var covered: usize = 0;
-    for (p.insts[0..p.n]) |inst| {
+    for (p.insts[0..p.n], 0..) |inst, i| {
         const signed_off = @as(isize, inst.offset) + delta;
         if (signed_off < 0) return error.NoMatch;
         const off: usize = @intCast(signed_off);
@@ -534,6 +564,16 @@ fn interpret(p: *const Program, s: []const u8) Error!DateTime {
                 if (!monthNameMatches(s, off, inst.len, inst.aux, p.locales)) return error.NoMatch;
                 r.month = @intCast(inst.aux);
             },
+            .month_any => {
+                const m = readMonthName(s, off, p.locales) orelse return error.NoMatch;
+                r.month = m.month;
+                w = m.len;
+                delta += @as(isize, @intCast(m.len)) - inst.len;
+            },
+            .weekday_name => {
+                w = readWeekdayName(s, off, p.locales) orelse return error.NoMatch;
+                delta += @as(isize, @intCast(w)) - inst.len;
+            },
             .day2 => {
                 r.day = parse2Bounded(s, off, 1, 31) orelse return error.NoMatch;
                 w = numericW(s, off, 2, inst.aux) orelse return error.NoMatch;
@@ -557,7 +597,8 @@ fn interpret(p: *const Program, s: []const u8) Error!DateTime {
                 w = numericW(s, off, 2, inst.aux) orelse return error.NoMatch;
             },
             .hour1or2 => {
-                const v = parse1or2Bounded(s, off, 0, 23) orelse return error.NoMatch;
+                const twelve = inst.aux == twelve_hour;
+                const v = parse1or2Bounded(s, off, @intFromBool(twelve), if (twelve) 12 else 23) orelse return error.NoMatch;
                 r.hour = v.value;
                 w = v.width;
                 delta += @as(isize, v.width) - inst.len;
@@ -576,6 +617,14 @@ fn interpret(p: *const Program, s: []const u8) Error!DateTime {
             .frac_sec => {
                 if (off + inst.len > s.len) return error.NoMatch;
                 r.nanosecond = parseFracSec(s[off..][0..inst.len]) orelse return error.NoMatch;
+            },
+            .frac_any => {
+                w = 0;
+                while (off + w < s.len and isDigit(s[off + w])) w += 1;
+                if (w == 0) return error.NoMatch;
+                // More digits than a nanosecond holds are refused, not cut.
+                r.nanosecond = parseFracSec(s[off..][0..w]) orelse return error.NoMatch;
+                delta += @as(isize, @intCast(w)) - inst.len;
             },
             .ampm => {
                 r.ampm = parseAmPm(s, off) orelse return error.NoMatch;
@@ -608,6 +657,19 @@ fn interpret(p: *const Program, s: []const u8) Error!DateTime {
                     const t = s[off..][0..inst.len];
                     r.offset_seconds = parseTzOffset(t) orelse return error.NoMatch;
                 }
+            },
+            .tz_any => {
+                if (off >= s.len) return error.NoMatch;
+                if (s[off] == 'Z') {
+                    r.offset_seconds = 0;
+                    w = 1;
+                } else {
+                    // +HH:MM when a colon follows the hours, +HHMM otherwise.
+                    w = if (off + 3 < s.len and s[off + 3] == ':') 6 else 5;
+                    if (off + w > s.len) return error.NoMatch;
+                    r.offset_seconds = parseTzOffset(s[off..][0..w]) orelse return error.NoMatch;
+                }
+                delta += @as(isize, @intCast(w)) - inst.len;
             },
             .iso_week => {
                 r.iso_week = parse2Bounded(s, off, 1, 53) orelse return error.NoMatch;
@@ -647,6 +709,7 @@ fn interpret(p: *const Program, s: []const u8) Error!DateTime {
             },
             .nop => w = 0,
         }
+        if (traced) spans[i] = .{ .off = off, .len = w };
         covered += w;
         end = @max(end, off + w);
     }
@@ -820,6 +883,39 @@ pub fn validTail(t: []const u8) bool {
 /// reused layout reads a month detection would not have found.
 pub fn isWordChar(c: u8) bool {
     return std.ascii.isAlphabetic(c) or c >= 0x80;
+}
+
+/// The month s names at off, as a whole word, and how many bytes the name
+/// takes: English, then each locale of locales in tag order, the order
+/// detection searches them. A locale's abbreviation that ends in a dot
+/// takes the dot, as detection's spelling does.
+pub fn readMonthName(s: []const u8, off: usize, locales: locale.LocaleSet) ?struct { month: u8, len: usize } {
+    const word = wordAt(s, off) orelse return null;
+    for (english_months, 1..) |names, month| for (names) |name| {
+        if (std.ascii.eqlIgnoreCase(word, name)) return .{ .month = @intCast(month), .len = word.len };
+    };
+    const end = off + word.len;
+    const dot = end < s.len and s[end] == '.' and (end + 1 == s.len or !isWordChar(s[end + 1]));
+    const m = locale.findMonth(word, dot, locales) orelse return null;
+    return .{ .month = m.month, .len = word.len + @intFromBool(m.took_dot) };
+}
+
+/// How many bytes the weekday s names at off takes, as a whole word, in
+/// English or a locale of locales, or null when the word is no weekday. A
+/// dot after an abbreviation is left for the text after it.
+pub fn readWeekdayName(s: []const u8, off: usize, locales: locale.LocaleSet) ?usize {
+    const word = wordAt(s, off) orelse return null;
+    if (!locale.isWeekday(word, locales)) return null;
+    return word.len;
+}
+
+/// The run of word characters starting at off, when a word starts there.
+fn wordAt(s: []const u8, off: usize) ?[]const u8 {
+    if (off >= s.len or (off > 0 and isWordChar(s[off - 1]))) return null;
+    var end = off;
+    while (end < s.len and isWordChar(s[end])) end += 1;
+    if (end == off) return null;
+    return s[off..end];
 }
 
 /// Every English spelling detection matches, indexed by month - 1.

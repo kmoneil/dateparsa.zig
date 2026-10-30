@@ -77,6 +77,18 @@ fn layout(comptime first: []const u8, comptime row: []const u8) *const fn (u64) 
     return layoutRows(first, row, 1);
 }
 
+/// The layout format reads in dialect, re-parsing row.
+fn formatLayout(comptime dialect: dp.Layout.Dialect, comptime format: []const u8, comptime row: []const u8) *const fn (u64) void {
+    return struct {
+        fn run(n: u64) void {
+            var l = dp.Layout.fromFormatString(dialect, format, .{}) catch unreachable;
+            std.mem.doNotOptimizeAway(&l);
+            var in: []const u8 = row;
+            for (0..n) |_| std.mem.doNotOptimizeAway(l.parse(opaqueInput(&in)));
+        }
+    }.run;
+}
+
 /// A Parser primed with first once, then parsing row.
 fn parserCached(comptime first: []const u8, comptime row: []const u8) *const fn (u64) void {
     return struct {
@@ -158,6 +170,13 @@ const benches = [_]Bench{
     .{ .name = "Parse_Locale_FrenchNL", .run = parseWith("hier", .{ .locales = .{ .fr = true }, .base_time = base }) },
     .{ .name = "Parse_Locale_GermanMonth", .run = parseWith("15 März 2024", .{ .locales = .{ .de = true } }) },
     .{ .name = "Parse_Locale_RussianNL", .run = parseWith("3 дня назад", .{ .locales = .{ .ru = true }, .base_time = base }) },
+    // Not in Go: a layout read from a format string, beside the Layout_Parse
+    // rows that detect it from a value.
+    .{ .name = "FormatLayout_Parse", .run = formatLayout(.strftime, "%Y-%m-%dT%H:%M:%S%z", "2025-01-01T00:00:00Z") },
+    .{ .name = "FormatLayout_Parse_Java", .run = formatLayout(.java, "yyyy-MM-dd'T'HH:mm:ssX", "2025-01-01T00:00:00Z") },
+    .{ .name = "FormatLayout_Parse_ISODate", .run = formatLayout(.strftime, "%Y-%m-%d", "2025-06-15") },
+    .{ .name = "FormatLayout_Parse_DayFirst", .run = formatLayout(.strftime, "%d/%m/%Y", "15/03/2024") },
+    .{ .name = "FormatLayout_Parse_TextualMonth", .run = formatLayout(.strftime, "%B %d, %Y", "March 16, 2025") },
 };
 
 fn elapsed(io: Io, b: Bench, n: u64) u64 {

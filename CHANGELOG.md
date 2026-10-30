@@ -10,7 +10,40 @@ the difference. Before 1.0 a breaking change is a minor bump.
 
 ## [Unreleased]
 
-Nothing yet.
+Layouts from a format string. Every input parses to what it did in 0.4.2.
+
+### Added
+
+- `Layout.fromFormatString(dialect, format, opts)`, the inverse of
+  `formatString`: a layout from a strftime, Go or Java format string, for a
+  column whose format is known, so that no value is detected. The order is
+  the format's, so `%d/%m/%Y` gives a reusable layout where one detected
+  from `13/02/2024` is decided per value. Each dialect reads as its own
+  parser does, within what a layout holds: a one-or-two-digit field takes
+  either, `%f` one to nine digits, `%z` `Z` or either offset form, and a
+  month or weekday name any month or weekday in English and the options'
+  locales. `error.Unsupported` for a field no layout reads,
+  `error.InvalidFormat` for a string that is no date format, and
+  `error.NoBaseTime` for one with no year and no base time. Through C as
+  `dateparsa_layout_from_format` and through Python as
+  `Layout.from_format`. Two fuzz targets hold it: a layout's format string
+  read back reads the value it was spelled from to the same time, and
+  agrees with the layout wherever both read; and a layout from any format
+  string spells formats that read back to the same time. (#27)
+
+### Changed
+
+- `formatString` spells from any value the layout reads, not only the one
+  it was detected from at the same widths: a layout from `1/2/2024` spells
+  `11/12/2024` as `%m/%d/%Y` where it gave `error.NotDetectedFrom`. Python's
+  `Layout.format_string` takes the value as `value=`.
+- `formatString` writes text between two fields as one run, so Java quotes
+  it once; refuses a NUL, which no C format string holds; spells a literal
+  `T` after a one-or-two-digit day rather than refusing it; spells a
+  weekday only in English and the locales the layout reads, and only as a
+  whole word, as a format string reads one; and refuses any format
+  `fromFormatString` would not read back, such as one with more runs of
+  text than a layout has fields.
 
 ## [0.4.2] - 2026-10-29
 

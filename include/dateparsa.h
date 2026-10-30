@@ -43,7 +43,8 @@ typedef enum dateparsa_status {
     /* The output buffer is too small; nothing was written. */
     DATEPARSA_BUFFER_TOO_SMALL = 5,
     /* The format string dialect cannot spell one of the format's fields,
-     * such as an ordinal suffix ("23rd"). */
+     * such as an ordinal suffix ("23rd"), or a format string has a field no
+     * layout reads. */
     DATEPARSA_UNSUPPORTED = 6
 } dateparsa_status;
 
@@ -298,14 +299,28 @@ const char *dateparsa_layout_label(const dateparsa_layout *layout, size_t *len);
 
 /* layout's format as a dateparsa_dialect's format string, into buf with a
  * terminating NUL and its length into *len (len may be NULL): "%d/%m/%Y
- * %H:%M" for strftime. detected_from is the value layout was detected from:
- * a layout keeps no input bytes, and the string spells that value's
- * separators and words. DATEPARSA_UNSUPPORTED when the dialect cannot spell
- * a field; DATEPARSA_INVALID_ARGUMENT when detected_from does not line up
- * with the layout's fields. DATEPARSA_FORMAT_STRING_MAX always fits. */
+ * %H:%M" for strftime. detected_from is a value layout reads, such as the
+ * one it was detected from: a layout keeps no input bytes, and the string
+ * spells that value's separators and words. DATEPARSA_UNSUPPORTED when the
+ * dialect cannot spell a field; DATEPARSA_INVALID_ARGUMENT when layout does
+ * not read detected_from. DATEPARSA_FORMAT_STRING_MAX always fits. */
 dateparsa_status dateparsa_format_string(const dateparsa_layout *layout, int dialect,
                                          const char *detected_from, size_t from_len,
                                          char *buf, size_t cap, size_t *len);
+
+/* The layout a dateparsa_dialect's format string reads, into *out: the
+ * inverse of dateparsa_format_string, for a column whose format is known.
+ * "%d/%m/%Y" reads 01/02/2024 as the 1st of February, and the layout is
+ * always reusable. options gives the base time for a format with no year,
+ * the offset for one with no zone, and the locales whose month and weekday
+ * names it reads; its preferences play no part. DATEPARSA_UNSUPPORTED for
+ * a field no layout reads (%U); DATEPARSA_INVALID_ARGUMENT for a string
+ * that is no date format ("%d %Y", "%I:%M" with no %p); and
+ * DATEPARSA_NO_BASE_TIME for a format with no year and no base time. The
+ * diagnostics message, when asked for, says which. */
+dateparsa_status dateparsa_layout_from_format(int dialect, const char *format, size_t len,
+                                              const dateparsa_options *options,
+                                              dateparsa_layout *out);
 
 /* A parser reading every value with options, whose diagnostics pointer it
  * keeps for every later call. */

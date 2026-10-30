@@ -292,6 +292,41 @@ class FormatStrings(unittest.TestCase):
         with self.assertRaises(dateparsa.Unsupported):
             dateparsa.parse("December 23rd", base_time=BASE).layout.format_string()
 
+    def test_from_format(self):
+        # The format's order, whatever the first value could be.
+        layout = dateparsa.Layout.from_format("%d/%m/%Y")
+        self.assertTrue(layout.reusable)
+        self.assertEqual(layout.label, "FORMAT_STRING")
+        self.assertEqual(layout.parse("01/02/2024").to_datetime(), dt.datetime(2024, 2, 1, tzinfo=UTC))
+        # strftime's %d and %m read one digit or two, as Java's d and M do.
+        self.assertEqual(layout.format_string("java", value="13/02/2024"), "d/M/yyyy")
+        with self.assertRaises(ValueError):
+            layout.format_string()
+        with self.assertRaises(dateparsa.NoMatch):
+            layout.parse("2024-02-01")
+        go = dateparsa.Layout.from_format("Jan _2 15:04:05", "go", base_time=BASE)
+        self.assertEqual(go.parse("Mar  5 10:30:00").to_datetime(), dt.datetime(2024, 3, 5, 10, 30, tzinfo=UTC))
+        fr = dateparsa.Layout.from_format("%d %B %Y", locales="fr")
+        self.assertEqual(fr.parse("15 mars 2024").to_datetime(), dt.datetime(2024, 3, 15, tzinfo=UTC))
+
+    def test_from_format_refuses(self):
+        with self.assertRaises(dateparsa.Unsupported):
+            dateparsa.Layout.from_format("%Y-%U")
+        with self.assertRaises(dateparsa.NoBaseTime):
+            dateparsa.Layout.from_format("%H:%M")
+        with self.assertRaisesRegex(ValueError, "not a date format"):
+            dateparsa.Layout.from_format("%d %Y")
+        with self.assertRaises(ValueError):
+            dateparsa.Layout.from_format("%Y", "cobol")
+
+    def test_format_strings_read_back(self):
+        # What format_string writes, from_format reads, to the same time.
+        for s in ["2024-03-15T10:30:00.123+05:30", "Fri, 15 Mar 2024 10:30:00 +0000", "3/15/2024 10:30 PM"]:
+            r = dateparsa.parse(s)
+            for dialect in ["strftime", "go", "java"]:
+                layout = dateparsa.Layout.from_format(r.layout.format_string(dialect), dialect)
+                self.assertEqual(layout.parse(s), r.time, (s, dialect))
+
     def test_parser_keeps_the_detected_value(self):
         # 1/2/2024 detects a one-digit layout; 1/3/2024 reuses it, and its
         # format string is still the one detected from 1/2/2024.
