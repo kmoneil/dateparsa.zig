@@ -33,6 +33,10 @@ Layouts from a format string. Every input parses to what it did in 0.4.2.
 
 ### Changed
 
+- A reused layout whose fields all have fixed widths (ISO 8601, RFC 3339,
+  SQL, compact dates) reads a value in about 0.9 of the time it did: an ISO
+  date-time in 9.7 ns where it took 10.3, an ISO date in 6.8 where it took
+  7.8, on an M5 Max. The fixed-slot path is inlined into `execute` by hand.
 - `formatString` spells from any value the layout reads, not only the one
   it was detected from at the same widths: a layout from `1/2/2024` spells
   `11/12/2024` as `%m/%d/%Y` where it gave `error.NotDetectedFrom`. Python's

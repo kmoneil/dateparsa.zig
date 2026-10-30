@@ -157,6 +157,21 @@ the scalar scan takes 11.0, and RFC 2822 in 9.2 against 17.2, but inside
 a reason not yet found. The scan is a quarter of an ISO date-time's parse
 now, so the most it could save is a few nanoseconds.
 
+Layouts from a format string (2026-10-30, `zig build bench`, five runs each,
+alternating with 0.4.2 on the same M5 Max; not yet in the table above). The
+interpreter grew four fields whose width the input decides, and LLVM then
+stopped inlining the fixed-slot path into `Program.execute`: a reused ISO
+date-time went from 10.3 to 10.7 ns. Inlined by hand it takes 9.7, an ISO
+date 6.8 where 0.4.2 took 7.8, and the ten-million-row column 97 ms where it
+took 102; a month name stays near 13.5 to 13.9. A layout read from a format
+string takes 9.1 ns for `%Y-%m-%d` and 10.1 for `%d/%m/%Y`, whose
+one-or-two-digit fields need the interpreter; 9.5 for Java's
+`yyyy-MM-dd'T'HH:mm:ssX`, whose two-digit fields take the fixed-slot path as
+a detected layout does; and 17.8 for `%B %d, %Y`, which looks the name up
+among every month rather than checking one (13.9 detected). A `%d/%m/%Y`
+column had no reusable layout before: each value was detected, at 72 ns for
+`03/15/2024`.
+
 ## Against other parsers
 
 `tools/bench_others.sh` runs a harness per language on the same inputs and
