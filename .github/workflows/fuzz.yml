@@ -64,21 +64,33 @@ jobs:
       # target under .zig-cache/f, named by a hash of the test's name, so a
       # corpus outlives code changes. The newest from this branch or main is
       # the one restored.
+      #
+      # Each gh call is retried (tools/retry.sh). One that still fails fails
+      # the run rather than fuzzing from the seeds alone: that run's corpus
+      # would be the newest, and the next run would restore it in place of
+      # the one every earlier night built.
       - name: Restore the fuzz corpus
         env:
           GH_TOKEN: ${{ github.token }}
           BRANCH: ${{ github.ref_name }}
         run: |
           set -o pipefail
-          id=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=fuzz-corpus&per_page=100" --jq '
-            [.artifacts[] | select(.expired | not)
-              | select(.workflow_run.head_branch == env.BRANCH or .workflow_run.head_branch == "main")]
-            | sort_by(.created_at) | last | .id // empty')
+          . tools/retry.sh
+          newest() {
+            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=fuzz-corpus&per_page=100" --jq '
+              [.artifacts[] | select(.expired | not)
+                | select(.workflow_run.head_branch == env.BRANCH or .workflow_run.head_branch == "main")]
+              | sort_by(.created_at) | last | .id // empty'
+          }
+          download() {
+            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$id/zip" > "$RUNNER_TEMP/corpus.zip"
+          }
+          id=$(retry newest)
           if [ -z "$id" ]; then
             echo "No fuzz-corpus artifact yet: this run starts from the seeds alone"
             exit 0
           fi
-          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$id/zip" > "$RUNNER_TEMP/corpus.zip"
+          retry download
           mkdir -p .zig-cache/f
           unzip -q -o "$RUNNER_TEMP/corpus.zip" -d .zig-cache/f
           echo "Restored artifact $id: $(find .zig-cache/f -type f | wc -l) files"
@@ -135,8 +147,18 @@ jobs:
       contents: read
       issues: write
     steps:
+      # For tools/retry.sh.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: tools
       # One open issue at a time: a target that keeps failing comments on it
       # every run rather than opening one a night.
+      #
+      # On 2026-11-05 a real find opened nothing, because `gh issue list` met
+      # one GraphQL error. So the report is retried whole: each try lists
+      # again, and a create that went through but answered with an error is
+      # then found and commented on rather than opened twice. If every try
+      # fails, this job says so, and the fuzz job's summary has the find.
       - name: open or update the issue
         env:
           GH_TOKEN: ${{ github.token }}
@@ -144,29 +166,43 @@ jobs:
           SHA: ${{ github.sha }}
           EVENT: ${{ github.event_name }}
         run: |
-          open=$(gh issue list --repo "$GITHUB_REPOSITORY" --label fuzz --state open \
-            --json number --jq '.[0].number // empty')
-          if [ -n "$open" ]; then
-            gh issue comment "$open" --repo "$GITHUB_REPOSITORY" \
-              --body "Fuzzing failed again ($EVENT) on $SHA: $RUN"
-            exit 0
+          . tools/retry.sh
+          report() {
+            local open
+            open=$(gh issue list --repo "$GITHUB_REPOSITORY" --label fuzz --state open \
+              --json number --jq '.[0].number // empty') || return
+            if [ -n "$open" ]; then
+              gh issue comment "$open" --repo "$GITHUB_REPOSITORY" \
+                --body "Fuzzing failed again ($EVENT) on $SHA: $RUN"
+              return
+            fi
+            gh issue create --repo "$GITHUB_REPOSITORY" \
+              --title "fuzz: a fuzz target found a failing input" \
+              --label fuzz \
+              --body "$(printf '%s\n' \
+                "Fuzzing ($EVENT) failed on $SHA." \
+                "" \
+                "Run: $RUN" \
+                "" \
+                "The fuzz step's log prints the failing input in hex: each string the" \
+                "target's Smith read is a four-byte little-endian length and its bytes," \
+                "each value eight bytes. The run's fuzz-failure artifact keeps the log" \
+                "and the input itself, .zig-cache/f/crash." \
+                "" \
+                "Add the input to that target's seeds in src/fuzz_test.zig first, its" \
+                "bytes as they stand, so \`zig build test\` reproduces it, then fix" \
+                "what it found." \
+                "" \
+                "If the job ran out of time or failed before fuzzing, there is no input:" \
+                "the log says which.")"
+          }
+          if ! retry report; then
+            echo "::error::Fuzzing failed and gh failed on every try to report it, so no issue was opened or commented on. The fuzz job's summary has what it found."
+            {
+              echo "## The find was not reported"
+              echo
+              echo "Fuzzing ($EVENT) failed on $SHA, and gh failed on every try to open an issue for it or comment on the open one."
+              echo "The fuzz job's summary has what it found, if it found an input."
+            } >>"$GITHUB_STEP_SUMMARY"
+            exit 1
           fi
-          gh issue create --repo "$GITHUB_REPOSITORY" \
-            --title "fuzz: a fuzz target found a failing input" \
-            --label fuzz \
-            --body "$(printf '%s\n' \
-              "Fuzzing ($EVENT) failed on $SHA." \
-              "" \
-              "Run: $RUN" \
-              "" \
-              "The fuzz step's log prints the failing input in hex: each string the" \
-              "target's Smith read is a four-byte little-endian length and its bytes," \
-              "each value eight bytes. The run's fuzz-failure artifact keeps the log" \
-              "and the input itself, .zig-cache/f/crash." \
-              "" \
-              "Add the input to that target's seeds in src/fuzz_test.zig first, its" \
-              "bytes as they stand, so \`zig build test\` reproduces it, then fix" \
-              "what it found." \
-              "" \
-              "If the job ran out of time or failed before fuzzing, there is no input:" \
-              "the log says which.")"
