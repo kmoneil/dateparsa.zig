@@ -13,7 +13,8 @@
 //! reads something else: an ordinal suffix ("23rd") in any dialect, an ISO
 //! week date outside strftime, Go text that Go would read as a field, a
 //! fraction past microseconds or a zone name other than UTC or GMT in
-//! strftime (Python reads no others).
+//! strftime (Python reads no others), or a fraction a number follows
+//! directly in strftime (%f has no width to say where it stops).
 
 const std = @import("std");
 const compile = @import("compile.zig");
@@ -369,7 +370,8 @@ pub const Fields = struct {
 /// for byte; a run of non-ASCII bytes, as a detected layout holds it, to
 /// non-ASCII bytes of its width.
 ///
-/// strftime: %Y %G %y %m %d %e %H %I %M %S %f (one to nine digits) %p %z
+/// strftime: %Y %G %y %m %d %e %H %I %M %S %f (one to nine digits, so no
+/// number may follow it directly: error.Unsupported) %p %z
 /// ('Z', +HH:MM or +HHMM) %Z %a %A %b %B %h %j %V %u %%.
 /// Go: 2006 06 01 1 Jan January 02 2 _2 002 15 03 3 04 05 .000 ,000 PM pm
 /// MST Z07:00 Z0700 Z07 -07:00 -0700 -07 Mon Monday.
@@ -425,6 +427,7 @@ const Tokens = struct {
     fn fields(t: *Tokens) ReadError!Fields {
         const toks = t.buf[0..t.n];
         try check(toks);
+        try refuseFractionTouchingNumber(toks);
         // A one-or-two-digit field touching another number reads two.
         for (toks, 0..) |*tok, i| {
             const fixed: compile.FieldKind = switch (tok.kind) {
@@ -497,6 +500,18 @@ fn check(toks: []const Token) ReadError!void {
     if (seen.contains(.week) and seen.contains(.year_day)) return error.InvalidFormat;
     if (seen.contains(.day) and !seen.contains(.month)) return error.InvalidFormat;
     if (!has(seen, &.{ .year, .month, .day, .hour, .minute, .second, .frac, .week, .year_day })) return error.InvalidFormat;
+}
+
+/// error.Unsupported when strftime's %f, one to nine digits, has a number
+/// right after it. It cannot say where it stops then: "%f%j" reads "1121"
+/// as .1 and day 121, or as Python does, .112 and day 1. A layout reads
+/// without going back to try another width, so no layout reads such a
+/// format.
+fn refuseFractionTouchingNumber(toks: []const Token) ReadError!void {
+    if (toks.len < 2) return;
+    for (toks[0 .. toks.len - 1], toks[1..]) |tok, next| {
+        if (tok.kind == .frac_any and startsWithDigit(next)) return error.Unsupported;
+    }
 }
 
 /// Whether a value's bytes for tok can end in a digit.
@@ -1049,6 +1064,29 @@ test "a format string that is no layout is refused" {
     }
     // More fields than a layout holds.
     try std.testing.expectError(error.Unsupported, Layout.fromFormatString(.strftime, "%Y-a-b-a-b-a-b-a-b-a-b-a-b-a-b", .{}));
+    // %f, one to nine digits, cannot say where it stops when a number
+    // follows it: "1121" under "%f%j" is .1 and day 121, or Python's .112
+    // and day 1. Not a number, or a fraction of fixed width, is fine.
+    for ([_][]const u8{ "%Y %f%j", "%Y %H:%M:%S.%f%m", "%Y-%m-%d %f1" }) |f| {
+        errdefer std.debug.print("strftime \"{s}\"\n", .{f});
+        try std.testing.expectError(error.Unsupported, Layout.fromFormatString(.strftime, f, .{}));
+    }
+    _ = try Layout.fromFormatString(.strftime, "%Y-%m-%d %H:%M:%S.%f%z", .{});
+    _ = try Layout.fromFormatString(.java, "yyyy SDDD", .{});
+}
+
+test "a fraction before a number spells only where its width is written" {
+    // Java's S and Go's ,0 say how many digits; strftime's %f does not.
+    const l = try Layout.fromFormatString(.java, "yyyy SDDD", .{});
+    const t = try l.parse("2024 1121");
+    // .1 of a second on day 121 of 2024, April 30.
+    try std.testing.expectEqual(DateTime{ .year = 2024, .month = 4, .day = 30, .nanosecond = 100_000_000 }, t);
+    var buf: [64]u8 = undefined;
+    var w: std.Io.Writer = .fixed(&buf);
+    try std.testing.expectError(error.Unsupported, l.formatString(.strftime, "2024 1121", &w));
+    try l.formatString(.java, "2024 1121", &w);
+    try std.testing.expectEqualStrings("yyyy SDDD", w.buffered());
+    try std.testing.expectEqual(t, try (try Layout.fromFormatString(.java, w.buffered(), .{})).parse("2024 1121"));
 }
 
 test "a format string's padded fields take the fast path" {

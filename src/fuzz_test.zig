@@ -920,7 +920,10 @@ fn formatStringSeeds(arena: Allocator) ![]const []const u8 {
         .{ 0, "%Y-%j %H%%", "2024-366 23%" },                                              .{ 1, "Jan _2 15:04:05", "Mar  5 9:30:00" },
         .{ 1, "Monday, 02-Jan-06 15:04:05 MST", "Friday, 15-Mar-24 10:30:00 UTC" },        .{ 1, "2006-01-02T15:04:05,000000Z0700", "2024-03-15T10:30:00,123456+0530" },
         .{ 2, "'it''s' EEEE d MMMM uuuu h:mm a", "it's Friday 15 March 2024 9:05 PM" },    .{ 2, "yyyyMMddHHmmssSSSX", "20240315103000123Z" },
-        .{ 2, "MMM ppd HH:mm:ss z", "Mar  5 10:30:00 EST" },
+        // The last, from the nightly fuzz run of 2026-11-05: a one-digit
+        // fraction before the day of the year, which strftime's %f cannot
+        // spell.
+        .{ 2, "MMM ppd HH:mm:ss z", "Mar  5 10:30:00 EST" },                               .{ 2, "SDDD", "1121" },
     };
     for (hand) |h| {
         try out.append(arena, try seedWith(arena, &.{ h[1], h[2] }, &.{ 0, h[0] }));

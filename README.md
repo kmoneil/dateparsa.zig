@@ -240,7 +240,8 @@ them, as in `%Y%m%d`); `%f` takes one to nine digits and `%z` takes `Z`,
 `+05:30` or `+0530`; a month or weekday name, wide or abbreviated, reads any
 month or weekday in English and the locales in the options. Text between fields
 is held byte for byte. A field no layout reads (`%U`, Go's `4`, Java's `w`) is
-`error.Unsupported`, a string that is no date format (`%d %Y`, `%I:%M` with no
+`error.Unsupported`, and so is a `%f` with a number right after it (`%f%j`),
+which cannot say where the fraction stops; a string that is no date format (`%d %Y`, `%I:%M` with no
 `%p`, a field twice) is `error.InvalidFormat`, and a format with no year needs
 `base_time`. What `formatString` writes, `fromFormatString` reads back to the
 same time, and a fuzz target holds the two to it.
