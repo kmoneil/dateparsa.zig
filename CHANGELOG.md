@@ -12,6 +12,12 @@ the difference. Before 1.0 a breaking change is a minor bump.
 
 ### Fixed
 
+- `Layout.fromFormatString` refuses a strftime `%f` with a number right
+  after it (`%f%j`) with `error.Unsupported`, and `formatString` no longer
+  spells one. `%f` takes one to nine digits, so it cannot say where it
+  stops: a layout read from Java's `SDDD` spelled `%f%j`, which read
+  `1121`, a tenth of a second on day 121, as no time at all, and Python
+  reads it as .112 on day 1. Found by the nightly fuzz run.
 - Formatting a `DateTime` whose `nanosecond` is past 999,999,999, which
   `isValid` refuses and no parse returns, no longer panics (or, in
   ReleaseFast, writes past a buffer). The nanosecond is written with all
