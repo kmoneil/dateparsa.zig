@@ -172,16 +172,21 @@ pub fn eqlInstant(a: DateTime, b: DateTime) bool {
 /// year outside 0000-9999 takes the digits it needs and a `-` when negative
 /// ("-0001-12-31T23:00:00Z"), and an offset loses its seconds, truncated
 /// toward zero, since the offset is written in minutes.
+///
+/// A value isValid refuses is written field by field as it stands. A
+/// nanosecond past 999_999_999 keeps all ten of its digits, trailing zeros
+/// included, so it cannot pass for a fraction of a second it is not.
 pub fn format(dt: DateTime, w: *std.Io.Writer) std.Io.Writer.Error!void {
     if (dt.year < 0) try w.writeByte('-');
     try w.print("{d:0>4}-{d:0>2}-{d:0>2}T{d:0>2}:{d:0>2}:{d:0>2}", .{
         @abs(dt.year), dt.month, dt.day, dt.hour, dt.minute, dt.second,
     });
     if (dt.nanosecond != 0) {
-        var frac: [9]u8 = undefined;
-        _ = std.fmt.bufPrint(&frac, "{d:0>9}", .{dt.nanosecond}) catch unreachable;
+        // Ten bytes: a u32 has at most ten digits, so this cannot fail.
+        var frac: [10]u8 = undefined;
+        const digits = std.fmt.bufPrint(&frac, "{d:0>9}", .{dt.nanosecond}) catch unreachable;
         try w.writeByte('.');
-        try w.writeAll(std.mem.trimEnd(u8, &frac, "0"));
+        try w.writeAll(if (digits.len > 9) digits else std.mem.trimEnd(u8, digits, "0"));
     }
     if (dt.offset_seconds == 0) return w.writeByte('Z');
     const minutes = @divTrunc(dt.offset_seconds, 60);
@@ -373,6 +378,10 @@ test format {
         .{ .{ .year = 2024, .month = 1, .day = 1, .offset_seconds = 3600 + 59 }, "2024-01-01T00:00:00+01:00" },
         .{ .{ .year = 2024, .month = 1, .day = 1, .offset_seconds = -30 }, "2024-01-01T00:00:00+00:00" },
         .{ .{ .year = 2024, .month = 1, .day = 1, .offset_seconds = -90 }, "2024-01-01T00:00:00-00:01" },
+        // A nanosecond isValid refuses is written whole, not trimmed into
+        // a fraction it is not; the most a u32 holds fits the buffer.
+        .{ .{ .year = 2024, .month = 1, .day = 1, .nanosecond = 1_000_000_000 }, "2024-01-01T00:00:00.1000000000Z" },
+        .{ .{ .year = 2024, .month = 1, .day = 1, .nanosecond = std.math.maxInt(u32) }, "2024-01-01T00:00:00.4294967295Z" },
     }) |c| {
         var buf: [64]u8 = undefined;
         try testing.expectEqualStrings(c[1], try std.fmt.bufPrint(&buf, "{f}", .{c[0]}));
