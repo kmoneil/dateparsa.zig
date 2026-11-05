@@ -94,7 +94,7 @@ jobs:
 
       # 30 days, so a corpus outlasts a few nights without a run. Only the
       # targets' directories: in<N> is the fuzzer's input buffer and crash
-      # its (empty) record of a failing one.
+      # the failing input, kept by the step below.
       - name: Save the fuzz corpus
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -108,9 +108,11 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
 
-      # The input buffers hold what each target was running when it failed:
-      # a 20-byte header whose last u32 is the length, then the input. The
-      # log has the same inputs decoded by tools/fuzz.sh.
+      # crash is the failing input, whole, as the runner saved it (Zig
+      # 0.17.1; 0.17.0 left it empty); the log has it in hex, from
+      # tools/fuzz.sh. The input buffers, in<N> (a 20-byte header whose last
+      # u32 is the length, then the input), hold what each target was last
+      # running: on a timeout, what it may have been stuck on.
       - name: Keep the failing input
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -118,6 +120,7 @@ jobs:
           name: fuzz-failure
           path: |
             fuzz.log
+            .zig-cache/f/crash
             .zig-cache/f/in*
           include-hidden-files: true
           if-no-files-found: ignore
@@ -158,11 +161,12 @@ jobs:
               "" \
               "The fuzz step's log prints the failing input in hex: each string the" \
               "target's Smith read is a four-byte little-endian length and its bytes," \
-              "then the options byte as eight. The run's fuzz-failure artifact keeps" \
-              "the log and the fuzzer's input buffers." \
+              "each value eight bytes. The run's fuzz-failure artifact keeps the log" \
+              "and the input itself, .zig-cache/f/crash." \
               "" \
-              "Add the input's strings to the seeds in src/fuzz_test.zig first, so" \
-              "\`zig build test\` reproduces it, then fix what it found." \
+              "Add the input to that target's seeds in src/fuzz_test.zig first, its" \
+              "bytes as they stand, so \`zig build test\` reproduces it, then fix" \
+              "what it found." \
               "" \
               "If the job ran out of time or failed before fuzzing, there is no input:" \
               "the log says which.")"
