@@ -10,7 +10,19 @@ the difference. Before 1.0 a breaking change is a minor bump.
 
 ## [Unreleased]
 
-Nothing yet.
+Nothing a dependent sees: only the fuzzing and CI around the library.
+
+### Changed
+
+- `tools/fuzz.sh` looks for a find in the fuzzer's output before it looks at
+  `zig build`'s exit status. Zig 0.17.1 exits 1 after some finds (a seed
+  that fails), and the script used to stop there without printing the
+  input. On GitHub Actions it also writes the find, the target and the
+  input in hex, to the job's summary.
+- The fuzz workflow retries its `gh` calls. On 2026-11-05 the nightly run
+  found the `%f%j` failure fixed in 0.5.1 and opened no issue for it,
+  because one call met one GitHub API error. If every try fails, the
+  report job says so and points at the fuzz job's summary.
 
 ## [0.5.1] - 2026-11-05
 
