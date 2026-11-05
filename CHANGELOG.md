@@ -20,6 +20,14 @@ the difference. Before 1.0 a breaking change is a minor bump.
 
 ### Changed
 
+- Zig 0.17.1, a release of bug fixes only, is the version required
+  (`minimum_zig_version`), tested in CI and used to build the released
+  libraries, command and Python wheels. Nothing here needs 0.17.1's fixes,
+  but 0.17.0 is no longer tested. Every input parses as it did.
+- `tools/fuzz.sh` prints the failing input from the file the fuzzer names
+  (`.zig-cache/f/crash`), which 0.17.1 writes whole; its bytes are a seed
+  as they stand. 0.17.0 left that file empty, and the script dug the input
+  out of the fuzzer's input buffers instead.
 - `zig build test` runs zigvet and gnarl too, and CI installs both on
   every runner. gnarl holds each function to the complexity limits of its
   class in `complexity.zon`, against `complexity.baseline`, so no function

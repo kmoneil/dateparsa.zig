@@ -4,14 +4,14 @@
 #
 #   tools/fuzz.sh [LIMIT]    LIMIT as zig build --fuzz takes it (default 1M)
 #
-# Zig 0.17.0's `zig build --fuzz` exits 0 when a fuzz test fails, so the
-# failure is read from its output instead. The file it names as the saved
-# input comes out empty (it is never flushed), so the input is read from the
-# fuzzer's own input files, .zig-cache/f/in<N>: a 20-byte header whose last
-# u32 is the length, then the input. Each is printed in hex. An input is
-# what the target's Smith read: each string a four-byte little-endian length
-# and its bytes, then the options byte as eight. Add its strings to the seeds
-# in src/fuzz_test.zig before fixing what it found.
+# Zig 0.17.1's `zig build --fuzz` exits 0 when a fuzz test fails, whether it
+# returned an error ("exited with code 1") or panicked ("terminated with
+# signal ABRT"), so the failure is read from its output instead: the line
+# ending "; input saved to '<file>'". That file (.zig-cache/f/crash) holds
+# the whole failing input, printed here in hex. An input is what the
+# target's Smith read: each string a four-byte little-endian length and its
+# bytes, each value eight bytes. The bytes as they stand are a seed: add
+# them to the seeds in src/fuzz_test.zig before fixing what it found.
 set -eu
 
 limit=${1:-1M}
@@ -31,12 +31,16 @@ status=$(cat "$log.status")
 if [ "$status" -ne 0 ]; then
     exit "$status"
 fi
+# Found by the phrase alone, so a change in the rest of the line cannot turn
+# a find into a pass; the file is then read from it where it can be.
 if grep -q "input saved to" "$log"; then
-    for f in .zig-cache/f/in*; do
-        test_i=$(od -A n -t u4 -j 12 -N 4 "$f" | tr -d ' ')
-        len=$(od -A n -t u4 -j 16 -N 4 "$f" | tr -d ' ')
-        echo "last input of $f, fuzz test $test_i, $len bytes:"
-        od -A d -t x1 -j 20 -N "$len" "$f"
+    sed -n "s/.*input saved to '\([^']*\)'.*/\1/p" "$log" | while IFS= read -r f; do
+        if [ -s "$f" ]; then
+            echo "failing input, $f, $(wc -c <"$f" | tr -d ' ') bytes:"
+            od -A d -t x1 "$f"
+        else
+            echo "the runner named $f for the failing input, but it is missing or empty"
+        fi
     done
     exit 1
 fi

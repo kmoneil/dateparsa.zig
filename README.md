@@ -9,7 +9,7 @@ the format, parses the value, and hands you a compiled layout that reads the
 rest of the column with no detection and no allocation.
 
 [![CI](https://github.com/kmoneil/dateparsa.zig/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/kmoneil/dateparsa.zig/actions/workflows/ci.yml)
-[![Zig 0.17.0](https://img.shields.io/badge/Zig-0.17.0-f7a41d?logo=zig&logoColor=white)](https://ziglang.org/download/)
+[![Zig 0.17.1](https://img.shields.io/badge/Zig-0.17.1-f7a41d?logo=zig&logoColor=white)](https://ziglang.org/download/)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 [![Allocations: none](https://img.shields.io/badge/allocations-none-2ea44f)](#design)
 [![Locales: 20](https://img.shields.io/badge/locales-20-8a2be2)](#locales)
@@ -67,7 +67,7 @@ const dateparsa = b.dependency("dateparsa", .{
 exe.root_module.addImport("dateparsa", dateparsa.module("dateparsa"));
 ```
 
-Requires Zig 0.17.0. What changed in each release is in
+Requires Zig 0.17.1. What changed in each release is in
 [CHANGELOG.md](CHANGELOG.md).
 
 ## How it works
