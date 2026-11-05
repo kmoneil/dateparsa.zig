@@ -18,6 +18,13 @@ the difference. Before 1.0 a breaking change is a minor bump.
   ten of its digits, `2024-01-01T00:00:00.1000000000Z`, so it cannot pass
   for a fraction it is not. Found by zigvet 0.25.1.
 
+### Changed
+
+- `zig build test` runs zigvet and gnarl too, and CI installs both on
+  every runner. gnarl holds each function to the complexity limits of its
+  class in `complexity.zon`, against `complexity.baseline`, so no function
+  gets more complex unseen. `zig build complexity` runs it alone.
+
 ## [0.5.0] - 2026-10-30
 
 Layouts from a format string. Every input parses to what it did in 0.4.2.

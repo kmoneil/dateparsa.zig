@@ -289,12 +289,30 @@ pub fn build(b: *std.Build) void {
     const fmt_step = b.step("fmt-check", "Check source formatting");
     fmt_step.dependOn(&fmt.step);
 
-    // zigvet (github.com/kmoneil/zigvet) must be on PATH. Run from the build
-    // root with relative paths so its findings print as src/x.zig:line:col.
+    // zigvet (github.com/kmoneil/zigvet) reports code the compiler accepts
+    // that is almost certainly wrong. A program on the PATH, not a package.
+    // Run from the build root with relative paths so its findings print as
+    // src/x.zig:line:col. `zig build test` runs it too, so no change is
+    // tested without it.
     const vet = b.addSystemCommand(&([_][]const u8{"zigvet"} ++ lint_paths));
     vet.setCwd(b.path("."));
-    const vet_step = b.step("vet", "Check sources with zigvet");
+    const vet_step = b.step("vet", "Check sources with zigvet (from the PATH)");
     vet_step.dependOn(&vet.step);
+    test_step.dependOn(&vet.step);
+
+    // gnarl (github.com/kmoneil/gnarl) holds each function to the
+    // complexity limits of its class in complexity.zon, and
+    // complexity.baseline holds today's debt, so `--check` fails only what
+    // is new or worse. A pass prints nothing. Always run: the build does
+    // not know what gnarl reads, and a cached step would pass a regression
+    // unseen. setCwd: gnarl finds complexity.zon and the baseline in the
+    // directory it runs in.
+    const complexity = b.addSystemCommand(&.{ "gnarl", "--check", "." });
+    complexity.setCwd(b.path("."));
+    complexity.has_side_effects = true;
+    const complexity_step = b.step("complexity", "Fail a function newly over its complexity limit (gnarl, from the PATH)");
+    complexity_step.dependOn(&complexity.step);
+    test_step.dependOn(&complexity.step);
 
     // Regenerates src/locale/*.zig from the Go dateparsa's locale tables.
     // A developer step: the generated files are committed, and the normal
