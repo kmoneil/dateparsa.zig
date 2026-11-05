@@ -73,17 +73,8 @@ jobs:
           if-no-files-found: error
       - name: zig fmt
         run: zig build fmt-check
-      # The same pin as ci.yml; bump the two together.
-      - name: install zigvet
-        env:
-          ZIGVET_VERSION: v0.12.0
-          ZIGVET_SHA256: de88ffac9ac5081dd75202a632a4ab4038b2f8ff03881dcb266245f5636031f8
-        run: |
-          curl -fsSL -o "$RUNNER_TEMP/zigvet" \
-            "https://github.com/kmoneil/zigvet/releases/download/${ZIGVET_VERSION}/zigvet-linux-amd64"
-          echo "${ZIGVET_SHA256}  $RUNNER_TEMP/zigvet" | sha256sum --check --strict
-          chmod +x "$RUNNER_TEMP/zigvet"
-          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+      # The same pins as ci.yml: `zig build test` below runs zigvet and gnarl.
+      - uses: ./.github/actions/vet-tools
       - name: zigvet
         run: zig build vet
       # Every mode and both trimmed locale sets ci.yml tests, on Linux. macOS

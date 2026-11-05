@@ -1,0 +1,72 @@
+# zigvet and gnarl on the PATH, for `zig build test`, which runs both
+# (build.zig's vet and complexity steps), on every runner the tests run on.
+#
+# gnarl is the release complexity.zon's `.gnarl` names, so its version
+# lives in one place; zigvet's is pinned below. Each binary is checked
+# against a digest written here rather than one fetched beside it, so a
+# release asset replaced later cannot change what CI runs. To move to a
+# new release: change the version (for gnarl, `.gnarl` in complexity.zon,
+# and run `gnarl --update-baseline .` with it), and add its four digests
+# below from that release's SHA256SUMS. A version with no digests here
+# fails the job, naming what is missing.
+name: Install zigvet and gnarl
+description: Put the pinned zigvet and gnarl releases on the PATH, each checked against its digest
+runs:
+  using: composite
+  steps:
+    - name: Install zigvet and gnarl
+      shell: bash
+      run: |
+        set -euo pipefail
+        case "$RUNNER_OS-$RUNNER_ARCH" in
+          Linux-X64) platform=linux-amd64 exe= ;;
+          macOS-ARM64) platform=darwin-arm64 exe= ;;
+          macOS-X64) platform=darwin-amd64 exe= ;;
+          Windows-X64) platform=windows-amd64 exe=.exe ;;
+          *) echo "::error::no zigvet or gnarl release for $RUNNER_OS $RUNNER_ARCH"; exit 1 ;;
+        esac
+        if command -v sha256sum > /dev/null; then sum=sha256sum; else sum="shasum -a 256"; fi
+        dir="$RUNNER_TEMP/vet-tools"
+        mkdir -p "$dir"
+
+        zigvet_version=v0.25.1
+        gnarl_version="v$(sed -n 's/.*\.gnarl = "\([^"]*\)".*/\1/p' complexity.zon)"
+        if [ "$gnarl_version" = v ]; then
+          echo "::error::complexity.zon names no .gnarl release"
+          exit 1
+        fi
+
+        # The tool, its release, and the digest of its binary for this runner.
+        install() {
+          local name=$1 version=$2 want=
+          case "$name-$version-$platform" in
+            zigvet-v0.25.1-linux-amd64) want=8713072e80cb245d780b5de502e9cc4e6abd068015c9fe73ca614b1979348ad6 ;;
+            zigvet-v0.25.1-darwin-arm64) want=149d724e18ee1396e77e3ab96ee13c629f52d5b314f234e1d9068ca71d1991d1 ;;
+            zigvet-v0.25.1-darwin-amd64) want=bc3aa5570f836546fd8a8b4f7d4834d8b81e56d585f8ff2fbe645e77c5a9c6f9 ;;
+            zigvet-v0.25.1-windows-amd64) want=6a988bf438b4a81c7da16890dd7995f45e4155e4574b7b506e1a734f831ca238 ;;
+            gnarl-v0.7.0-linux-amd64) want=3b98843a610e74862a2e62edf3dbb2d35be3e74485718e703429c84f2b8e57f3 ;;
+            gnarl-v0.7.0-darwin-arm64) want=82ccdb87a5ef91ea2eff5b1e9cdc58f26e6a9563622bbadf457fb37f6f3311e8 ;;
+            gnarl-v0.7.0-darwin-amd64) want=64a94697c2abbc7f4fe9500ba68ce70e1e2954726f32939f665c9f3083b84b68 ;;
+            gnarl-v0.7.0-windows-amd64) want=e150110d613e77ff109404b4addd36f550bc87d89b48b7e52d95003d209a8918 ;;
+          esac
+          if [ -z "$want" ]; then
+            echo "::error::no digest pinned for $name $version $platform in .github/actions/vet-tools/action.yml; add it from that release's SHA256SUMS"
+            exit 1
+          fi
+          curl -fsSLo "$dir/$name$exe" "https://github.com/kmoneil/$name/releases/download/$version/$name-$platform$exe"
+          # The file on stdin: given a path with a backslash, as Windows'
+          # $RUNNER_TEMP is, sha256sum escapes it and prefixes the digest
+          # with a backslash.
+          local got
+          got=$($sum < "$dir/$name$exe" | cut -d' ' -f1)
+          if [ "$got" != "$want" ]; then
+            echo "::error::$name $version for $platform has digest $got, not the $want pinned here"
+            exit 1
+          fi
+          chmod +x "$dir/$name$exe"
+          "$dir/$name$exe" --version
+        }
+        install zigvet "$zigvet_version"
+        install gnarl "$gnarl_version"
+
+        if [ "$RUNNER_OS" = Windows ]; then cygpath -w "$dir"; else echo "$dir"; fi >> "$GITHUB_PATH"

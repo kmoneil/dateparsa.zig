@@ -30,22 +30,13 @@ jobs:
       - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
       - name: zig fmt
         run: zig build fmt-check
-      # zigvet is a released binary, not a package (see build.zig). Pinned
-      # with its checksum, so a new zigvet release cannot fail an unchanged
-      # commit; bump the version and the sum together, here and in
-      # release.yml.
-      - name: install zigvet
-        env:
-          ZIGVET_VERSION: v0.12.0
-          ZIGVET_SHA256: de88ffac9ac5081dd75202a632a4ab4038b2f8ff03881dcb266245f5636031f8
-        run: |
-          curl -fsSL -o "$RUNNER_TEMP/zigvet" \
-            "https://github.com/kmoneil/zigvet/releases/download/${ZIGVET_VERSION}/zigvet-linux-amd64"
-          echo "${ZIGVET_SHA256}  $RUNNER_TEMP/zigvet" | sha256sum --check --strict
-          chmod +x "$RUNNER_TEMP/zigvet"
-          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+      # zigvet and gnarl are released binaries, not packages (see build.zig),
+      # each pinned by digest in the action; release.yml uses it too.
+      - uses: ./.github/actions/vet-tools
       - name: zigvet over src, tools, bench and build.zig
         run: zig build vet
+      - name: gnarl, against complexity.baseline
+        run: zig build complexity
       - name: API documentation
         run: zig build docs
       # Nothing else builds the benchmark program, so it would rot unseen
@@ -66,6 +57,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+      # `zig build test` runs zigvet and gnarl too.
+      - uses: ./.github/actions/vet-tools
       - name: zig build test
         run: zig build test --summary all
 
@@ -105,6 +98,8 @@ jobs:
         with:
           # One cache per mode, so the legs do not race to save one key.
           cache-key: ${{ matrix.optimize }}
+      # `zig build test` runs zigvet and gnarl too.
+      - uses: ./.github/actions/vet-tools
       - name: zig build test
         env:
           OPTIMIZE: ${{ matrix.optimize }}
@@ -127,6 +122,8 @@ jobs:
         with:
           # By index: a cache key cannot hold the comma in "fr,de".
           cache-key: locales-${{ strategy.job-index }}
+      # `zig build test` runs zigvet and gnarl too.
+      - uses: ./.github/actions/vet-tools
       - name: zig build test
         env:
           LOCALES: ${{ matrix.locales }}
