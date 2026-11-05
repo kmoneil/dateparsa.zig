@@ -10,6 +10,15 @@ the difference. Before 1.0 a breaking change is a minor bump.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.5.1] - 2026-11-05
+
+Zig 0.17.1, and two fixes: a strftime format string whose fraction cannot
+say where it stops, and formatting a `DateTime` no parse returns. Every
+input parses to what it did in 0.5.0; the one change is that a format
+string such as `%f%j`, which no layout reads faithfully, is refused.
+
 ### Fixed
 
 - `Layout.fromFormatString` refuses a strftime `%f` with a number right
@@ -288,7 +297,8 @@ what was changed on purpose.
 - No allocation on any path and no clock: an input that needs a base time and
   was given none fails with `error.NoBaseTime`.
 
-[Unreleased]: https://github.com/kmoneil/dateparsa.zig/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/kmoneil/dateparsa.zig/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/kmoneil/dateparsa.zig/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/kmoneil/dateparsa.zig/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/kmoneil/dateparsa.zig/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/kmoneil/dateparsa.zig/compare/v0.4.0...v0.4.1
