@@ -1,0 +1,58 @@
+# GitHub sometimes finds no runner for a job. After about 15 minutes it gives
+# up, and the job ends cancelled, no step run, under the annotation "The job
+# was not acquired by Runner of type hosted even after multiple attempts".
+# macOS arm64 is where it happens: three times on 2026-11-05, a pull
+# request's tests, a release's library check and main's, each re-run by hand.
+# Nothing in a workflow makes a runner appear (timeout-minutes counts only
+# from when a job starts), so this does what was done by hand: re-runs the
+# failed jobs of a run whose every failure is that one. In a release that
+# also runs what waited on them, attest and publish, as a re-run by hand did.
+#
+# Only a first attempt is re-run, so a second wait for a runner is left to a
+# person. A run with any other failure is left alone, starved jobs and all:
+# re-running it would run that failure again too.
+name: rerun
+
+on:
+  workflow_run:
+    workflows: [ci, release]
+    types: [completed]
+
+permissions: {}
+
+jobs:
+  rerun:
+    name: re-run jobs no runner took
+    if: github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.run_attempt == 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # actions: write to re-run; checks: read for each job's annotations.
+    permissions:
+      actions: write
+      checks: read
+    steps:
+      - name: re-run if every failure is a job no runner took
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN: ${{ github.event.workflow_run.id }}
+          ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+        run: |
+          set -o pipefail
+          failed=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$RUN/attempts/$ATTEMPT/jobs?per_page=100" \
+            --jq '.jobs[] | select(.conclusion == "failure" or .conclusion == "cancelled" or .conclusion == "timed_out") | .id')
+          if [ -z "$failed" ]; then
+            echo "Run $RUN attempt $ATTEMPT has no failed job: nothing to re-run"
+            exit 0
+          fi
+          for job in $failed; do
+            notes=$(gh api "repos/$GITHUB_REPOSITORY/check-runs/$job/annotations" --jq '.[].message')
+            case $notes in
+              *"was not acquired by Runner"*) echo "Job $job: no runner took it" ;;
+              *)
+                echo "Job $job failed for another reason, so run $RUN is left alone"
+                exit 0
+                ;;
+            esac
+          done
+          echo "Every failed job in run $RUN is one no runner took: re-running them"
+          gh run rerun "$RUN" --repo "$GITHUB_REPOSITORY" --failed

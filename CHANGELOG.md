@@ -23,6 +23,10 @@ Nothing a dependent sees: only the fuzzing and CI around the library.
   found the `%f%j` failure fixed in 0.5.1 and opened no issue for it,
   because one call met one GitHub API error. If every try fails, the
   report job says so and points at the fuzz job's summary.
+- A CI or release run whose only failures are jobs GitHub found no runner
+  for is re-run once, automatically (`.github/workflows/rerun.yml`). macOS
+  arm64 runners went short three times on 2026-11-05, and each run was
+  re-run by hand.
 
 ## [0.5.1] - 2026-11-05
 
