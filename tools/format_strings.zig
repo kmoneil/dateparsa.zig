@@ -39,7 +39,7 @@ const inputs = [_][]const u8{
 
 pub fn main(init: std.process.Init) !void {
     var buf: [4096]u8 = undefined;
-    var out = std.Io.File.stdout().writer(init.io, &buf);
+    var out = std.Io.File.stdout().writerStreaming(init.io, &buf);
     const w = &out.interface;
     const base: dateparsa.DateTime = .{ .year = 2024, .month = 3, .day = 15, .hour = 12 };
     for (inputs) |s| {

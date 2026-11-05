@@ -10,7 +10,13 @@ the difference. Before 1.0 a breaking change is a minor bump.
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- Formatting a `DateTime` whose `nanosecond` is past 999,999,999, which
+  `isValid` refuses and no parse returns, no longer panics (or, in
+  ReleaseFast, writes past a buffer). The nanosecond is written with all
+  ten of its digits, `2024-01-01T00:00:00.1000000000Z`, so it cannot pass
+  for a fraction it is not. Found by zigvet 0.25.1.
 
 ## [0.5.0] - 2026-10-30
 
