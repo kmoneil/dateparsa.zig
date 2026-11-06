@@ -145,14 +145,23 @@ while [ "$left" -gt 0 ]; do
     fi
     if [ -n "$cap" ] && { [ "$status" -eq 124 ] || [ "$status" -eq 137 ]; }; then
         took=$(($(date +%s) - t0))
-        echo "fuzz.sh: round $i was still running ${margin}s before the deadline, ${took}s in (the last round took ${last}s), and was cut: a hang the fuzzer found, or something as wrong. The in<N> files under .zig-cache/f hold what each fuzzer was last running."
-        summary "## Fuzzing was cut: round $i was still running ${took}s in, ${margin}s before the deadline (the last round took ${last}s)"
+        # The first round has no earlier one to be measured against, and it
+        # also builds the fuzz tests and loads the corpus: cut, it says
+        # the deadline is too near as much as that something hung.
+        if [ "$i" -eq 1 ]; then
+            why="The first round, which also builds the fuzz tests and loads the corpus, did not fit: give it more time or a smaller ROUND, unless it hung"
+        else
+            why="The last round took ${last}s: a hang the fuzzer found, or something as wrong"
+        fi
+        echo "fuzz.sh: round $i was still running ${took}s in, ${margin}s before the deadline, and was cut. $why. The in<N> files under .zig-cache/f hold what each fuzzer was last running."
+        summary "## Fuzzing was cut: round $i was still running ${took}s in, ${margin}s before the deadline ($why)"
         exit 124
     fi
     if [ "$status" -ne 0 ]; then
         exit "$status"
     fi
     last=$(($(date +%s) - t0))
+    echo "fuzz.sh: round $i took ${last}s"
     ran=$((ran + runs))
     left=$((left - runs))
     i=$((i + 1))
