@@ -5,8 +5,9 @@
 # in ci.yml replays every target's seeds, deterministically. What is left is
 # discovery, and discovery scales with cumulative CPU time against a corpus
 # that persists, not with the length of any one run. So this runs briefly
-# after each merge to main, against the code that just changed, and at
-# length every night, each run starting from the corpus the last one kept.
+# after each merge to main, against the code that just changed, and for half
+# an hour every night, each run starting from the corpus the last one kept.
+# A longer campaign belongs on a spot VM, not on a runner.
 #
 # A find opens an issue, or comments on the one already open, and keeps the
 # input. It blocks nothing: a find is usually about code the last pull
@@ -23,10 +24,14 @@ on:
     - cron: "41 6 * * *"
   workflow_dispatch:
     inputs:
-      limit:
-        description: Runs per fuzz target, as zig build --fuzz takes it (20K, 2M)
+      minutes:
+        description: Minutes until fuzzing must stop, at most 150 (no round starts that might end later than 4 minutes before)
         required: false
-        default: 10M
+        default: "30"
+      limit:
+        description: Runs per fuzz target at most, as zig build --fuzz takes it (20K, 2M); the minutes usually stop it first
+        required: false
+        default: 1G
 
 permissions:
   contents: read
@@ -41,14 +46,17 @@ jobs:
   fuzz:
     name: fuzz
     runs-on: ubuntu-latest
-    # `--fuzz=N` runs each target N times. Two runs on 2026-10-28, with
-    # seven targets (369K runs in 191 s, then 3.53M in 427 s, both with the
-    # build), price the runner at about 13K runs a second after about 160 s
-    # building with LLVM: the nightly 10M was about 90 minutes, and with the
-    # C API's and Column's targets, nine, is about 115, against a 180-minute
-    # timeout.
-    # Re-size it if the nights drift from that.
-    timeout-minutes: 180
+    # Fuzzing is held to a time, not a count: tools/fuzz.sh runs rounds
+    # until its deadline nears, so a new target makes a night's rounds
+    # fewer, not the job longer. Until 2026-11-06 a night was 10M runs a
+    # target. Two runs on 2026-10-28 priced the runner at about 13K runs a
+    # second over all the targets together, after about 160 s building with
+    # LLVM, so the night grew with the targets, from about 90 minutes with
+    # seven to past the 180-minute timeout with thirteen; four nights in a
+    # row were cancelled, and a cancelled run reported nothing. The timeout
+    # is a backstop above the deadline, with room to restore and save the
+    # corpus.
+    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && 180 || 50 }}
     # actions: read finds and downloads the corpus an earlier run kept.
     permissions:
       contents: read
@@ -96,13 +104,29 @@ jobs:
           echo "Restored artifact $id: $(find .zig-cache/f -type f | wc -l) files"
 
       # tools/fuzz.sh fails the step on a find, which `zig build --fuzz` alone
-      # does not (it exits 0), and prints the failing input in hex.
+      # does not always do, and prints the failing input in hex. After a
+      # merge, one round of 50K a target, about 4 minutes. A night, rounds
+      # of 100K a target (about 100 s each with thirteen targets) until 30
+      # minutes are up: about 25 minutes of fuzzing, since no round starts
+      # that might end later than 4 minutes before the deadline. A round
+      # still running then is cut and fails the step: a hang the fuzzer
+      # found, or something as wrong.
       - name: Coverage-guided fuzzing
         env:
-          LIMIT: ${{ inputs.limit || (github.event_name == 'push' && '50K' || '10M') }}
+          LIMIT: ${{ github.event_name == 'push' && '50K' || inputs.limit || '1G' }}
+          ROUND: ${{ github.event_name == 'push' && '50K' || '100K' }}
+          MINUTES: ${{ github.event_name == 'push' && '15' || inputs.minutes || '30' }}
         run: |
           set -o pipefail
-          tools/fuzz.sh "$LIMIT" 2>&1 | tee fuzz.log
+          case "$MINUTES" in
+            '' | *[!0-9]*) echo "::error::minutes is a whole number, not '$MINUTES'"; exit 2 ;;
+          esac
+          if [ "$MINUTES" -gt 150 ]; then
+            echo "::error::minutes is at most 150, to end within the job's 180-minute timeout"
+            exit 2
+          fi
+          export FUZZ_DEADLINE=$(($(date +%s) + MINUTES * 60))
+          tools/fuzz.sh "$LIMIT" "$ROUND" 2>&1 | tee fuzz.log
 
       # 30 days, so a corpus outlasts a few nights without a run. Only the
       # targets' directories: in<N> is the fuzzer's input buffer and crash
@@ -124,7 +148,7 @@ jobs:
       # 0.17.1; 0.17.0 left it empty); the log has it in hex, from
       # tools/fuzz.sh. The input buffers, in<N> (a 20-byte header whose last
       # u32 is the length, then the input), hold what each target was last
-      # running: on a timeout, what it may have been stuck on.
+      # running: in a cut round, what it may have been stuck on.
       - name: Keep the failing input
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -137,10 +161,13 @@ jobs:
           include-hidden-files: true
           if-no-files-found: ignore
 
+  # Also when the fuzz job was cancelled, which is what a job past its
+  # timeout reads as: four nights to 2026-11-04 timed out, and with
+  # failure() alone nothing said so.
   report:
     name: report a find
     needs: fuzz
-    if: failure()
+    if: always() && needs.fuzz.result != 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -165,22 +192,30 @@ jobs:
           RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           SHA: ${{ github.sha }}
           EVENT: ${{ github.event_name }}
+          RESULT: ${{ needs.fuzz.result }}
         run: |
           . tools/retry.sh
+          if [ "$RESULT" = failure ]; then
+            what="failed"
+            title="fuzz: a fuzz target found a failing input"
+          else
+            what="did not finish ($RESULT: cancelled, or past the job's timeout)"
+            title="fuzz: a fuzz run did not finish"
+          fi
           report() {
             local open
             open=$(gh issue list --repo "$GITHUB_REPOSITORY" --label fuzz --state open \
               --json number --jq '.[0].number // empty') || return
             if [ -n "$open" ]; then
               gh issue comment "$open" --repo "$GITHUB_REPOSITORY" \
-                --body "Fuzzing failed again ($EVENT) on $SHA: $RUN"
+                --body "Fuzzing ($EVENT) $what again on $SHA: $RUN"
               return
             fi
             gh issue create --repo "$GITHUB_REPOSITORY" \
-              --title "fuzz: a fuzz target found a failing input" \
+              --title "$title" \
               --label fuzz \
               --body "$(printf '%s\n' \
-                "Fuzzing ($EVENT) failed on $SHA." \
+                "Fuzzing ($EVENT) $what on $SHA." \
                 "" \
                 "Run: $RUN" \
                 "" \
@@ -197,11 +232,11 @@ jobs:
                 "the log says which.")"
           }
           if ! retry report; then
-            echo "::error::Fuzzing failed and gh failed on every try to report it, so no issue was opened or commented on. The fuzz job's summary has what it found."
+            echo "::error::Fuzzing $what, and gh failed on every try to report it, so no issue was opened or commented on. The fuzz job's summary has what it found."
             {
               echo "## The find was not reported"
               echo
-              echo "Fuzzing ($EVENT) failed on $SHA, and gh failed on every try to open an issue for it or comment on the open one."
+              echo "Fuzzing ($EVENT) $what on $SHA, and gh failed on every try to open an issue for it or comment on the open one."
               echo "The fuzz job's summary has what it found, if it found an input."
             } >>"$GITHUB_STEP_SUMMARY"
             exit 1

@@ -10,7 +10,17 @@ the difference. Before 1.0 a breaking change is a minor bump.
 
 ## [Unreleased]
 
-Nothing yet.
+### Changed
+
+- The nightly fuzz run is held to half an hour, not 10M runs a target.
+  The count grew with the targets: with thirteen it passed the job's
+  180-minute timeout, and four nights in a row, 1 to 4 November, were
+  cancelled with no issue opened. `tools/fuzz.sh` now takes a round size
+  and a deadline (`FUZZ_DEADLINE`, a Unix time): it runs rounds while the
+  next one will end in time, and cuts one still running as the deadline
+  nears, failing the run as a hang. A fuzz run that is cancelled or times
+  out now opens an issue too. Longer campaigns are meant for a spot VM, not
+  a GitHub runner.
 
 ## [0.5.2] - 2026-11-05
 
