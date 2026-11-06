@@ -49,12 +49,12 @@ jobs:
     # Fuzzing is held to a time, not a count: tools/fuzz.sh runs rounds
     # until its deadline nears, so a new target makes a night's rounds
     # fewer, not the job longer. Until 2026-11-06 a night was 10M runs a
-    # target. Two runs on 2026-10-28 priced the runner at about 13K runs a
-    # second over all the targets together, after about 160 s building with
-    # LLVM, so the night grew with the targets, from about 90 minutes with
-    # seven to past the 180-minute timeout with thirteen; four nights in a
-    # row were cancelled, and a cancelled run reported nothing. The timeout
-    # is a backstop above the deadline, with room to restore and save the
+    # target, so it grew with the targets: about 90 minutes with seven on
+    # 2026-10-28, when the runner did about 13K runs a second over all of
+    # them, and past the 180-minute timeout with thirteen, at about 3.4K a
+    # second (2026-11-06); five of the six nights from 1 November were
+    # cancelled, and a cancelled run reported nothing. The timeout is a
+    # backstop above the deadline, with room to restore and save the
     # corpus.
     timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && 180 || 50 }}
     # actions: read finds and downloads the corpus an earlier run kept.
@@ -105,12 +105,14 @@ jobs:
 
       # tools/fuzz.sh fails the step on a find, which `zig build --fuzz` alone
       # does not always do, and prints the failing input in hex. After a
-      # merge, one round of 50K a target, about 4 minutes. A night, rounds
-      # of 100K a target (about 100 s each with thirteen targets) until 30
-      # minutes are up: about 25 minutes of fuzzing, since no round starts
-      # that might end later than 4 minutes before the deadline. A round
-      # still running then is cut and fails the step: a hang the fuzzer
-      # found, or something as wrong.
+      # merge, one round of 50K a target, 3 to 7 minutes. A night, rounds of
+      # 100K a target until 30 minutes are up. A round took about 380 s on
+      # 2026-11-06 (run 42264883905: 395, 372 and 379 s, the first with the
+      # build), so a night is three rounds, about 19 minutes of fuzzing:
+      # no round starts that might end later than 4 minutes before the
+      # deadline. A round still running then is cut and fails the step: a
+      # hang the fuzzer found, or something as wrong. fuzz.sh prints each
+      # round's time, so a night that drifts says so.
       - name: Coverage-guided fuzzing
         env:
           LIMIT: ${{ github.event_name == 'push' && '50K' || inputs.limit || '1G' }}
