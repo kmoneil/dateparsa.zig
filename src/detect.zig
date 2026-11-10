@@ -167,17 +167,21 @@ fn findFormat(s: []const u8, cfg: Config, scratch: *Result) ?Found {
         if (rfc2822.match(s, cfg.locales)) |m| return .{ .mail = m };
         if (textual.detectTextual(s, cfg)) |r| return built(scratch, r);
     }
-    const index = hit orelse {
-        if (detectIso8601Frac(s)) |r| return built(scratch, r);
-        if (ambiguity.detectVariableNumeric(s, cfg)) |r| return built(scratch, r);
-        if (detectGoTimeString(s)) |r| return built(scratch, r);
-        if (detectDatePlusTz(s)) |r| return built(scratch, r);
-        return null;
-    };
+    const index = hit orelse return built(scratch, fallback(s, cfg) orelse return null);
     // NUMERIC_SEP ("03/15/2024") is ambiguous by signature and is resolved
     // by value and preference.
     if (formats.table[index].ambiguous) return built(scratch, ambiguity.resolve(s, cfg) orelse return null);
     return .{ .table = index };
+}
+
+/// The detectors for what no trie entry matched, in the order they are tried.
+fn fallback(s: []const u8, cfg: Config) ?Result {
+    if (detectIso8601Frac(s)) |r| return r;
+    if (ambiguity.detectVariableNumeric(s, cfg)) |r| return r;
+    if (detectGoTimeString(s)) |r| return r;
+    if (detectDatePlusTz(s)) |r| return r;
+    // Last, so it only reads what every detector above refused.
+    return detectIso8601Minute(s);
 }
 
 fn built(scratch: *Result, r: Result) Found {
@@ -463,8 +467,7 @@ fn appendIsoDateTime(def: *Def, s: []const u8) void {
 fn detectIso8601Frac(s: []const u8) ?Result {
     const n = s.len;
     if (n < 21) return null; // "YYYY-MM-DDTHH:MM:SS.f"; the zone is optional
-    if (!(isDigit(s[0]) and s[4] == '-' and s[7] == '-' and (s[10] == 'T' or s[10] == ' ') and
-        s[13] == ':' and s[16] == ':' and s[19] == '.')) return null;
+    if (!(isIsoDateTimeHead(s) and s[16] == ':' and s[19] == '.')) return null;
     var frac_end: usize = 20;
     while (frac_end < n and isDigit(s[frac_end])) frac_end += 1;
     const frac_len = frac_end - 20;
@@ -474,21 +477,32 @@ fn detectIso8601Frac(s: []const u8) ?Result {
     appendIsoDateTime(&def, s);
     def.append(lit(s, 19)) catch unreachable;
     def.append(field(.frac_sec, 20, @intCast(frac_len))) catch unreachable;
-    const pos = frac_end;
-    if (pos < n) {
-        const zone_at: u8 = @intCast(pos);
-        if (s[pos] == 'Z' and pos + 1 == n) {
-            def.append(field(.tz_z, zone_at, 1)) catch unreachable;
-        } else if ((s[pos] == '+' or s[pos] == '-') and (n - pos == 5 or n - pos == 6)) {
-            def.append(field(.tz_offset, zone_at, @intCast(n - pos))) catch unreachable;
-        } else {
-            // A space means a Go time.String() or a separated zone, which
-            // detectGoTimeString reads; describing only the prefix here read
-            // "...18:31:59.257000000 +0300 MSK" as UTC.
-            return null;
-        }
-    }
+    // Anything else after the fraction refuses: a space means a Go
+    // time.String() or a separated zone, which detectGoTimeString reads;
+    // describing only the prefix here read "...18:31:59.257000000 +0300 MSK"
+    // as UTC.
+    if (frac_end < n) def.append(isoZoneToEnd(s, frac_end) orelse return null) catch unreachable;
     return .{ .def = def };
+}
+
+/// Whether s starts "YYYY-MM-DDTHH:MM", or the same with a space for the
+/// 'T', by its punctuation; the fields check their own digits. Asserts
+/// s.len >= 16.
+fn isIsoDateTimeHead(s: []const u8) bool {
+    std.debug.assert(s.len >= 16);
+    const t_or_space = s[10] == 'T' or s[10] == ' ';
+    return isDigit(s[0]) and s[4] == '-' and s[7] == '-' and t_or_space and s[13] == ':';
+}
+
+/// The zone running from at to the end of s, a Z or a numeric offset
+/// ("+05:30", "-0800"), or null when s[at..] is neither.
+fn isoZoneToEnd(s: []const u8, at: usize) ?Field {
+    const len = s.len - at;
+    const off: u8 = @intCast(at);
+    if (s[at] == 'Z') return if (len == 1) field(.tz_z, off, 1) else null;
+    if (s[at] != '+' and s[at] != '-') return null;
+    if (len != 5 and len != 6) return null;
+    return field(.tz_offset, off, @intCast(len));
 }
 
 /// Go's time.Time.String(): "2015-02-08 03:02:00 +0300 MSK",
@@ -555,6 +569,26 @@ fn detectDatePlusTz(s: []const u8) ?Result {
         field(.month2, 5, 2), lit(s, 7),
         field(.day2, 8, 2),   field(.tz_offset, 10, @intCast(n - 10)),
     }) };
+}
+
+/// ISO 8601 to the minute, with an optional Z or numeric offset straight
+/// after it: "2024-03-15T10:30", "2024-03-15 10:30Z",
+/// "2024-03-15T10:30+05:30". The seconds read as zero. Go's table has no
+/// such format (kmoneil/dateparsa#37). Not a trie entry, because
+/// "2020-07-20+08:00" has the same signature, with a '+' where the 'T' is,
+/// and is a date with an offset (detectDatePlusTz).
+fn detectIso8601Minute(s: []const u8) ?Result {
+    // "YYYY-MM-DDTHH:MM"; the zone is optional
+    if (s.len < 16 or !isIsoDateTimeHead(s)) return null;
+    var def: Def = .init("ISO8601_DATETIME_HM", &.{
+        field(.year4, 0, 4),    lit(s, 4),
+        field(.month2, 5, 2),   lit(s, 7),
+        field(.day2, 8, 2),     lit(s, 10),
+        field(.hour24, 11, 2),  lit(s, 13),
+        field(.minute2, 14, 2),
+    });
+    if (s.len > 16) def.append(isoZoneToEnd(s, 16) orelse return null) catch unreachable;
+    return .{ .def = def };
 }
 
 const DateTime = @import("DateTime.zig");
@@ -639,6 +673,11 @@ test "the fallback detectors, end to end" {
         .{ "2024-03-15 10:30:00.123 -07:00", "GO_TIME_STRING", dt(2024, 3, 15, 10, 30, 0, 123_000_000, -25200) },
         .{ "2020-07-20+08:00", "ISO_DATE_TZ", dt(2020, 7, 20, 0, 0, 0, 0, 28800) },
         .{ "2020-07-20-0330", "ISO_DATE_TZ", dt(2020, 7, 20, 0, 0, 0, 0, -12600) },
+        .{ "2024-03-15T10:30", "ISO8601_DATETIME_HM", dt(2024, 3, 15, 10, 30, 0, 0, 0) },
+        .{ "2024-03-15 10:30", "ISO8601_DATETIME_HM", dt(2024, 3, 15, 10, 30, 0, 0, 0) },
+        .{ "2024-03-15T10:30Z", "ISO8601_DATETIME_HM", dt(2024, 3, 15, 10, 30, 0, 0, 0) },
+        .{ "2024-03-15T10:30+05:30", "ISO8601_DATETIME_HM", dt(2024, 3, 15, 10, 30, 0, 0, 19800) },
+        .{ "2024-03-15 10:30-0800", "ISO8601_DATETIME_HM", dt(2024, 3, 15, 10, 30, 0, 0, -28800) },
     };
     for (cases) |c| {
         errdefer std.debug.print("case \"{s}\"\n", .{c[0]});
@@ -653,6 +692,9 @@ test "the fallback detectors refuse what they cannot describe" {
         "2024-000", "2024-367", "2024-W1", "2024-W11-",
         "2024-03-15T10:30:00.1234567890Z", // a fraction past nanoseconds
         "2024-03-15T10:30:00.123+05", // no zone shape this detector knows
+        "2024-03-15T10:30+05", // nor this one
+        "2024-03-15T10:30+05:300",
+        "2024-03-15T10:30:", // seconds begun and not given
         "2024-03-15 10:30:00 +0000 UTC ; DROP TABLE users",
         "2024-03-15 10:30:00.99999999999999999999999 +0000 UTC",
         "14年04月08日",
@@ -669,6 +711,9 @@ test "the fallback detectors refuse what they cannot describe" {
     }
     // Detected by shape; the executor refuses the offset.
     try std.testing.expectError(error.NoMatch, parseOnce("2020-07-20+8:00"));
+    // And the hour, and a day February does not have.
+    try std.testing.expectError(error.NoMatch, parseOnce("2024-03-15T24:00"));
+    try std.testing.expectError(error.NoMatch, parseOnce("2024-02-30T10:30"));
 }
 
 test "detect refuses what no program can describe" {
@@ -704,6 +749,10 @@ const field_corpus = [_][]const u8{
     "2024-03-15T10:30:00.123Z",
     "2024-03-15 10:30:00",
     "2024-03-15 10:30:00 UTC",
+    // Not Go's: to the minute (kmoneil/dateparsa#37).
+    "2024-03-15T10:30",
+    "2024-03-15 10:30Z",
+    "2024-03-15T10:30-08:00",
     "2024-03-15 10:30:00.123456",
     "2015-02-08 03:02:00 +0300 MSK",
     "2012-08-03 18:31:59.257000000 +0000 UTC",

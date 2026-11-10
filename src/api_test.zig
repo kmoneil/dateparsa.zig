@@ -280,3 +280,23 @@ test "detect gives the layout, and locales are named by tag" {
     }
     try std.testing.expectEqual(null, dp.localeSet("xx"));
 }
+
+test "a date-time to the minute reads in the zone given, and its layout reuses" {
+    // Not in Go's table (kmoneil/dateparsa#37).
+    const at = struct {
+        fn f(minute: u8, offset: i32) DateTime {
+            return .{ .year = 2026, .month = 11, .day = 8, .hour = 10, .minute = minute, .offset_seconds = offset };
+        }
+    }.f;
+    const r = try dp.parseWith("2026-11-08 10:42", .{ .timezone_offset = 3600 });
+    try std.testing.expectEqual(at(42, 3600), r.time);
+    try std.testing.expectEqualStrings("ISO8601_DATETIME_HM", r.layout.label);
+    try std.testing.expect(r.layout.reusable());
+    try std.testing.expectEqual(at(43, 3600), try r.layout.parse("2026-11-08 10:43"));
+    // The layout holds the byte between date and time, as detection checked it.
+    try std.testing.expectError(error.NoMatch, r.layout.parse("2026-11-08T10:43"));
+    // A zone in the input wins over the one given.
+    try std.testing.expectEqual(at(42, 0), (try dp.parseWith("2026-11-08T10:42Z", .{ .timezone_offset = 3600 })).time);
+    // A date with an offset, the same signature, keeps its own reading.
+    try std.testing.expectEqualStrings("ISO_DATE_TZ", (try dp.parse("2020-07-20+08:00")).layout.label);
+}

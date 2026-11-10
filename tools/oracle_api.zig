@@ -9,6 +9,10 @@
 //! no base time an input fails with error.NoBaseTime exactly where Go's
 //! answer changed between the two base times it was given, and gives Go's
 //! answer everywhere else. It exits 1 on a mismatch there.
+//!
+//! Where Go refuses an input and this port reads it with a layout listed in
+//! `deliberate`, Go's answer is written in place of this port's and the row
+//! is counted, so the diff shows only differences nobody decided on.
 
 const std = @import("std");
 const dp = @import("dateparsa");
@@ -38,12 +42,33 @@ pub fn main(init: std.process.Init) !void {
     defer file.close(io);
     var buf: [1 << 16]u8 = undefined;
     var fw = file.writer(io, &buf);
-    const mismatches = try run(input, &fw.interface);
+    const counts = try run(input, &fw.interface);
     try fw.interface.flush();
-    if (mismatches > 0) {
-        std.debug.print("{d} no-base-time mismatches\n", .{mismatches});
+    if (counts.deliberate > 0) {
+        std.debug.print("{d} answers read where Go refuses, on purpose (deliberate in tools/oracle_api.zig)\n", .{counts.deliberate});
+    }
+    if (counts.mismatches > 0) {
+        std.debug.print("{d} no-base-time mismatches\n", .{counts.mismatches});
         std.process.exit(1);
     }
+}
+
+/// The layouts this port reads with where Go has no format, each listed in
+/// the README's "Differences from the Go original".
+const deliberate = [_][]const u8{
+    "ISO8601_DATETIME_HM", // kmoneil/dateparsa#37
+};
+
+/// Whether this port's answer is a deliberate reading of an input Go refuses.
+fn isDeliberate(go_answer: []const u8, zig_answer: []const u8) bool {
+    if (!std.mem.eql(u8, go_answer, "err nomatch")) return false;
+    if (!std.mem.startsWith(u8, zig_answer, "ok ")) return false;
+    for (deliberate) |label| {
+        var buf: [64]u8 = undefined;
+        const needle = std.fmt.bufPrint(&buf, " label={s} ", .{label}) catch unreachable;
+        if (std.mem.indexOf(u8, zig_answer, needle) != null) return true;
+    }
+    return false;
 }
 
 /// Every compiled-in locale: the set's backing integer has one bit each.
@@ -94,12 +119,26 @@ fn fmtResult(w: *Io.Writer, res: dp.ParseError!dp.Result, diag: *const dp.Diagno
     });
 }
 
-fn run(input: []const u8, w: *Io.Writer) !usize {
+/// This port's answer to s under option set ci, in Go's place when it is a
+/// deliberate reading of an input Go refuses (counted in deliberate_count).
+fn answer(buf: []u8, s: []const u8, ci: usize, go_answer: []const u8, deliberate_count: *usize) ![]const u8 {
+    var diag: dp.Diagnostics = .{};
+    var aw: Io.Writer = .fixed(buf);
+    try fmtResult(&aw, dp.parseWith(s, options(ci, &diag)), &diag);
+    if (!isDeliberate(go_answer, aw.buffered())) return aw.buffered();
+    deliberate_count.* += 1;
+    return go_answer;
+}
+
+const Counts = struct { mismatches: usize = 0, deliberate: usize = 0 };
+
+fn run(input: []const u8, w: *Io.Writer) !Counts {
     var lines = std.mem.splitScalar(u8, input, '\n');
     var in_buf: [4096]u8 = undefined;
     var row_buf: [4096]u8 = undefined;
+    var answer_buf: [4096]u8 = undefined;
     var go: [9][]const u8 = undefined;
-    var mismatches: usize = 0;
+    var counts: Counts = .{};
     while (lines.next()) |line| {
         if (line.len == 0) continue;
         var it = std.mem.splitScalar(u8, line, ' ');
@@ -124,21 +163,18 @@ fn run(input: []const u8, w: *Io.Writer) !usize {
         const hex = it.next().?;
         go[ci] = it.rest();
         const s = try std.fmt.hexToBytes(&in_buf, hex);
-        var diag: dp.Diagnostics = .{};
-        try w.print("{d} {s} ", .{ ci, hex });
-        try fmtResult(w, dp.parseWith(s, options(ci, &diag)), &diag);
-        try w.writeAll("\n");
+        try w.print("{d} {s} {s}\n", .{ ci, hex, try answer(&answer_buf, s, ci, go[ci], &counts.deliberate) });
         if (ci != 8) continue;
         const want = if (std.mem.eql(u8, go[0], go[7])) go[0] else "err nobase";
         var nd: dp.Diagnostics = .{};
         var got_buf: [1024]u8 = undefined;
         var gw: Io.Writer = .fixed(&got_buf);
         try fmtResult(&gw, dp.parseWith(s, .{ .diagnostics = &nd }), &nd);
-        if (!std.mem.eql(u8, want, gw.buffered())) {
-            mismatches += 1;
-            const got = gw.buffered();
+        const got = gw.buffered();
+        if (!std.mem.eql(u8, want, got) and !isDeliberate(want, got)) {
+            counts.mismatches += 1;
             std.debug.print("no base time, {s}:\n  want {s}\n  got  {s}\n", .{ hex, want, got });
         }
     }
-    return mismatches;
+    return counts;
 }

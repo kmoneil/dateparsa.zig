@@ -469,8 +469,8 @@ oldest system you ship to, such as `-Dtarget=aarch64-macos.13.0`.
 
 | Family | Examples |
 |---|---|
-| ISO 8601 / RFC 3339 | `2024-03-15` · `2024-03-15T10:30:00Z` · `2024-03-15T10:30:00.123456+05:30` · `2024-W11-5` · `2024-074` · `2020-07-20+08:00` |
-| SQL and logs | `2024-03-15 10:30:00` · `2024-03-15 10:30:00.000000` · `2024-03-15 10:30:00+00` · `2014-12-16 06:20:00 UTC` · `2014-05-11 08:20:13,787` |
+| ISO 8601 / RFC 3339 | `2024-03-15` · `2024-03-15T10:30:00Z` · `2024-03-15T10:30` · `2024-03-15T10:30:00.123456+05:30` · `2024-W11-5` · `2024-074` · `2020-07-20+08:00` |
+| SQL and logs | `2024-03-15 10:30:00` · `2024-03-15 10:30` · `2024-03-15 10:30:00.000000` · `2024-03-15 10:30:00+00` · `2014-12-16 06:20:00 UTC` · `2014-05-11 08:20:13,787` |
 | Compact | `20240315` · `20240315T103000Z` · `20240315103000` · `171113` |
 | Numeric | `03/15/2024` · `15.03.2024` · `3/15/24` · `3/15/2024 10:30 PM` |
 | Textual | `March 15, 2024` · `15 Mar 2024` · `December 23rd` · `March 2024` · `the 15th of March 2024` |
@@ -513,6 +513,7 @@ Each is deliberate.
 | Error structs with formatted messages | An error set plus optional `Diagnostics`; no input bytes are copied |
 | Natural-language readings labelled with their dates | Labelled `NATURAL_LANGUAGE`; the times tell them apart |
 | A reused layout folds month names with Unicode case rules | ASCII case, as detection already does ([kmoneil/dateparsa#36](https://github.com/kmoneil/dateparsa/issues/36)) |
+| No format for an ISO 8601 date-time to the minute: `2024-03-15T10:30`, `2024-03-15 10:30Z`, `2024-03-15T10:30+05:30` | Read with the seconds at zero ([kmoneil/dateparsa#37](https://github.com/kmoneil/dateparsa/issues/37)) |
 | All locales always linked | Chosen at build time with `-Dlocales` |
 | `flextime`: `database/sql`, JSON and text (un)marshalling, `WithJSONFormat`, layout caches shared by the process | `FlexTime`: `std.json` hooks and `fromValue`, always RFC 3339 out, caches per thread |
 
@@ -521,7 +522,7 @@ Each is deliberate.
 | Check | What it covers |
 |---|---|
 | `zig build test` | The full suite, including every row of the Go library's golden corpus (`testdata/golden.txt`, 1,377 inputs) and every example in this README, format table included. It runs [zigvet](https://github.com/kmoneil/zigvet) too, for code the compiler accepts that is almost certainly wrong, and [gnarl](https://github.com/kmoneil/gnarl), which fails a function newly over its complexity limit or more complex than `complexity.baseline` holds it |
-| `tools/oracle.sh` | Runs the Go library and this port side by side: 33,186 public-API answers under nine option sets, including a first row's layout reused on 3,522 other rows, and 124,068 natural-language answers across every locale. All identical. |
+| `tools/oracle.sh` | Runs the Go library and this port side by side: 33,186 public-API answers under nine option sets, including a first row's layout reused on 3,522 other rows, and 124,068 natural-language answers across every locale. All identical, but for the 189 answers that read an ISO 8601 date-time to the minute, which Go refuses (see Differences from the Go original): those are counted apart. |
 | `tools/fuzz.sh` | Zig's fuzzer on twelve properties: any bytes parse without tripping a safety check, to a time that round-trips through RFC 3339 and that the result's layout re-reads, and whose format string in every dialect is spelled or refused; a layout reused on another input refuses it or agrees with detection; a primed `Parser` agrees with `parseWith`; the fast path agrees with the interpreter; any JSON `FlexTime` reads is a valid time whose RFC 3339 reads back to it; `FlexTime`'s caches agree with cold ones; each field order a column's values are said to fit is the order their preferences read, and a column's options read every value that fits its order in it; the C API refuses exactly the options it must, whatever a C struct holds, and otherwise answers as `parseWith` does; the C column call, on any bytes split at any separator, answers for each value what a `Parser` answers; an email or HTTP date read by its shape is read as the textual detector reads it; a layout's format string, read back, reads the value it was spelled from to the same time and agrees with the layout wherever both read; and a layout read from any format string spells formats that read back to the same time. `zig build test` replays their seeds: the Go library's fuzz seeds and crashers, the golden corpus and every format's example |
 | CI | Every pull request runs formatting, zigvet, gnarl and `zig build test` on Linux, macOS and Windows, in every optimize mode, and with only `en` or only `fr,de` compiled in. The fuzzer runs 50K times a target after each merge and for half an hour a night, from a corpus kept between runs; a find, or a run that does not finish, opens an issue |
 | C API | `zig build test` also checks `include/dateparsa.h` against the exports field by field, calls through the header on every golden row under five option sets, down the corpus with a parser, and as one column call under four, runs `test/c_api.c` against the static library on every platform CI covers, and compiles the header as C++ |
