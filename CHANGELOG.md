@@ -10,6 +10,18 @@ the difference. Before 1.0 a breaking change is a minor bump.
 
 ## [Unreleased]
 
+### Added
+
+- ISO 8601 date-times to the minute: `2024-03-15T10:30`, `2024-03-15 10:30`,
+  and either with a `Z` or a numeric offset (`+05:30`, `-0800`) straight
+  after. They read with the seconds at zero, in the zone given when the
+  input names none, and their layout reuses down a column. Each was
+  refused before, as the Go library still refuses them
+  (kmoneil/dateparsa#37), so this changes what those inputs parse to; every
+  input that read before reads as it did, `2020-07-20+08:00` included,
+  whose signature is the same. `tools/oracle.sh` counts the 189 answers
+  where Go refuses and this port reads apart from the rest, which agree.
+
 ### Changed
 
 - The nightly fuzz run is held to half an hour, not 10M runs a target.
