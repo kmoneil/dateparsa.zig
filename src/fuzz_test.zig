@@ -787,6 +787,9 @@ fn findSeeds(arena: Allocator) ![]const []const u8 {
     const lines = [_][]const u8{
         "10.0.0.7 - - [09/Nov/2026:23:59:59 +0000] \"GET / HTTP/1.1\" 200 512",
         "Nov  8 10:00:05 host sshd[1]: Accepted publickey",
+        "Nov 18 10:00:05 host sshd[123]: Accepted",
+        "15 March 10:30:05 kernel: up",
+        "Nov 18 10:00:05 rotated 2024-03-15.log",
         "{\"ts\":\"2026-11-08T10:00:01Z\",\"msg\":\"up\"}",
         "Date: Sun, 08 Nov 2026 10:00:05 +0000",
         "2026-11-08 10:00:01,123 INFO started",

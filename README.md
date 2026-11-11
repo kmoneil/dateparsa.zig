@@ -277,10 +277,12 @@ on a word's last, crosses no line break, quote, bracket, brace, parenthesis,
 dates with a separator or a word in them are found: natural language
 (`.natural = true`) finds dates in ordinary words, and a lone number
 (`.numbers = true`: `2024`, `20240315`, `1710504800`) is in a log line far more
-often a port, an id or a count. A span that needs a base time the options lack,
-or that strict mode finds ambiguous, is passed over. A layout read from a month
-name reads only that month, so a log written with them (syslog, the common log
-format) needs `findFirst` again when the month changes.
+often a port, an id or a count. A date that needs a base time the options lack
+is passed over whole, so no piece of it reads as another date (`Nov 18 10` in
+`Nov 18 10:00:05` is not 10 November 2018), and a span strict mode finds
+ambiguous is passed over too. A layout read from a month name reads any month
+written the same way, so it follows a log written with them (syslog, the common
+log format) into the next month.
 
 ### Natural language
 
@@ -559,6 +561,7 @@ Each is deliberate.
 | No format for a one-digit hour: `1:30 PM`, `3/15/2024 9:05 AM`, `2024-03-15 1:30:00` | Read as the zero-padded form is, under its label ([kmoneil/dateparsa#38](https://github.com/kmoneil/dateparsa/issues/38)) |
 | The layout of a day padded with a space (`Nov  8 10:00:05`, syslog and asctime) refuses a two-digit day: `Nov 10 23:59:59` | Read: the day is a space and a digit, or two digits ([kmoneil/dateparsa#42](https://github.com/kmoneil/dateparsa/issues/42)) |
 | A layout with a month name reads only that month: the layout of `Nov 30 23:59:59` refuses `Dec  1 00:00:00` | Any month written in the same form, abbreviation or full name ([kmoneil/dateparsa#43](https://github.com/kmoneil/dateparsa/issues/43)) |
+| No format for a day, a month name and a time with no year: `15 Mar 10:00`, `15 March 10:30:05` | Read as `Mar 15 10:00` is ([kmoneil/dateparsa#44](https://github.com/kmoneil/dateparsa/issues/44)) |
 | All locales always linked | Chosen at build time with `-Dlocales` |
 | `flextime`: `database/sql`, JSON and text (un)marshalling, `WithJSONFormat`, layout caches shared by the process | `FlexTime`: `std.json` hooks and `fromValue`, always RFC 3339 out, caches per thread |
 
@@ -567,7 +570,7 @@ Each is deliberate.
 | Check | What it covers |
 |---|---|
 | `zig build test` | The full suite, including every row of the Go library's golden corpus (`testdata/golden.txt`, 1,377 inputs) and every example in this README, format table included. It runs [zigvet](https://github.com/kmoneil/zigvet) too, for code the compiler accepts that is almost certainly wrong, and [gnarl](https://github.com/kmoneil/gnarl), which fails a function newly over its complexity limit or more complex than `complexity.baseline` holds it |
-| `tools/oracle.sh` | Runs the Go library and this port side by side: 33,186 public-API answers under nine option sets, including a first row's layout reused on 3,522 other rows, and 124,068 natural-language answers across every locale. All identical, but for 1,979 answers that differ on purpose (see Differences from the Go original), which are counted apart: 189 read an ISO 8601 date-time to the minute, which Go refuses, 1,572 read a time alone on the base time's day, where Go reads 1 January, and 218 reuse the layout of a month name or a padded day on a row Go's layout refuses: another month, or a two-digit day for a padded one and back. |
+| `tools/oracle.sh` | Runs the Go library and this port side by side: 33,186 public-API answers under nine option sets, including a first row's layout reused on 3,522 other rows, and 124,068 natural-language answers across every locale. All identical, but for 1,988 answers that differ on purpose (see Differences from the Go original), which are counted apart: 189 read an ISO 8601 date-time to the minute, which Go refuses, 1,572 read a time alone on the base time's day, where Go reads 1 January, 218 reuse the layout of a month name or a padded day on a row Go's layout refuses (another month, or a two-digit day for a padded one and back), and 9 read a day, a month name and a time with no year, which Go refuses. |
 | `tools/fuzz.sh` | Zig's fuzzer on twelve properties: any bytes parse without tripping a safety check, to a time that round-trips through RFC 3339 and that the result's layout re-reads, and whose format string in every dialect is spelled or refused; a layout reused on another input refuses it or agrees with detection; a primed `Parser` agrees with `parseWith`; the fast path agrees with the interpreter; any JSON `FlexTime` reads is a valid time whose RFC 3339 reads back to it; `FlexTime`'s caches agree with cold ones; each field order a column's values are said to fit is the order their preferences read, and a column's options read every value that fits its order in it; the C API refuses exactly the options it must, whatever a C struct holds, and otherwise answers as `parseWith` does; the C column call, on any bytes split at any separator, answers for each value what a `Parser` answers; an email or HTTP date read by its shape is read as the textual detector reads it; a layout's format string, read back, reads the value it was spelled from to the same time and agrees with the layout wherever both read; and a layout read from any format string spells formats that read back to the same time. `zig build test` replays their seeds: the Go library's fuzz seeds and crashers, the golden corpus and every format's example |
 | CI | Every pull request runs formatting, zigvet, gnarl and `zig build test` on Linux, macOS and Windows, in every optimize mode, and with only `en` or only `fr,de` compiled in. The fuzzer runs 50K times a target after each merge and for half an hour a night, from a corpus kept between runs; a find, or a run that does not finish, opens an issue |
 | C API | `zig build test` also checks `include/dateparsa.h` against the exports field by field, calls through the header on every golden row under five option sets, down the corpus with a parser, and as one column call under four, runs `test/c_api.c` against the static library on every platform CI covers, and compiles the header as C++ |

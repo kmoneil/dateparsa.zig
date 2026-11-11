@@ -183,7 +183,9 @@ pub const FindAlso = struct {
 /// numbers. A span whose last bytes the reading only passes over is too
 /// long, and a shorter one is taken. A span that
 /// needs a base time opts lacks, or that strict mode finds ambiguous, is no
-/// date here; opts.diagnostics is not written.
+/// date here; where the first needs one, no shorter span at its start is
+/// either, so "Nov 18 10:00:05" with no base time finds nothing, not
+/// "Nov 18 10" as 2018. opts.diagnostics is not written.
 ///
 /// "10.0.0.7 - - [09/Nov/2026:23:59:59 +0000] \"GET /\"" finds
 /// "09/Nov/2026:23:59:59 +0000". For the next lines of one log, the
@@ -207,26 +209,63 @@ pub fn findAll(text: []const u8, opts: Options, also: FindAlso, out: []Match) []
 fn findFrom(text: []const u8, from: usize, opts_in: Options, also: FindAlso) ?Match {
     var opts = opts_in;
     opts.diagnostics = null;
-    for (from..text.len) |i| {
+    var i = from;
+    while (i < text.len) : (i += 1) {
         if (!span.isStart(text, i)) continue;
         if (!also.natural and !span.mayStartStructured(text, i, opts.locales)) continue;
-        if (longestAt(text, i, opts, also)) |m| return m;
+        switch (longestAt(text, i, opts, also)) {
+            .found => |m| return m,
+            // The next start inside it would read a piece of it.
+            .unread => |end| i = end - 1,
+            .none => {},
+        }
     }
     return null;
 }
 
+/// What a start holds: a date, a date that needs a base time opts lacks
+/// (the end of its span), or neither.
+const AtStart = union(enum) { found: Match, unread: usize, none };
+
 /// The longest span starting at start that reads, trying the longest first.
-fn longestAt(text: []const u8, start: usize, opts: Options, also: FindAlso) ?Match {
+///
+/// Where the span a base time would read needs one opts lacks, that span is
+/// a date this cannot read, and no part of it is another: not a shorter span
+/// ("Nov 18 10", the 10th of November 2018, in "Nov 18 10:00:05") nor one
+/// starting inside it ("March 10:30", 30 March 2010, in "15 March
+/// 10:30:05"). So with no base time a date is found where it is with one,
+/// or nothing is.
+fn longestAt(text: []const u8, start: usize, opts: Options, also: FindAlso) AtStart {
     var end = span.limit(text, start);
     while (end > start) : (end -= 1) {
         if (!span.isEnd(text, end)) continue;
         if (!also.numbers and span.isNumber(text[start..end])) continue;
-        const r = parseAs(text[start..end], opts, also) catch continue;
-        // Words read past, not a longer date: a shorter span ends at its value.
-        if (r.layout.source == .program and start + span.valueEnd(&r.layout.program) < end) continue;
-        return .{ .start = start, .end = end, .result = r };
+        const s = text[start..end];
+        const r = parseAs(s, opts, also) catch |err| {
+            if (endsSearch(err, s, opts, also)) return .{ .unread = end };
+            continue;
+        };
+        if (!readsToEnd(&r, s.len)) continue;
+        return .{ .found = .{ .start = start, .end = end, .result = r } };
     }
-    return null;
+    return .none;
+}
+
+/// Whether r reads its input to the last byte: words a reading only passes
+/// over are no longer date, and a shorter span ends at its value.
+fn readsToEnd(r: *const Result, len: usize) bool {
+    return r.layout.source != .program or span.valueEnd(&r.layout.program) >= len;
+}
+
+/// Whether err, refusing span s, ends the search at its start: s needs a
+/// base time opts lacks and is the span findFirst would take given one,
+/// reading with a stand-in base to its last byte.
+fn endsSearch(err: ParseError, s: []const u8, opts_in: Options, also: FindAlso) bool {
+    if (err != error.NoBaseTime) return false;
+    var opts = opts_in;
+    opts.base_time = probe_base;
+    const r = parseAs(s, opts, also) catch return false;
+    return readsToEnd(&r, s.len);
 }
 
 /// s, with no padding, parsed as a structured date, then as a Unix
