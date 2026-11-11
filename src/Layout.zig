@@ -26,6 +26,7 @@
 const std = @import("std");
 const DateTime = @import("DateTime.zig");
 const compile = @import("compile.zig");
+const span = @import("find.zig");
 const detect = @import("detect.zig");
 const formats = @import("formats.zig");
 const signature = @import("signature.zig");
@@ -160,6 +161,56 @@ pub fn parse(l: *const Layout, s: []const u8) error{NoMatch}!DateTime {
     if (l.source != .program) return error.NoMatch;
     const value = if (l.trims_padding and signature.hasPadding(s)) signature.trimPadding(s) else s;
     return l.program.execute(value);
+}
+
+/// Where Layout.find found its format.
+pub const Found = struct {
+    /// text[start..end] is the date.
+    start: usize,
+    end: usize,
+    time: DateTime,
+};
+
+/// Where this layout's format sits in text, and what it reads there: at
+/// the leftmost word that starts a span it reads, the longest such span.
+/// Spans follow findFirst's rules (find.zig). For the lines of one log
+/// after findFirst on the first: each line's date is found wherever the
+/// line puts it, with no detection. An ambiguity-prone layout reads in the
+/// order its first value settled, as parse does. Null for a sentinel
+/// layout, or when no span reads.
+pub fn find(l: *const Layout, text: []const u8) ?Found {
+    if (l.source != .program) return null;
+    for (0..text.len) |i| {
+        if (!span.isStart(text, i)) continue;
+        if (l.readAt(text, i)) |f| return f;
+    }
+    return null;
+}
+
+/// The longest span from start this layout reads. A fixed-slot program
+/// reads exactly its width (or width_alt, its 'Z' form), so only those are
+/// tried; any other, each word end before the limit, longest first.
+fn readAt(l: *const Layout, text: []const u8, start: usize) ?Found {
+    const stop = span.limit(text, start);
+    const p = &l.program;
+    if (p.isFast()) {
+        for ([_]usize{ @max(p.width, p.width_alt), @min(p.width, p.width_alt) }) |w| {
+            if (start + w > stop) continue;
+            if (readSpan(p, text, start, start + w)) |f| return f;
+        }
+        return null;
+    }
+    var end = stop;
+    while (end > start) : (end -= 1) {
+        if (readSpan(p, text, start, end)) |f| return f;
+    }
+    return null;
+}
+
+fn readSpan(p: *const compile.Program, text: []const u8, start: usize, end: usize) ?Found {
+    if (!span.isEnd(text, end)) return null;
+    const t = p.execute(text[start..end]) catch return null;
+    return .{ .start = start, .end = end, .time = t };
 }
 
 /// The layout every default-configuration parse of a trie format shares,

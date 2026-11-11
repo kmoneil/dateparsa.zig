@@ -12,6 +12,15 @@ the difference. Before 1.0 a breaking change is a minor bump.
 
 ### Added
 
+- Dates inside text. `findFirst` finds the first date in a log line or a
+  sentence and says where it is (`Match.start`, `Match.end`) and what it
+  reads as; `findAll` finds every one into a buffer the caller gives; and
+  `Layout.find` finds a found layout's format on the next lines of a log
+  with no detection. By default only structured dates with a separator or
+  a word in them are found; `FindAlso.natural` adds natural language and
+  `FindAlso.numbers` lone numbers (a bare year, a compact date, a Unix
+  timestamp). Nothing allocates. The C interface and the Python package do
+  not have it yet.
 - A time with a one-digit hour: `1:30 PM`, `9:05 am`, `9:30`,
   `3/15/2024 1:30 PM`, `2024-03-15 1:30:00`, `March 15, 2024 1:30 PM`.
   Each reads as its zero-padded form does, under the same label, and its

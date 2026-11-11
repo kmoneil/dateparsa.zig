@@ -230,6 +230,95 @@ test "a dotted date with a time reads as the dotted date alone does" {
     }
 }
 
+/// The base time the find tests read against.
+const find_base: DateTime = .{ .year = 2026, .month = 11, .day = 11, .hour = 12 };
+
+test "findFirst finds a log line's date and where it is" {
+    const Case = struct { []const u8, []const u8 };
+    const cases = [_]Case{
+        .{ "10.0.0.7 - - [09/Nov/2026:23:59:59 +0000] \"GET / HTTP/1.1\" 200 512", "09/Nov/2026:23:59:59 +0000" },
+        .{ "Nov  8 10:00:05 host sshd[1]: Accepted publickey for root", "Nov  8 10:00:05" },
+        .{ "{\"ts\":\"2026-11-08T10:00:01Z\",\"msg\":\"up\"}", "2026-11-08T10:00:01Z" },
+        .{ "Date: Sun, 08 Nov 2026 10:00:05 +0000", "Sun, 08 Nov 2026 10:00:05 +0000" },
+        .{ "2026-11-08 10:00:01,123 INFO started", "2026-11-08 10:00:01,123" },
+        .{ "Shipped on March 5, after the freeze.", "March 5" },
+        .{ "release 1.2.3 shipped 2024-03-15", "2024-03-15" },
+    };
+    for (cases) |c| {
+        errdefer std.debug.print("\"{s}\"\n", .{c[0]});
+        const m = dp.findFirst(c[0], .{ .base_time = find_base }, .{}) orelse return error.NotFound;
+        try std.testing.expectEqualStrings(c[1], c[0][m.start..m.end]);
+        // The span reads alone as it read in place.
+        try std.testing.expectEqual((try dp.parseWith(c[1], .{ .base_time = find_base })).time, m.result.time);
+    }
+    // No structured date: words, a request, a version, an address, an id.
+    for ([_][]const u8{ "", "GET /index.html 200 512", "version 1.2.3", "10.0.0.7", "pid 1710504800 exited", "port 8080 open", "backup 20240315", "now and then" }) |t| {
+        errdefer std.debug.print("\"{s}\"\n", .{t});
+        try std.testing.expectEqual(null, dp.findFirst(t, .{ .base_time = find_base }, .{}));
+    }
+}
+
+test "findFirst reads natural language and timestamps when asked" {
+    const sentence = "Moved to next Friday at 3pm, was March 5.";
+    const m = dp.findFirst(sentence, .{ .base_time = find_base }, .{ .natural = true }).?;
+    try std.testing.expectEqualStrings("next Friday at 3pm", sentence[m.start..m.end]);
+    try std.testing.expectEqual(dp.Kind.relative, m.result.kind);
+
+    // A lone number is a date only when asked, and then the first is.
+    const line = "pid 4021 exited at 1710504800";
+    try std.testing.expectEqual(null, dp.findFirst(line, .{}, .{}));
+    const t = dp.findFirst(line, .{}, .{ .numbers = true }).?;
+    try std.testing.expectEqualStrings("4021", line[t.start..t.end]);
+    const stamp = "exited at 1710504800";
+    const s = dp.findFirst(stamp, .{}, .{ .numbers = true }).?;
+    try std.testing.expectEqual(dp.Layout.epoch.label, s.result.layout.label);
+}
+
+test "findFirst passes over what it cannot settle" {
+    // A span that needs a base time with none given, and one strict mode
+    // finds ambiguous, are no date here; the next one is found.
+    const line = "at 10:30 on 01/02/2024 and 2024-03-15";
+    const no_base = dp.findFirst(line, .{}, .{}).?;
+    try std.testing.expectEqualStrings("01/02/2024", line[no_base.start..no_base.end]);
+    const strict = dp.findFirst(line, .{ .strict = true }, .{}).?;
+    try std.testing.expectEqualStrings("2024-03-15", line[strict.start..strict.end]);
+    // A date does not run over a line break.
+    const two = "2024-03-15\n10:30";
+    const d = dp.findFirst(two, .{ .base_time = find_base }, .{}).?;
+    try std.testing.expectEqual(10, d.end);
+}
+
+test "findAll finds each date once, left to right" {
+    const text = "from 2024-03-15 to 2024-03-20, then 2024-03-15/2024-03-22";
+    var buf: [8]dp.Match = undefined;
+    const all = dp.findAll(text, .{}, .{}, &buf);
+    const want = [_][]const u8{ "2024-03-15", "2024-03-20", "2024-03-15", "2024-03-22" };
+    try std.testing.expectEqual(want.len, all.len);
+    for (want, all) |w, m| try std.testing.expectEqualStrings(w, text[m.start..m.end]);
+    // As many as the buffer holds.
+    try std.testing.expectEqual(2, dp.findAll(text, .{}, .{}, buf[0..2]).len);
+    try std.testing.expectEqual(0, dp.findAll(text, .{}, .{}, buf[0..0]).len);
+}
+
+test "a found layout finds its format on the next lines" {
+    const clf = [_][]const u8{
+        "10.0.0.7 - - [09/Nov/2026:23:59:59 +0000] \"GET /\" 200",
+        "192.168.100.200 - bob [10/Nov/2026:00:00:01 +0100] \"POST /x\" 201",
+        "no date on this line",
+    };
+    const first = dp.findFirst(clf[0], .{}, .{}).?;
+    const next = first.result.layout.find(clf[1]).?;
+    try std.testing.expectEqualStrings("10/Nov/2026:00:00:01 +0100", clf[1][next.start..next.end]);
+    try std.testing.expectEqual((try dp.parse("10/Nov/2026:00:00:01 +0100")).time, next.time);
+    try std.testing.expectEqual(null, first.result.layout.find(clf[2]));
+
+    // As far as the layout itself reuses: the same month, a one-digit day.
+    const syslog = [_][]const u8{ "Nov  8 10:00:05 host a: x", "Nov  9 23:59:59 other-host b[2]: y" };
+    const s0 = dp.findFirst(syslog[0], .{ .base_time = find_base }, .{}).?;
+    const s1 = s0.result.layout.find(syslog[1]).?;
+    try std.testing.expectEqualStrings("Nov  9 23:59:59", syslog[1][s1.start..s1.end]);
+}
+
 test "surrounding ASCII whitespace is padding on every path" {
     const Case = struct { []const u8, DateTime };
     const values = [_]Case{
