@@ -10,6 +10,18 @@ the difference. Before 1.0 a breaking change is a minor bump.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.9.0] - 2026-11-11
+
+A found or detected layout now follows a log through its days and months:
+syslog's `Nov  8` reads `Nov 10`, and a month name reads any month written
+the same way, so `Nov 30 23:59:59` reads `Dec  1 00:00:00` and the common
+log format's `30/Nov` reads `01/Dec`. What every input parses to alone is
+unchanged. What a reused layout answers is not: it now reads rows it
+refused, through the library, its C interface and the Python package
+alike, so this is a minor release.
+
 ### Changed
 
 - A layout with a month name reads any month written in the same form,
@@ -446,7 +458,8 @@ what was changed on purpose.
 - No allocation on any path and no clock: an input that needs a base time and
   was given none fails with `error.NoBaseTime`.
 
-[Unreleased]: https://github.com/kmoneil/dateparsa.zig/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/kmoneil/dateparsa.zig/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/kmoneil/dateparsa.zig/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/kmoneil/dateparsa.zig/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/kmoneil/dateparsa.zig/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/kmoneil/dateparsa.zig/compare/v0.5.2...v0.6.0
