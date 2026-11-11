@@ -19,9 +19,8 @@ src/detect.zig	appendTime	26	24	22	3	3	3
 src/detect.zig	appendTimeSuffix	25	31	21	3	4	4
 src/detect.zig	detectCjkDate	19	17	29	1	1	1
 src/detect.zig	detectGoTimeString	28	29	38	2	1	1
-src/detect.zig	detectIso8601Frac	21	18	23	2	1	1
 src/detect.zig	detectIsoWeekOrOrdinal	19	14	16	2	1	1
-src/detect.zig	findFormat	16	21	17	2	3	3
+src/detect.zig	findFormat	13	14	12	2	3	3
 src/epoch.zig	detect	13	17	17	3	1	1
 src/fast.zig	execute	34	47	50	3	2	2
 src/fast.zig	plan	14	23	33	2	1	1
