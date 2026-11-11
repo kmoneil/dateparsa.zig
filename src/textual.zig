@@ -422,10 +422,29 @@ fn addYear(def: *Def, n: Num) BuildError!void {
 }
 
 fn addDay(def: *Def, s: []const u8, n: Num) BuildError!void {
-    const kind: FieldKind = if (n.end - n.start == 1) .day1or2 else .day2;
-    try add(def, kind, n.start, n.end - n.start, 0);
+    if (isSpacePadded(def, s, n)) {
+        try add(def, .day_space_pad, n.start - 1, 2, 0);
+    } else {
+        const kind: FieldKind = if (n.end - n.start == 1) .day1or2 else .day2;
+        try add(def, kind, n.start, n.end - n.start, 0);
+    }
     const suffix = ordinalSuffixLen(s, n.end);
     if (suffix > 0) try detect.appendSkip(def, s, n.end, suffix);
+}
+
+/// Whether the day at n is one digit after the month name and two spaces:
+/// strftime's %e, as syslog ("Nov  8 10:00:05") and asctime write a day
+/// under 10. The day then reads as the space and the digit, so the layout
+/// goes on to read "Nov 10" (the 10th, one space). As a 1-or-2-digit day
+/// after two literal spaces, it refused every day from the 10th on.
+fn isSpacePadded(def: *const Def, s: []const u8, n: Num) bool {
+    if (n.end - n.start != 1) return false;
+    // buildFields adds the month first.
+    if (def.len == 0) return false;
+    const m = def.buf[0];
+    if (m.kind != .month_name) return false;
+    const month_end = @as(usize, m.offset) + m.len;
+    return month_end + 2 == n.start and s[month_end] == ' ' and s[month_end + 1] == ' ';
 }
 
 /// The numbers in s outside the month name at s[start..end], in order, but
@@ -563,7 +582,7 @@ fn dayIsAGuess(s: []const u8, fields: []const Field) Guess {
     var year: ?Field = null;
     for (fields) |f| switch (f.kind) {
         .year2, .year4 => year = f,
-        .day1or2, .day2 => if (ordinalSuffixLen(s, @as(usize, f.offset) + f.len) == 0) {
+        .day1or2, .day2, .day_space_pad => if (ordinalSuffixLen(s, @as(usize, f.offset) + f.len) == 0) {
             day = f;
         },
         else => {},

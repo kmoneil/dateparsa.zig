@@ -105,6 +105,19 @@ fn hasDottedDateTime(s: []const u8) bool {
     return true;
 }
 
+/// Whether a first row's layout answers another row differently from Go's on
+/// purpose: a time's layout reads on its base day, as its first row did
+/// (kmoneil/dateparsa#40), and a day padded with a space (`Jun  9`) reads a
+/// two-digit day (`Jun 14`) where Go's refuses it (kmoneil/dateparsa#42).
+fn reuseIsDeliberate(l: *const dp.Layout, go_reused: []const u8, reused: []const u8) bool {
+    if (std.mem.startsWith(u8, l.label, "TIME_") and onlyDayDiffers(go_reused, reused)) return true;
+    if (!std.mem.eql(u8, go_reused, "err") or !std.mem.startsWith(u8, reused, "ok ")) return false;
+    for (l.program.insts[0..l.program.n]) |inst| {
+        if (inst.op == .day_space_pad) return true;
+    }
+    return false;
+}
+
 /// Whether both answers read a time, Go's on 1 January, and agree on
 /// everything after the date.
 fn onlyDayDiffers(go_answer: []const u8, zig_answer: []const u8) bool {
@@ -202,8 +215,7 @@ fn run(input: []const u8, w: *Io.Writer) !Counts {
                 try fmtTime(&rw, t);
             } else |_| try rw.writeAll("err");
             const reused = rw.buffered();
-            // A time's layout reads on its base day, as its first row did.
-            if (std.mem.startsWith(u8, r.layout.label, "TIME_") and onlyDayDiffers(go_reused, reused)) {
+            if (reuseIsDeliberate(&r.layout, go_reused, reused)) {
                 counts.deliberate += 1;
                 try w.print("{s}\n", .{go_reused});
             } else try w.print("{s}\n", .{reused});

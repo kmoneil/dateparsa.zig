@@ -10,7 +10,19 @@ the difference. Before 1.0 a breaking change is a minor bump.
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- A layout from a day padded with a space, as syslog and asctime write a
+  day under 10 (`Nov  8 10:00:05`, `Fri Nov  8 10:00:05 2024`), now reads
+  the days from the 10th on (`Nov 10 23:59:59`). It read the two spaces
+  as text and refused every two-digit day, so `Layout.find` lost a syslog
+  log on the 10th of the month. The day reads as a space and a digit or
+  two digits, after a month name and two spaces. What every input parses
+  to is unchanged. Its Go layout is now `Jan _2 15:04:05` and its Java
+  pattern `MMM ppd HH:mm:ss`, which read the whole month; its strftime
+  format stays `%b  %d %H:%M:%S`, since Python's `strptime` has no `%e`
+  before 3.13.x. The Go library refuses these days too
+  (kmoneil/dateparsa#42).
 
 ## [0.8.0] - 2026-11-11
 
