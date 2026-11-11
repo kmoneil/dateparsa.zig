@@ -10,7 +10,27 @@ the difference. Before 1.0 a breaking change is a minor bump.
 
 ## [Unreleased]
 
-Nothing yet.
+A time alone reads on the base time's day. That changes what those inputs
+parse to, so this is a minor release.
+
+### Changed
+
+- A time with no date (`10:42`, `10:42:05`, `10:30 PM`, `10:30:00.123`)
+  reads on the base time's day, where it read on 1 January of the base
+  time's year: as `today 10:42` reads, and as journalctl and GNU date read
+  a bare time. The day is the base time's as seen at `timezone_offset`, the
+  zone the input is read in, so 22:00 on the 8th at UTC-5 reads `10:42` on
+  the 9th in UTC. A date with no year (`March 15`) takes that day's year,
+  which differs from before only when the base time's offset is not
+  `timezone_offset` and the two sides of it fall in different years. A
+  layout reused down a column keeps the day it was made with. The Go
+  library still reads 1 January (kmoneil/dateparsa#40).
+
+### Fixed
+
+- `today 10:42:03`, a clock time with seconds after a relative day, reads;
+  it was refused, as the Go library refuses it. `yesterday at 5:30:15pm`
+  reads too.
 
 ## [0.6.0] - 2026-11-10
 

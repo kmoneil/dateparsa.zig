@@ -219,9 +219,9 @@ test "every natural-language phrase the README lists parses" {
         errdefer std.debug.print("\"{s}\"\n", .{s});
         _ = try dateparsa.parseWith(s, .{ .base_time = base });
     }
-    // The README's other claims: a time alone takes 1 January of the base
-    // year, and validation refuses rather than normalises.
+    // The README's other claims: a time alone reads on the base time's day,
+    // and validation refuses rather than normalises.
     const t = try dateparsa.parseWith("10:30", .{ .base_time = base });
-    try expectEqual(dateparsa.DateTime{ .year = 2024, .month = 1, .day = 1, .hour = 10, .minute = 30 }, t.time);
+    try expectEqual(dateparsa.DateTime{ .year = 2024, .month = 3, .day = 15, .hour = 10, .minute = 30 }, t.time);
     try std.testing.expectError(error.NoMatch, dateparsa.parse("2024-02-30"));
 }

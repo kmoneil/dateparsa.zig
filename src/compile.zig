@@ -359,10 +359,12 @@ pub const Program = struct {
     /// copy of each instruction at insts[fast.slot_base + slot].
     insts: [max_instructions]Inst = @splat(nop),
     n: u8 = 0,
-    /// The year for a format with no year field ("10:30:00"), fixed when the
-    /// program is compiled so that reusing a layout never answers a
-    /// different instant on a different day.
-    base_year: i32 = 0,
+    /// Where what a format does not write comes from (see baseDate): the
+    /// year of one with no year field ("March 15"), the whole date of one
+    /// with no date field ("10:30:00"). Fixed when the program is compiled,
+    /// so that reusing a layout never answers a different instant on a
+    /// different day.
+    base_date: DateTime.CivilDate = no_base,
     /// UTC offset, seconds east, for an input that writes no zone.
     offset_seconds: i32 = 0,
     /// The input lengths a fast program describes; zero when fast.plan
@@ -394,8 +396,13 @@ pub const Program = struct {
     }
 };
 
+/// The base date of a program whose format writes its own year, or that
+/// has no base time to read against.
+pub const no_base: DateTime.CivilDate = .{ .year = 0, .month = 1, .day = 1 };
+
 pub const Config = struct {
-    base_year: i32 = 0,
+    /// What baseDate gives for the fields compiled.
+    base_date: DateTime.CivilDate = no_base,
     offset_seconds: i32 = 0,
     locales: locale.LocaleSet = .{},
 };
@@ -409,7 +416,7 @@ pub fn compile(fields: []const Field, config: Config) error{TooManyFields}!Progr
     // a caller can derive from the format they wrote.
     if (fields.len > max_instructions) return error.TooManyFields;
     var p: Program = .{
-        .base_year = config.base_year,
+        .base_date = config.base_date,
         .offset_seconds = config.offset_seconds,
         .locales = config.locales,
     };
@@ -441,6 +448,28 @@ pub fn needsBaseYear(fields: []const Field) bool {
         if (f.kind == .year4 or f.kind == .year2) return false;
     }
     return true;
+}
+
+/// The date a program for fields reads what they do not write from, given
+/// the base time and the offset the input is read at. A format with no date
+/// field at all ("10:30") reads on the base time's day, as "today 10:30"
+/// does; one with a date but no year ("March 15") in the base time's year,
+/// on the 1st of a month it names without a day. Both are the base time's
+/// as seen at offset_seconds, the zone a format with no zone is read in:
+/// 23:00 on the 14th at UTC-5 is already the 15th in UTC.
+pub fn baseDate(fields: []const Field, base: DateTime, offset_seconds: i32) DateTime.CivilDate {
+    var dated = false;
+    for (fields) |f| switch (f.kind) {
+        .year4, .year2 => return no_base,
+        .month2, .month1or2, .month_name, .month_any, .day2, .day1or2, .day_space_pad, .iso_week, .iso_week_day, .ordinal_day, .weekday_name => dated = true,
+        else => {},
+    };
+    // A valid base time already at that offset, the usual case, is its own
+    // date. The epoch round trip made parsing "10:30 PM" a third slower.
+    const at_offset = base.offset_seconds == offset_seconds and base.isValid();
+    const t = if (at_offset) base else DateTime.fromEpoch(base.toEpoch(), offset_seconds);
+    if (dated) return .{ .year = t.year, .month = 1, .day = 1 };
+    return .{ .year = t.year, .month = t.month, .day = t.day };
 }
 
 pub const AmPm = enum { none, am, pm };
@@ -529,7 +558,7 @@ fn interpret(
     spans: if (traced) *[max_instructions]Span else void,
 ) Error!DateTime {
     if (p.n > max_instructions) return error.NoMatch;
-    var r: Reading = .{ .offset_seconds = p.offset_seconds };
+    var r: Reading = .{ .month = p.base_date.month, .day = p.base_date.day, .offset_seconds = p.offset_seconds };
     var delta: isize = 0;
     var end: usize = 0;
     var covered: usize = 0;
@@ -717,7 +746,7 @@ fn interpret(
         end = @max(end, off + w);
     }
     if (end != s.len or covered != s.len) return error.NoMatch;
-    return r.finish(p.base_year);
+    return r.finish(p.base_date.year);
 }
 
 fn isDigit(c: u8) bool {
@@ -1240,7 +1269,7 @@ test "monthNameMatches requires a whole word" {
 }
 
 test "every structured format round-trips its example" {
-    const base_year = 2026;
+    const base: DateTime = .{ .year = 2026, .month = 11, .day = 8, .hour = 10 };
     const Want = struct { []const u8, DateTime };
     const z: DateTime = civil(2024, 3, 15, 10, 30, 0);
     const wants = [_]Want{
@@ -1250,16 +1279,16 @@ test "every structured format round-trips its example" {
         .{ "RFC3339", .{ .year = 2024, .month = 3, .day = 15, .hour = 10, .minute = 30, .offset_seconds = 19800 } },
         .{ "RFC3339_NANO", .{ .year = 2024, .month = 3, .day = 15, .hour = 10, .minute = 30, .nanosecond = 123_456_789 } },
         .{ "SQL_DATETIME", z },
-        .{ "TIME_HM", civil(base_year, 1, 1, 10, 30, 0) },
-        .{ "TIME_HMS", civil(base_year, 1, 1, 10, 30, 0) },
+        .{ "TIME_HM", civil(2026, 11, 8, 10, 30, 0) },
+        .{ "TIME_HMS", civil(2026, 11, 8, 10, 30, 0) },
         .{ "COMPACT_DATE", civil(2024, 3, 15, 0, 0, 0) },
         .{ "COMPACT_DATETIME", z },
         .{ "COMPACT_DATETIME_NOSEP", z },
         .{ "COMPACT_DATETIME_Z", z },
-        .{ "TIME_HM_AMPM", civil(base_year, 1, 1, 22, 30, 0) },
-        .{ "TIME_HMS_AMPM", civil(base_year, 1, 1, 22, 30, 0) },
-        .{ "TIME_HMS_FRAC3", .{ .year = base_year, .month = 1, .day = 1, .hour = 10, .minute = 30, .nanosecond = 123_000_000 } },
-        .{ "TIME_HMS_FRAC6", .{ .year = base_year, .month = 1, .day = 1, .hour = 10, .minute = 30, .nanosecond = 123_456_000 } },
+        .{ "TIME_HM_AMPM", civil(2026, 11, 8, 22, 30, 0) },
+        .{ "TIME_HMS_AMPM", civil(2026, 11, 8, 22, 30, 0) },
+        .{ "TIME_HMS_FRAC3", .{ .year = 2026, .month = 11, .day = 8, .hour = 10, .minute = 30, .nanosecond = 123_000_000 } },
+        .{ "TIME_HMS_FRAC6", .{ .year = 2026, .month = 11, .day = 8, .hour = 10, .minute = 30, .nanosecond = 123_456_000 } },
         .{ "SQL_DATETIME_FRAC6", z },
         .{ "SQL_DATETIME_FRAC3", z },
         .{ "SQL_DATETIME_TZ_SHORT", z },
@@ -1280,8 +1309,7 @@ test "every structured format round-trips its example" {
     inline for (formats.table, formats.examples) |e, ex| {
         if (e.ambiguous) continue;
         const fields = formats.stampedFields(e);
-        const year: i32 = if (needsBaseYear(&fields)) base_year else 0;
-        const p = try compile(&fields, .{ .base_year = year });
+        const p = try compile(&fields, .{ .base_date = baseDate(&fields, base, 0) });
         const want = for (wants) |w| {
             if (std.mem.eql(u8, w[0], e.name)) break w[1];
         } else return error.NoExpectedValue;
@@ -1424,6 +1452,19 @@ test "literal classes hold every byte scan gives the class" {
 test "needsBaseYear" {
     try std.testing.expect(needsBaseYear(&.{.{ .kind = .hour24, .offset = 0, .len = 2 }}));
     try std.testing.expect(!needsBaseYear(&.{.{ .kind = .year2, .offset = 0, .len = 2 }}));
+}
+
+test baseDate {
+    // 22:00 on 31 December at UTC-5 is 03:00 on 1 January in UTC.
+    const base: DateTime = .{ .year = 2026, .month = 12, .day = 31, .hour = 22, .offset_seconds = -5 * 3600 };
+    const time = [_]Field{ .{ .kind = .hour24, .offset = 0, .len = 2 }, .{ .kind = .minute2, .offset = 3, .len = 2 } };
+    try expectEqual(DateTime.CivilDate{ .year = 2026, .month = 12, .day = 31 }, baseDate(&time, base, -5 * 3600));
+    try expectEqual(DateTime.CivilDate{ .year = 2027, .month = 1, .day = 1 }, baseDate(&time, base, 0));
+    // A date with no year takes only the year; a year takes nothing.
+    const month_day = [_]Field{ .{ .kind = .month2, .offset = 0, .len = 2 }, .{ .kind = .day2, .offset = 3, .len = 2 } };
+    try expectEqual(DateTime.CivilDate{ .year = 2026, .month = 1, .day = 1 }, baseDate(&month_day, base, -5 * 3600));
+    try expectEqual(DateTime.CivilDate{ .year = 2027, .month = 1, .day = 1 }, baseDate(&month_day, base, 0));
+    try expectEqual(no_base, baseDate(&.{.{ .kind = .year4, .offset = 0, .len = 4 }}, base, 0));
 }
 
 test fixedWidth {

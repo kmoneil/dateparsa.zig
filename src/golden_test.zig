@@ -1,6 +1,7 @@
 //! The Go dateparsa's golden corpus, checked row by row: 1377 inputs and
 //! what the Go library parses each to. A row this port answers differently
-//! fails the test unless it sits on the skip list below with its reason.
+//! fails the test unless it sits on the skip list below with its reason, or
+//! is a time alone (see onBaseDay).
 
 const std = @import("std");
 const dp = @import("root.zig");
@@ -12,6 +13,23 @@ const base: dp.DateTime = .{ .year = 2024, .month = 6, .day = 15, .hour = 12 };
 /// Rows this port deliberately answers differently, with the reason. Empty:
 /// every row agrees.
 const skip = [_]struct { input: []const u8, reason: []const u8 }{};
+
+/// Go reads a time with no date on 1 January of the base year
+/// (kmoneil/dateparsa#40); this port reads it on the base time's day.
+const go_day = "\tok\t2024-01-01T";
+const base_day = "\tok\t2024-06-15T";
+/// The rows with a TIME_ layout, every one of them Go's 1 January.
+const time_rows = 136;
+
+/// want with the base's day in place of Go's, when it is a time alone, so
+/// that its time and everything else still have to agree; otherwise null.
+fn onBaseDay(buf: []u8, want: []const u8) ?[]const u8 {
+    const at = std.mem.indexOf(u8, want, go_day) orelse return null;
+    if (std.mem.indexOf(u8, want, "\tTIME_") == null) return null;
+    @memcpy(buf[0..want.len], want);
+    @memcpy(buf[at..][0..base_day.len], base_day);
+    return buf[0..want.len];
+}
 
 /// Go's strconv.Unquote for the escapes %q writes.
 pub fn unquote(out: []u8, q: []const u8) ![]u8 {
@@ -96,13 +114,17 @@ test "every golden row parses as it did in Go" {
     var rows: usize = 0;
     var failed: usize = 0;
     var skipped: usize = 0;
+    var moved: usize = 0;
+    var want_buf: [4096]u8 = undefined;
     var lines = std.mem.splitScalar(u8, corpus, '\n');
     var input_buf: [4096]u8 = undefined;
     var got_buf: [4096]u8 = undefined;
-    while (lines.next()) |want| {
-        if (want.len == 0 or want[0] == '#') continue;
+    while (lines.next()) |go_want| {
+        if (go_want.len == 0 or go_want[0] == '#') continue;
         rows += 1;
-        const quoted = want[0 .. std.mem.indexOfScalar(u8, want, '\t') orelse want.len];
+        const quoted = go_want[0 .. std.mem.indexOfScalar(u8, go_want, '\t') orelse go_want.len];
+        const want = onBaseDay(&want_buf, go_want) orelse go_want;
+        if (want.ptr != go_want.ptr) moved += 1;
         const input = try unquote(&input_buf, quoted);
         var w: std.Io.Writer = .fixed(&got_buf);
         try line(&w, quoted, input);
@@ -121,6 +143,7 @@ test "every golden row parses as it did in Go" {
     if (failed > 0) std.debug.print("{d} of {d} golden rows differ\n", .{ failed, rows });
     try std.testing.expectEqual(0, failed);
     try std.testing.expectEqual(skip.len, skipped); // a stale skip entry fails too
+    try std.testing.expectEqual(time_rows, moved);
     try std.testing.expectEqual(1377, rows);
 }
 

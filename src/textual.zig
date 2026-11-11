@@ -672,8 +672,7 @@ fn localeSet(tag: []const u8) !locale.LocaleSet {
 fn parseIn(s: []const u8, locales: locale.LocaleSet) !struct { name: []const u8, time: DateTime } {
     const r = detect.detect(s, .{ .locales = locales }) orelse return error.NotDetected;
     const fields = r.def.fields();
-    const year: i32 = if (compile.needsBaseYear(fields)) 2026 else 0;
-    const p = try compile.compile(fields, .{ .base_year = year, .locales = locales });
+    const p = try compile.compile(fields, .{ .base_date = compile.baseDate(fields, .{ .year = 2026, .month = 1, .day = 1 }, 0), .locales = locales });
     return .{ .name = r.def.name, .time = try p.execute(s) };
 }
 

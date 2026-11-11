@@ -67,9 +67,10 @@ pub const FromFormatError = format_string.ReadError || error{
 /// detected: the order is the format's, so "%d/%m/%Y" is reusable where a
 /// layout detected from "13/02/2024" is not.
 ///
-/// opts gives the base time a format with no year reads against, the
-/// offset for a format with no zone, and the locales whose month and
-/// weekday names it reads besides English; its preferences play no part.
+/// opts gives the base time a format with no year or no date reads against
+/// (Options.base_time says how), the offset for a format with no zone, and
+/// the locales whose month and weekday names it reads besides English; its
+/// preferences play no part.
 /// error.Unsupported for a field no layout reads, such as %U; the fields
 /// formatString writes all read back. format_string.read says what each
 /// dialect's fields read.
@@ -77,7 +78,8 @@ pub fn fromFormatString(dialect: Dialect, format: []const u8, opts: root.Options
     const fields = try format_string.read(dialect, format);
     var config: compile.Config = .{ .offset_seconds = opts.timezone_offset, .locales = opts.locales };
     if (compile.needsBaseYear(fields.slice())) {
-        config.base_year = (opts.base_time orelse return error.NoBaseTime).year;
+        const base = opts.base_time orelse return error.NoBaseTime;
+        config.base_date = compile.baseDate(fields.slice(), base, opts.timezone_offset);
     }
     return .{
         .program = compile.compile(fields.slice(), config) catch return error.Unsupported,
