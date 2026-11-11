@@ -10,6 +10,15 @@ the difference. Before 1.0 a breaking change is a minor bump.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.6.0] - 2026-11-10
+
+ISO 8601 date-times to the minute read. That changes what those inputs
+parse to, from refused to a time, so this is a minor release; every input
+that read in 0.5.2 reads as it did, through the library, its C interface
+and the Python package alike.
+
 ### Added
 
 - ISO 8601 date-times to the minute: `2024-03-15T10:30`, `2024-03-15 10:30`,
@@ -341,7 +350,8 @@ what was changed on purpose.
 - No allocation on any path and no clock: an input that needs a base time and
   was given none fails with `error.NoBaseTime`.
 
-[Unreleased]: https://github.com/kmoneil/dateparsa.zig/compare/v0.5.2...HEAD
+[Unreleased]: https://github.com/kmoneil/dateparsa.zig/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/kmoneil/dateparsa.zig/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/kmoneil/dateparsa.zig/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/kmoneil/dateparsa.zig/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/kmoneil/dateparsa.zig/compare/v0.4.2...v0.5.0
