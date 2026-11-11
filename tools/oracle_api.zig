@@ -68,7 +68,7 @@ fn isDeliberate(input: []const u8, go_answer: []const u8, zig_answer: []const u8
     if (!std.mem.eql(u8, go_answer, "err nomatch")) return false;
     // A one-digit hour, which Go has no format for (kmoneil/dateparsa#38):
     // read here, or refused as its zero-padded form would be.
-    if (hasShortHour(input)) return std.mem.startsWith(u8, zig_answer, "ok ") or
+    if (hasShortHour(input) or hasDottedDateTime(input)) return std.mem.startsWith(u8, zig_answer, "ok ") or
         std.mem.eql(u8, zig_answer, "err nobase") or std.mem.startsWith(u8, zig_answer, "err ambiguous");
     if (!std.mem.startsWith(u8, zig_answer, "ok ")) return false;
     for (deliberate) |label| {
@@ -94,6 +94,15 @@ fn hasShortHour(s: []const u8) bool {
         if (one) return i == 0 or !(std.ascii.isDigit(s[i - 1]) or s[i - 1] == 'T');
     }
     return false;
+}
+
+/// Whether s is a dotted date in the shape DD.DD.YYYY with more after it, a
+/// space between: what this port reads as a dotted date with a time
+/// (kmoneil/dateparsa#37), and Go refuses.
+fn hasDottedDateTime(s: []const u8) bool {
+    if (s.len < 12 or s[10] != ' ' or s[2] != '.' or s[5] != '.') return false;
+    for ([_]usize{ 0, 1, 3, 4, 6, 7, 8, 9 }) |i| if (!std.ascii.isDigit(s[i])) return false;
+    return true;
 }
 
 /// Whether both answers read a time, Go's on 1 January, and agree on

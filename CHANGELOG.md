@@ -20,6 +20,12 @@ the difference. Before 1.0 a breaking change is a minor bump.
   this changes what those inputs parse to; every input that read before
   reads as it did. An hour straight after ISO 8601's `T` still takes two
   digits.
+- A dotted date with a time: `15.03.2024 10:30`, `15.03.2024 10:30:00`,
+  `15.03.2024 1:30 PM`. Each reads day first, as `15.03.2024` does, with
+  the same guess for `01.02.2024 10:30` as for `01.02.2024`. Refused
+  before, as the Go library still refuses them (kmoneil/dateparsa#37). A
+  dotted date reads with a time only in the shape it reads in alone,
+  DD.DD.YYYY, so `1.2.3 10:30` is still no date.
 
 ## [0.7.0] - 2026-11-11
 
