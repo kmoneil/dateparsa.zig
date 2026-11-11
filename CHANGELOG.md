@@ -10,6 +10,16 @@ the difference. Before 1.0 a breaking change is a minor bump.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.8.0] - 2026-11-11
+
+Dates are found inside text, times with a one-digit hour and dotted dates
+with a time read, and an hour with am or pm is no longer read as a day.
+The last three change what those inputs parse to, through the library,
+its C interface and the Python package alike, so this is a minor release.
+Finding dates is in the Zig API only for now.
+
 ### Added
 
 - Dates inside text. `findFirst` finds the first date in a log line or a
@@ -407,7 +417,8 @@ what was changed on purpose.
 - No allocation on any path and no clock: an input that needs a base time and
   was given none fails with `error.NoBaseTime`.
 
-[Unreleased]: https://github.com/kmoneil/dateparsa.zig/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/kmoneil/dateparsa.zig/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/kmoneil/dateparsa.zig/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/kmoneil/dateparsa.zig/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/kmoneil/dateparsa.zig/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/kmoneil/dateparsa.zig/compare/v0.5.1...v0.5.2
