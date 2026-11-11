@@ -10,7 +10,23 @@ the difference. Before 1.0 a breaking change is a minor bump.
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- `findFirst` and `findAll` with no `base_time` read a piece of a date
+  that needs one as another date: in `Nov 18 10:00:05 host sshd[1]: ...`
+  they found `Nov 18 10`, the 10th of November **2018**, and in
+  `Mar 15 10:00` the 10th of March 2015, so every syslog line from the
+  13th of a month on gave a date years off. A date that needs a base time
+  the options lack is now passed over whole: no shorter span at its start
+  is taken, and the search goes on after it, so with no base time a date
+  is found where it is with one, or nothing is. Found by pawl-cli.
+- `15 Mar 10:00`, a day, a month name and a time with no year, found no
+  format: the time was looked for straight after the day and met the
+  month. It reads now as `Mar 15 10:00` does, the base year's 15th of
+  March at 10:00, with the same day-or-year question; before, `findFirst`
+  took `15 Mar 10` from it, 15 March 2010, with a base time or without.
+  This changes what that input parses to. The Go library refuses it
+  (kmoneil/dateparsa#44).
 
 ## [0.9.0] - 2026-11-11
 

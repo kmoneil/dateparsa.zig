@@ -586,7 +586,10 @@ fn appendMultiNum(def: *Def, s: []const u8, nums: []const Num) BuildError!void {
         if (n1.value > 23) return error.NotADate;
         if (n0.value <= 31) try addDay(def, s, n0) else try addYear(def, n0);
         const time_start = def.len;
-        _ = detect.appendTimeComponent(def, s, n0.end);
+        // After the month name where it sits between them: "15 Mar 10:00".
+        // buildFields adds the month first.
+        const month_end = @as(usize, def.buf[0].offset) + def.buf[0].len;
+        _ = detect.appendTimeComponent(def, s, @max(n0.end, month_end));
         if (n0.value <= 31) {
             if (trailingYear(nums, def.buf[time_start..def.len], n0.end)) |y| try addYear(def, y);
         }

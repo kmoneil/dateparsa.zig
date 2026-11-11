@@ -65,10 +65,14 @@ const deliberate = [_][]const u8{
 /// time's day where Go reads 1 January (kmoneil/dateparsa#40).
 fn isDeliberate(input: []const u8, go_answer: []const u8, zig_answer: []const u8) bool {
     if (std.mem.indexOf(u8, zig_answer, " label=TIME_") != null and onlyDayDiffers(go_answer, zig_answer)) return true;
+    // Strict mode on "15 March 10:30": Go asks day or year and has no reading
+    // of either; this port has both (kmoneil/dateparsa#44).
+    if (hasDayMonthTime(input) and std.mem.eql(u8, go_answer, "err ambiguous n=0") and
+        std.mem.startsWith(u8, zig_answer, "err ambiguous n=2 ")) return true;
     if (!std.mem.eql(u8, go_answer, "err nomatch")) return false;
     // A one-digit hour, which Go has no format for (kmoneil/dateparsa#38):
     // read here, or refused as its zero-padded form would be.
-    if (hasShortHour(input) or hasDottedDateTime(input)) return std.mem.startsWith(u8, zig_answer, "ok ") or
+    if (hasShortHour(input) or hasDottedDateTime(input) or hasDayMonthTime(input)) return std.mem.startsWith(u8, zig_answer, "ok ") or
         std.mem.eql(u8, zig_answer, "err nobase") or std.mem.startsWith(u8, zig_answer, "err ambiguous");
     if (!std.mem.startsWith(u8, zig_answer, "ok ")) return false;
     for (deliberate) |label| {
@@ -94,6 +98,23 @@ fn hasShortHour(s: []const u8) bool {
         if (one) return i == 0 or !(std.ascii.isDigit(s[i - 1]) or s[i - 1] == 'T');
     }
     return false;
+}
+
+/// Whether s starts with a day, a word and a clock time, each after one
+/// space: "15 March 10:30", which this port reads as "March 15 10:30" and Go
+/// refuses (kmoneil/dateparsa#44).
+fn hasDayMonthTime(s: []const u8) bool {
+    var i: usize = 0;
+    while (i < s.len and i < 2 and std.ascii.isDigit(s[i])) i += 1;
+    if (i == 0 or i >= s.len or s[i] != ' ') return false;
+    i += 1;
+    const word = i;
+    while (i < s.len and std.ascii.isAlphabetic(s[i])) i += 1;
+    if (i == word or i >= s.len or s[i] != ' ') return false;
+    i += 1;
+    const hour = i;
+    while (i < s.len and i - hour < 2 and std.ascii.isDigit(s[i])) i += 1;
+    return i > hour and i < s.len and s[i] == ':';
 }
 
 /// Whether s is a dotted date in the shape DD.DD.YYYY with more after it, a

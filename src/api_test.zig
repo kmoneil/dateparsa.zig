@@ -307,6 +307,52 @@ test "findFirst passes over what it cannot settle" {
     try std.testing.expectEqual(10, d.end);
 }
 
+test "a day, a month name and a time read as the month first does" {
+    // The time comes after the month name, not straight after the day
+    // (kmoneil/dateparsa#44): "15 Mar 10:00" reads as "Mar 15 10:00" does.
+    const opts: dp.Options = .{ .base_time = find_base };
+    for ([_][]const u8{ "15 Mar 10:00", "15 March 10:00", "15 Mar 10:00:00" }) |s| {
+        errdefer std.debug.print("\"{s}\"\n", .{s});
+        const r = try dp.parseWith(s, opts);
+        const want = try dp.parseWith("Mar 15 10:00", opts);
+        try std.testing.expectEqual(want.time, r.time);
+        try std.testing.expectEqual(want.ambiguous, r.ambiguous);
+    }
+    try std.testing.expectError(error.NoBaseTime, dp.parse("15 Mar 10:00"));
+    try std.testing.expectEqual(dp.DateTime{ .year = 2024, .month = 3, .day = 15, .hour = 10 }, (try dp.parse("15 Mar 10:00 2024")).time);
+}
+
+test "findFirst reads no part of a date that needs a base time as another date" {
+    // With no base time, "Nov 18 10:00:05" is no date here, and neither is
+    // "Nov 18 10" in it, which reads alone as the 10th of November 2018.
+    const Case = struct { []const u8, []const u8 };
+    for ([_]Case{
+        .{ "Nov 18 10:00:05 host sshd[123]: Accepted", "Nov 18 10:00:05" },
+        .{ "Mar 15 10:00 backup done", "Mar 15 10:00" },
+        .{ "15 Mar 10:00 backup done", "15 Mar 10:00" },
+        .{ "15 March 10:30:05 kernel: up", "15 March 10:30:05" },
+        .{ "Fri Nov 29 23:59:59 kernel: up", "Fri Nov 29 23:59:59" },
+    }) |c| {
+        errdefer std.debug.print("\"{s}\"\n", .{c[0]});
+        try std.testing.expectEqual(null, dp.findFirst(c[0], .{}, .{}));
+        const m = dp.findFirst(c[0], .{ .base_time = find_base }, .{}).?;
+        try std.testing.expectEqualStrings(c[1], c[0][m.start..m.end]);
+    }
+    // A date after one is still found, and one with a year never needed a
+    // base time.
+    const later = "Nov 18 10:00:05 rotated 2024-03-15.log";
+    const l = dp.findFirst(later, .{}, .{}).?;
+    try std.testing.expectEqualStrings("2024-03-15", later[l.start..l.end]);
+    const year = "Nov 18 2024 10:00:05 up";
+    const y = dp.findFirst(year, .{}, .{}).?;
+    try std.testing.expectEqualStrings("Nov 18 2024 10:00:05", year[y.start..y.end]);
+    // A span read past words, too long with a base time, does not stop a
+    // shorter date: "at 10:30" is passed over and 01/02/2024 found above.
+    var out: [4]dp.Match = undefined;
+    const all = dp.findAll("Nov 18 10:00:05 a; Nov 19 2024 b", .{}, .{}, &out);
+    try std.testing.expectEqual(1, all.len);
+}
+
 test "findAll finds each date once, left to right" {
     const text = "from 2024-03-15 to 2024-03-20, then 2024-03-15/2024-03-22";
     var buf: [8]dp.Match = undefined;
