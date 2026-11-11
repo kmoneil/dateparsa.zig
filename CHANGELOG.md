@@ -10,7 +10,16 @@ the difference. Before 1.0 a breaking change is a minor bump.
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- A time with a one-digit hour: `1:30 PM`, `9:05 am`, `9:30`,
+  `3/15/2024 1:30 PM`, `2024-03-15 1:30:00`, `March 15, 2024 1:30 PM`.
+  Each reads as its zero-padded form does, under the same label, and its
+  layout reads a one- or two-digit hour down a column. Each was refused
+  before, as the Go library still refuses them (kmoneil/dateparsa#38), so
+  this changes what those inputs parse to; every input that read before
+  reads as it did. An hour straight after ISO 8601's `T` still takes two
+  digits.
 
 ## [0.7.0] - 2026-11-11
 

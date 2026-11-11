@@ -126,7 +126,7 @@ pub const Found = union(enum) {
 /// Result's 176 bytes, and copying one out of the trie and up the calls
 /// was a fifth of parsing an ISO 8601 date.
 pub fn find(s: []const u8, cfg: Config, scratch: *Result) ?Found {
-    const found = findFormat(s, cfg, scratch) orelse return null;
+    const found = findFormat(s, cfg, scratch, true) orelse return null;
     // A format whose skipped runs hold a word that decides the answer has
     // not described the input, it has discarded part of it: "first monday
     // of march 2024" is not the 1st of March.
@@ -150,7 +150,9 @@ const has_skips = blk: {
     break :blk out;
 };
 
-fn findFormat(s: []const u8, cfg: Config, scratch: *Result) ?Found {
+/// short_hour: whether a one-digit hour may be read by padding it
+/// (detectShortHour), which looks again at the padded input with this false.
+fn findFormat(s: []const u8, cfg: Config, scratch: *Result, comptime short_hour: bool) ?Found {
     // Nothing longer can be described, and the fallbacks are linear in the
     // input: refusing here bounds the work as well as the answer.
     if (s.len > compile.max_describable_len) return null;
@@ -167,7 +169,7 @@ fn findFormat(s: []const u8, cfg: Config, scratch: *Result) ?Found {
         if (rfc2822.match(s, cfg.locales)) |m| return .{ .mail = m };
         if (textual.detectTextual(s, cfg)) |r| return built(scratch, r);
     }
-    const index = hit orelse return built(scratch, fallback(s, cfg) orelse return null);
+    const index = hit orelse return built(scratch, fallback(s, cfg, short_hour) orelse return null);
     // NUMERIC_SEP ("03/15/2024") is ambiguous by signature and is resolved
     // by value and preference.
     if (formats.table[index].ambiguous) return built(scratch, ambiguity.resolve(s, cfg) orelse return null);
@@ -175,13 +177,96 @@ fn findFormat(s: []const u8, cfg: Config, scratch: *Result) ?Found {
 }
 
 /// The detectors for what no trie entry matched, in the order they are tried.
-fn fallback(s: []const u8, cfg: Config) ?Result {
+fn fallback(s: []const u8, cfg: Config, comptime short_hour: bool) ?Result {
     if (detectIso8601Frac(s)) |r| return r;
     if (ambiguity.detectVariableNumeric(s, cfg)) |r| return r;
     if (detectGoTimeString(s)) |r| return r;
     if (detectDatePlusTz(s)) |r| return r;
+    if (detectIso8601Minute(s)) |r| return r;
     // Last, so it only reads what every detector above refused.
-    return detectIso8601Minute(s);
+    return if (short_hour) detectShortHour(s, cfg) else null;
+}
+
+/// A time whose hour is one digit, read as the same input with that hour
+/// zero-padded reads: "1:30 PM" as "01:30 PM" (TIME_HM_AMPM), "2024-03-15
+/// 1:30:00" as SQL_DATETIME. The padded form's fields serve, the hour made
+/// a field of one or two digits and every field after it a byte earlier,
+/// so the two forms read alike, under one label, and a layout from either
+/// reads both. Go's formats all take two hour digits (kmoneil/dateparsa#38).
+/// The detectors that scan for a time take one digit in appendTime.
+fn detectShortHour(s: []const u8, cfg: Config) ?Result {
+    const at = shortHourAt(s) orelse return null;
+    if (s.len >= compile.max_describable_len) return null;
+    var buf: [compile.max_describable_len]u8 = undefined;
+    @memcpy(buf[0..at], s[0..at]);
+    buf[at] = '0';
+    @memcpy(buf[at + 1 ..][0 .. s.len - at], s[at..]);
+    var scratch: Result = undefined;
+    var r: Result = switch (findFormat(buf[0 .. s.len + 1], cfg, &scratch, false) orelse return null) {
+        .table => |i| tableResult(i),
+        .built => |b| b.*,
+        // An email or HTTP date takes two hour digits.
+        .mail => return null,
+    };
+    // Its program is not the shared one for that trie entry.
+    r.trie_index = null;
+    if (!unpadHour(&r.def, at)) return null;
+    return r;
+}
+
+/// Where s's first clock time starts, when its hour is one digit with no
+/// digit before it and no letter anywhere before it. A word before the
+/// time is the textual detectors' or natural language's to read, and both
+/// take a one-digit hour themselves; stopping at it also keeps a miss and
+/// "tomorrow at 9:30" from detecting twice. ISO 8601's 'T' is such a
+/// letter, and its hour takes two digits.
+fn shortHourAt(s: []const u8) ?usize {
+    for (0..s.len) |i| {
+        if (isLetter(s[i])) return null;
+        const h = hourDigits(s, i) orelse continue;
+        if (h == 2 or (i > 0 and isDigit(s[i - 1]))) return null;
+        return i;
+    }
+    return null;
+}
+
+/// How many digits the hour of a clock time at s[i..] has: two ("10:30"),
+/// or one ("1:30", kmoneil/dateparsa#38). Null when no H:MM or HH:MM
+/// starts there.
+fn hourDigits(s: []const u8, i: usize) ?usize {
+    const h: usize = if (i + 1 < s.len and s[i + 1] == ':') 1 else 2;
+    if (!(i + h + 3 <= s.len and isDigit(s[i]) and isDigit(s[i + h - 1]) and s[i + h] == ':' and
+        isDigit(s[i + h + 1]) and isDigit(s[i + h + 2]))) return null;
+    return h;
+}
+
+/// Makes an hour field a 12-hour clock's, as an AM or PM after it says.
+fn makeTwelveHour(f: *Field) void {
+    switch (f.kind) {
+        .hour24 => f.kind = .hour12,
+        .hour1or2 => f.aux = compile.twelve_hour,
+        else => {},
+    }
+}
+
+/// Turns the two-digit hour field at offset at into one of one or two
+/// digits, and moves every field after it a byte earlier. False when no
+/// hour field starts at at, or another field covers that byte.
+fn unpadHour(def: *Def, at: usize) bool {
+    var found = false;
+    for (def.buf[0..def.len]) |*f| {
+        if (f.offset == at and f.len == 2 and (f.kind == .hour24 or f.kind == .hour12)) {
+            f.aux = if (f.kind == .hour12) compile.twelve_hour else 0;
+            f.kind = .hour1or2;
+            f.len = 1;
+            found = true;
+        } else if (f.offset > at) {
+            f.offset -= 1;
+        } else if (@as(usize, f.offset) + f.len > at) {
+            return false;
+        }
+    }
+    return found;
 }
 
 fn built(scratch: *Result, r: Result) Found {
@@ -226,12 +311,13 @@ fn appendTime(def: *Def, s: []const u8, from: usize) (BuildError || error{NoTime
     var i = from;
     while (i < s.len and (s[i] == ' ' or s[i] == ',' or s[i] == '\t' or s[i] == ':')) i += 1;
     if (i + 3 <= s.len and std.ascii.eqlIgnoreCase(s[i..][0..3], "at ")) i += 3;
-    if (!(i + 5 <= s.len and isDigit(s[i]) and isDigit(s[i + 1]) and s[i + 2] == ':' and
-        isDigit(s[i + 3]) and isDigit(s[i + 4]))) return error.NoTime;
+    // A one-digit hour is a field of one or two digits, so a layout from
+    // "1:30 PM" reads "11:30 PM" too.
+    const h = hourDigits(s, i) orelse return error.NoTime;
     const hour_at = def.len;
-    try appendAt(def, .hour24, i, 2);
-    try appendAt(def, .minute2, i + 3, 2);
-    var j = i + 5;
+    try appendAt(def, if (h == 2) .hour24 else .hour1or2, i, h);
+    try appendAt(def, .minute2, i + h + 1, 2);
+    var j = i + h + 3;
     if (j + 3 <= s.len and s[j] == ':' and isDigit(s[j + 1]) and isDigit(s[j + 2])) {
         try appendAt(def, .second2, j + 1, 2);
         j += 3;
@@ -259,7 +345,7 @@ fn appendTimeSuffix(def: *Def, s: []const u8, j: usize, hour_at: usize) BuildErr
         const c0 = s[j] | 0x20;
         const c1 = s[j + 1] | 0x20;
         if ((c0 == 'a' or c0 == 'p') and c1 == 'm' and (j + 2 == s.len or !isLetter(s[j + 2]))) {
-            if (def.buf[hour_at].kind == .hour24) def.buf[hour_at].kind = .hour12;
+            makeTwelveHour(&def.buf[hour_at]);
             return appendAt(def, .ampm, j, 2);
         }
     }
