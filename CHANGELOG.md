@@ -10,7 +10,24 @@ the difference. Before 1.0 a breaking change is a minor bump.
 
 ## [Unreleased]
 
-### Fixed
+### Changed
+
+- A layout with a month name reads any month written in the same form,
+  so a log's layout follows it into the next month: the layout of
+  `Nov 30 23:59:59` reads `Dec  1 00:00:00`, and the common log format's
+  `30/Nov/2024` reads `01/Dec/2024`. An abbreviation reads any
+  abbreviation (`Mar` reads `Sep` and `Sept`), a full name any full name
+  (`March` reads `April`), and a name that is both, as `May` is, either,
+  in the locales detection searched. It read only the month it was
+  detected from before, as the Go library's still does
+  (kmoneil/dateparsa#43); a month written with a digit (`11월`) still
+  does. `Layout.find`, `Layout.parse` and a `Parser`'s cached layout
+  read those rows; what every input parses to alone is unchanged.
+- For the month change, a two-digit day after a month name and a space
+  with a time after it (`Nov 30 23:59:59`, `Fri Nov 29 23:59:59 2024`)
+  reads as a day padded with a space too, so it reads `Dec  1`. Its Go
+  layout becomes `Jan _2` and its Java pattern `MMM ppd`; strftime keeps
+  `%d`. `Mar 15, 2024` keeps a two-digit day.
 
 - A layout from a day padded with a space, as syslog and asctime write a
   day under 10 (`Nov  8 10:00:05`, `Fri Nov  8 10:00:05 2024`), now reads

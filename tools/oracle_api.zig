@@ -107,13 +107,15 @@ fn hasDottedDateTime(s: []const u8) bool {
 
 /// Whether a first row's layout answers another row differently from Go's on
 /// purpose: a time's layout reads on its base day, as its first row did
-/// (kmoneil/dateparsa#40), and a day padded with a space (`Jun  9`) reads a
-/// two-digit day (`Jun 14`) where Go's refuses it (kmoneil/dateparsa#42).
+/// (kmoneil/dateparsa#40); a day padded with a space (`Jun  9`) reads a
+/// two-digit day (`Jun 14`) and the other way about (kmoneil/dateparsa#42);
+/// and a month name reads another month (`Aug` reads `Mar`,
+/// kmoneil/dateparsa#43), each where Go's layout refuses the row.
 fn reuseIsDeliberate(l: *const dp.Layout, go_reused: []const u8, reused: []const u8) bool {
     if (std.mem.startsWith(u8, l.label, "TIME_") and onlyDayDiffers(go_reused, reused)) return true;
     if (!std.mem.eql(u8, go_reused, "err") or !std.mem.startsWith(u8, reused, "ok ")) return false;
     for (l.program.insts[0..l.program.n]) |inst| {
-        if (inst.op == .day_space_pad) return true;
+        if (inst.op == .day_space_pad or inst.op == .month_any) return true;
     }
     return false;
 }

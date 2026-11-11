@@ -331,13 +331,25 @@ test "a found layout finds its format on the next lines" {
     try std.testing.expectEqual((try dp.parse("10/Nov/2026:00:00:01 +0100")).time, next.time);
     try std.testing.expectEqual(null, first.result.layout.find(clf[2]));
 
-    // syslog pads a day under 10 with a space: the layout of the 8th
-    // follows the log past the 9th.
+    // syslog pads a day under 10 with a space, and a month name reads any
+    // month: the layout of the 8th follows the log past the 9th, and the
+    // layout of the 30th into the next month.
     const syslog = [_][]const u8{ "Nov  8 10:00:05 host a: x", "Nov  9 23:59:59 other-host b[2]: y", "Nov 10 00:00:01 host c: z" };
     const s0 = dp.findFirst(syslog[0], .{ .base_time = find_base }, .{}).?;
-    for (syslog[1..], [_][]const u8{ "Nov  9 23:59:59", "Nov 10 00:00:01" }) |line, want| {
+    try expectFoundOn(&s0.result.layout, syslog[1..], &.{ "Nov  9 23:59:59", "Nov 10 00:00:01" });
+    const late = dp.findFirst("Nov 30 23:59:58 host a: x", .{ .base_time = find_base }, .{}).?;
+    try expectFoundOn(&late.result.layout, &.{ "Nov 30 23:59:59 host b: y", "Dec  1 00:00:00 host c: z", "Dec 10 08:00:00 host d: w" }, &.{ "Nov 30 23:59:59", "Dec  1 00:00:00", "Dec 10 08:00:00" });
+    // The common log format, across a month too.
+    const clf_end = dp.findFirst("10.0.0.1 - - [30/Nov/2026:23:59:59 +0000] \"GET /\" 200", .{}, .{}).?;
+    try expectFoundOn(&clf_end.result.layout, &.{"10.0.0.2 - - [01/Dec/2026:00:00:00 +0000] \"GET /\" 200"}, &.{"01/Dec/2026:00:00:00 +0000"});
+}
+
+/// layout finds each of wants on its line of lines, reading it as parse
+/// reads it alone.
+fn expectFoundOn(layout: *const dp.Layout, lines: []const []const u8, wants: []const []const u8) !void {
+    for (lines, wants) |line, want| {
         errdefer std.debug.print("\"{s}\"\n", .{line});
-        const s = s0.result.layout.find(line).?;
+        const s = layout.find(line) orelse return error.TestNotFound;
         try std.testing.expectEqualStrings(want, line[s.start..s.end]);
         try std.testing.expectEqual((try dp.parseWith(want, .{ .base_time = find_base })).time, s.time);
     }

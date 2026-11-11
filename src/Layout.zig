@@ -8,11 +8,17 @@
 //! - A one-or-two-digit field widens, never narrows: a layout from
 //!   "1 May 2024" reads "12 May 2024"; one from "12 May 2024" refuses
 //!   "1 May 2024". A day after a month name and two spaces is padded with
-//!   a space (syslog's "Nov  8"), and reads "Nov 10" as well.
+//!   a space (syslog's "Nov  8"), and reads "Nov 10" as well; so is a
+//!   two-digit day after a month name and a space with a time after it
+//!   ("Nov 30 23:59:59"), which reads "Dec  1 00:00:00".
 //! - Skipped words take any letters, spaces or accented bytes of the same
 //!   width ("Fri" reads "Sat"); every other skipped byte must be the one the
 //!   first value had there.
-//! - Month names are read in the locales detection searched, and no others.
+//! - A month name reads any month written in the same form, in the locales
+//!   detection searched and no others: an abbreviation any abbreviation
+//!   ("Nov" reads "Dec"), a wide name any wide name ("March" reads
+//!   "April"), and a name that is both ("May") either. A month written with
+//!   a digit, as Chinese, Japanese and Korean write one, reads only itself.
 //! - The epoch and natural-language sentinels have no program and refuse to
 //!   re-parse: "3 days ago" means a different day tomorrow.
 //! - A format detection resolves per value (DD/MM against MM/DD, a day or a
@@ -21,8 +27,8 @@
 //!
 //! A layout compiled from a format string (fromFormatString) keeps the same
 //! contract where it applies: it trims padding, and reads month names in the
-//! locales it was given. It reads any month a %B names, not only one, and
-//! is always reusable: the format says the order.
+//! locales it was given. Its %b and %B read any month in either form, and
+//! it is always reusable: the format says the order.
 
 const std = @import("std");
 const DateTime = @import("DateTime.zig");
@@ -284,7 +290,7 @@ test "each interned layout is what compiling its entry gives" {
         };
         try std.testing.expectEqualDeep(want, got.?.*);
         // A trie format reads no month name, so no locale set can change it.
-        for (got.?.program.insts[0..got.?.program.n]) |inst| try std.testing.expect(inst.op != .month_name);
+        for (got.?.program.insts[0..got.?.program.n]) |inst| try std.testing.expect(inst.op != .month_name and inst.op != .month_any);
         interned_count += 1;
     }
     try std.testing.expect(interned_count >= 20);
@@ -361,8 +367,49 @@ test "skipped words take any letters of their width, other bytes must match" {
     const plain = try layoutOf("March 15, 2024", .{});
     try std.testing.expectEqual(date(2024, 3, 16), try plain.parse("March 16, 2024"));
     try std.testing.expectError(error.NoMatch, plain.parse("March 16; 2024"));
-    // The month is verified, never assumed: April is as wide as March.
-    try std.testing.expectError(error.NoMatch, plain.parse("April 16, 2024"));
+}
+
+test "a month name reads any month written in the same form" {
+    // The month is read from the row, never assumed: April is as wide as
+    // March, and December is wider.
+    const wide = try layoutOf("March 15, 2024", .{});
+    try std.testing.expectEqual(date(2024, 4, 16), try wide.parse("April 16, 2024"));
+    try std.testing.expectEqual(date(2024, 12, 16), try wide.parse("December 16, 2024"));
+    try std.testing.expectEqual(date(2024, 5, 16), try wide.parse("May 16, 2024"));
+    try std.testing.expectError(error.NoMatch, wide.parse("Apr 16, 2024"));
+    try std.testing.expectError(error.NoMatch, wide.parse("Marching 16, 2024"));
+    const abbr = try layoutOf("15 Mar 2024", .{});
+    try std.testing.expectEqual(date(2024, 9, 20), try abbr.parse("20 Sep 2024"));
+    try std.testing.expectEqual(date(2024, 9, 20), try abbr.parse("20 Sept 2024"));
+    try std.testing.expectEqual(date(2024, 5, 20), try abbr.parse("20 May 2024"));
+    try std.testing.expectError(error.NoMatch, abbr.parse("20 April 2024"));
+    // "May" is both forms, so its layout reads either.
+    const may = try layoutOf("15 May 2024", .{});
+    try std.testing.expectEqual(date(2024, 6, 20), try may.parse("20 Jun 2024"));
+    try std.testing.expectEqual(date(2024, 6, 20), try may.parse("20 June 2024"));
+    // The common log format at a month's end.
+    const clf = try layoutOf("30/Nov/2024:23:59:59 +0000", .{});
+    const want: DateTime = .{ .year = 2024, .month = 12, .day = 1 };
+    try std.testing.expectEqual(want, try clf.parse("01/Dec/2024:00:00:00 +0000"));
+}
+
+test "a syslog layout follows the log through a month's end" {
+    // "Nov 30" is two digits before a time, read as a day padded with a
+    // space, so it reads "Dec  1" as well.
+    const late = try layoutOf("Fri Nov 29 23:59:59 2024", .{});
+    for ([_]struct { []const u8, u8, u8 }{
+        .{ "Sat Nov 30 23:59:59 2024", 11, 30 },
+        .{ "Sun Dec  1 00:00:00 2024", 12, 1 },
+        .{ "Tue Dec 10 00:00:00 2024", 12, 10 },
+    }) |c| {
+        errdefer std.debug.print("\"{s}\"\n", .{c[0]});
+        const t = try late.parse(c[0]);
+        try std.testing.expectEqual(c[1], t.month);
+        try std.testing.expectEqual(c[2], t.day);
+    }
+    // A two-digit day with no time after it keeps two digits.
+    const plain = try layoutOf("Mar 15, 2024", .{});
+    try std.testing.expectError(error.NoMatch, plain.parse("Mar  5, 2024"));
 }
 
 test "a format resolved per value parses the first value's way and is not reusable" {

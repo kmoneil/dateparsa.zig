@@ -373,8 +373,9 @@ fn dayOrYearReadings(r: *const Result) Readings {
     var month_at: ?usize = null;
     var year_at: ?usize = null;
     for (fields, 0..) |f, i| switch (f.kind) {
-        .day2 => day_at = i,
-        .month_name => month_at = i,
+        // A padded day here is two digits: textual.dayIsAGuess asked.
+        .day2, .day_space_pad => day_at = i,
+        .month_name, .month_any => month_at = i,
         .year2 => year_at = i,
         else => {},
     };

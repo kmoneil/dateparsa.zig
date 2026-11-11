@@ -44,9 +44,19 @@ const Spelling = struct {
     len_bit: u64,
     /// The bit for its first byte; every bit for a scan.
     first_bit: u32,
+    /// Which of its month's spellings it is (locale.form_abbr, form_wide),
+    /// which a layout reads other months in; 0 for a scan, which a layout
+    /// reads only as this month.
+    form: u8,
 };
 
-fn spelling(name: []const u8, month: u8) Spelling {
+/// An English spelling, its form as the executor reads it.
+fn englishSpelling(name: []const u8, month: u8) Spelling {
+    @setEvalBranchQuota(10_000);
+    return spelling(name, month, compile.readMonthName(name, 0, .{}).?.form);
+}
+
+fn spelling(name: []const u8, month: u8, form: u8) Spelling {
     const how: Lookup = if (allWordChars(name))
         .word_list
     else if (name.len >= 2 and name[name.len - 1] == '.' and allWordChars(name[0 .. name.len - 1]))
@@ -63,6 +73,7 @@ fn spelling(name: []const u8, month: u8) Spelling {
             .scan => ~@as(u64, 0),
         },
         .first_bit = if (how == .scan) ~@as(u32, 0) else firstBit(name[0]),
+        .form = if (how == .scan) 0 else form,
     };
 }
 
@@ -91,30 +102,30 @@ const first_bit_sentinel: u32 = 1 << 31;
 /// English, always searched first, in Go's order: a spelling comes before
 /// the shorter ones it contains ("september", then "sept", then "sep").
 const english = [_]Spelling{
-    spelling("september", 9),
-    spelling("february", 2),
-    spelling("november", 11),
-    spelling("december", 12),
-    spelling("january", 1),
-    spelling("october", 10),
-    spelling("august", 8),
-    spelling("march", 3),
-    spelling("april", 4),
-    spelling("june", 6),
-    spelling("july", 7),
-    spelling("sept", 9),
-    spelling("jan", 1),
-    spelling("feb", 2),
-    spelling("mar", 3),
-    spelling("apr", 4),
-    spelling("may", 5),
-    spelling("jun", 6),
-    spelling("jul", 7),
-    spelling("aug", 8),
-    spelling("sep", 9),
-    spelling("oct", 10),
-    spelling("nov", 11),
-    spelling("dec", 12),
+    englishSpelling("september", 9),
+    englishSpelling("february", 2),
+    englishSpelling("november", 11),
+    englishSpelling("december", 12),
+    englishSpelling("january", 1),
+    englishSpelling("october", 10),
+    englishSpelling("august", 8),
+    englishSpelling("march", 3),
+    englishSpelling("april", 4),
+    englishSpelling("june", 6),
+    englishSpelling("july", 7),
+    englishSpelling("sept", 9),
+    englishSpelling("jan", 1),
+    englishSpelling("feb", 2),
+    englishSpelling("mar", 3),
+    englishSpelling("apr", 4),
+    englishSpelling("may", 5),
+    englishSpelling("jun", 6),
+    englishSpelling("jul", 7),
+    englishSpelling("aug", 8),
+    englishSpelling("sep", 9),
+    englishSpelling("oct", 10),
+    englishSpelling("nov", 11),
+    englishSpelling("dec", 12),
 };
 
 /// Each compiled locale's spellings: per month the wide name, the
@@ -130,7 +141,7 @@ const locale_spellings: [locale.compiled.len][]const Spelling = blk: {
         for (d.months_wide, d.months_abbr, 1..) |wide, abbr, month| {
             for ([_][]const u8{ wide, abbr, std.mem.trimEnd(u8, abbr, ".") }, 0..) |name, k| {
                 if (name.len == 0 or (k == 2 and name.len == abbr.len)) continue;
-                list[n] = spelling(name, month);
+                list[n] = spelling(name, month, locale.spellingForm(name, wide, abbr));
                 n += 1;
             }
         }
@@ -250,7 +261,9 @@ const WordMatcher = struct {
     }
 };
 
-pub const Found = struct { month: u8, start: usize, end: usize, rival: bool };
+/// A month name found: its month and span, whether another month's name
+/// occurs too, and the form of the spelling (Spelling.form).
+pub const Found = struct { month: u8, start: usize, end: usize, rival: bool, form: u8 = 0 };
 
 /// The first spelling found, English then each locale in tag order, and
 /// whether a spelling of a different month also occurs outside it.
@@ -259,24 +272,25 @@ pub fn findMonthName(s: []const u8, locales: locale.LocaleSet) ?Found {
     m.init(s);
     for (&english) |*sp| {
         if (!m.admits(sp)) continue;
-        if (m.find(sp)) |at| return found(&m, sp.month, at, locales);
+        if (m.find(sp)) |at| return found(&m, sp, at, locales);
     }
     for (locale_spellings, 0..) |spellings, li| {
         if (!locale.contains(locales, li)) continue;
         for (spellings) |*sp| {
             if (!m.admits(sp)) continue;
-            if (m.find(sp)) |at| return found(&m, sp.month, at, locales);
+            if (m.find(sp)) |at| return found(&m, sp, at, locales);
         }
     }
     return null;
 }
 
-fn found(m: *const WordMatcher, month: u8, at: Span, locales: locale.LocaleSet) Found {
+fn found(m: *const WordMatcher, sp: *const Spelling, at: Span, locales: locale.LocaleSet) Found {
     return .{
-        .month = month,
+        .month = sp.month,
         .start = at.start,
         .end = at.end,
-        .rival = hasRival(m, month, at, locales),
+        .rival = hasRival(m, sp.month, at, locales),
+        .form = sp.form,
     };
 }
 
@@ -422,8 +436,8 @@ fn addYear(def: *Def, n: Num) BuildError!void {
 }
 
 fn addDay(def: *Def, s: []const u8, n: Num) BuildError!void {
-    if (isSpacePadded(def, s, n)) {
-        try add(def, .day_space_pad, n.start - 1, 2, 0);
+    if (spacePadAt(def, s, n)) |off| {
+        try add(def, .day_space_pad, off, 2, 0);
     } else {
         const kind: FieldKind = if (n.end - n.start == 1) .day1or2 else .day2;
         try add(def, kind, n.start, n.end - n.start, 0);
@@ -432,19 +446,50 @@ fn addDay(def: *Def, s: []const u8, n: Num) BuildError!void {
     if (suffix > 0) try detect.appendSkip(def, s, n.end, suffix);
 }
 
-/// Whether the day at n is one digit after the month name and two spaces:
-/// strftime's %e, as syslog ("Nov  8 10:00:05") and asctime write a day
-/// under 10. The day then reads as the space and the digit, so the layout
-/// goes on to read "Nov 10" (the 10th, one space). As a 1-or-2-digit day
-/// after two literal spaces, it refused every day from the 10th on.
-fn isSpacePadded(def: *const Def, s: []const u8, n: Num) bool {
-    if (n.end - n.start != 1) return false;
+/// Where the day at n starts when it is strftime's %e, a space and a digit
+/// or two digits, as syslog ("Nov  8 10:00:05") and asctime write a day;
+/// else null. A layout of either kind of day then reads the other, so it
+/// follows a log through a month: "Nov  9" to "Nov 10", and at the month's
+/// end "Nov 30" to "Dec  1".
+///
+/// One digit after the month name and two spaces is that day, the space
+/// before the digit its own. Two digits after the month name and a space
+/// are when a time follows, as in syslog and asctime; "Mar 15, 2024" keeps
+/// a two-digit day.
+fn spacePadAt(def: *const Def, s: []const u8, n: Num) ?usize {
     // buildFields adds the month first.
-    if (def.len == 0) return false;
+    if (def.len == 0) return null;
     const m = def.buf[0];
-    if (m.kind != .month_name) return false;
+    if (m.kind != .month_name and m.kind != .month_any) return null;
     const month_end = @as(usize, m.offset) + m.len;
-    return month_end + 2 == n.start and s[month_end] == ' ' and s[month_end + 1] == ' ';
+    if (month_end >= s.len or s[month_end] != ' ') return null;
+    switch (n.end - n.start) {
+        1 => if (month_end + 2 == n.start and s[month_end + 1] == ' ') return n.start - 1,
+        2 => if (month_end + 1 == n.start and timeFollows(s, n.end)) return n.start,
+        else => {},
+    }
+    return null;
+}
+
+/// Whether a space and a clock time's hour, one digit or two and a colon,
+/// start at s[at].
+fn timeFollows(s: []const u8, at: usize) bool {
+    if (at + 3 > s.len or s[at] != ' ' or !isDigit(s[at + 1])) return false;
+    const colon = if (isDigit(s[at + 2])) at + 3 else at + 2;
+    return colon < s.len and s[colon] == ':';
+}
+
+const MonthField = struct { kind: FieldKind, aux: u16 };
+
+/// The field the month name f found reads as. Spelled as a word, it reads
+/// any month spelled in the same form (an abbreviation any abbreviation, a
+/// wide name any wide name), so a layout follows a log from "Nov" to "Dec";
+/// its aux carries the month too, which the executor tries first, as one
+/// comparison or two. Spelled with a digit, as Chinese, Japanese and Korean
+/// write a month, it reads only this month.
+fn monthField(f: Found) MonthField {
+    if (f.form == 0) return .{ .kind = .month_name, .aux = f.month };
+    return .{ .kind = .month_any, .aux = compile.monthAnyAux(f.form, f.month) };
 }
 
 /// The numbers in s outside the month name at s[start..end], in order, but
@@ -503,11 +548,13 @@ fn isYear4(n: Num) bool {
 
 /// The month and the numbers around it, then any time after them. The
 /// fields come out of order (the month first) and coverGaps sorts them.
-fn buildFields(def: *Def, s: []const u8, month: u8, start: usize, end: usize) BuildError!void {
+fn buildFields(def: *Def, s: []const u8, f: Found) BuildError!void {
+    const start, const end = .{ f.start, f.end };
     var nums_buf: [compile.max_describable_len / 2 + 1]Num = undefined;
     const nums = numbersAround(s, start, end, &nums_buf);
 
-    try add(def, .month_name, start, end - start, month);
+    const m = monthField(f);
+    try add(def, m.kind, start, end - start, m.aux);
     switch (nums.len) {
         0 => {},
         1 => {
@@ -591,7 +638,7 @@ fn dayIsAGuess(s: []const u8, fields: []const Field) Guess {
     const prone = day != null or year != null;
     if (!prone) return .{ .prone = false, .guess = false };
     const d = day orelse return .{ .prone = true, .guess = false };
-    if (d.kind != .day2 or d.len != 2) return .{ .prone = true, .guess = false };
+    if (!isTwoDigits(s, d)) return .{ .prone = true, .guess = false };
     const y = year orelse return .{ .prone = true, .guess = true };
     // "01MAY10": the written year is also a day only when it is 31 or less.
     if (y.len < 1 or y.len > 2) return .{ .prone = true, .guess = false };
@@ -601,6 +648,13 @@ fn dayIsAGuess(s: []const u8, fields: []const Field) Guess {
         v = v * 10 + (c - '0');
     }
     return .{ .prone = true, .guess = v <= 31 };
+}
+
+/// Whether day field d reads two digits in s: a two-digit day, or a day
+/// padded with a space that a time follows ("Mar 15 10:30") and so is.
+fn isTwoDigits(s: []const u8, d: Field) bool {
+    if (d.len != 2) return false;
+    return d.kind == .day2 or (d.kind == .day_space_pad and s[d.offset] != ' ');
 }
 
 /// A date written around a month name, or null.
@@ -613,7 +667,7 @@ pub fn detectTextual(s: []const u8, cfg: Config) ?Result {
     if (indexFoldAscii(after, " at ") != null and !hasFourDigitYear(after)) return null;
     const name = classify(s, f.start, f.end) orelse return null;
     var def: Def = .{ .name = name };
-    buildFields(&def, s, f.month, f.start, f.end) catch return null;
+    buildFields(&def, s, f) catch return null;
     detect.coverGaps(&def, s) catch return null;
     const g = dayIsAGuess(s, def.fields());
     return .{ .def = def, .ambiguity = if (g.guess) .day_or_year else .none, .prone = g.prone };
@@ -983,8 +1037,16 @@ test "a layout detected in German reads German, and only as detection would" {
     const p = try compile.compile(r.def.fields(), .{ .locales = de });
     try std.testing.expectEqual(when(2025, 3, 20, 0, 0, 0, 0), try p.execute("20 März 2025"));
     try std.testing.expectEqual(when(2025, 3, 20, 0, 0, 0, 0), try p.execute("20 MäRZ 2025"));
-    // Same width, another month: a mismatch is a refusal, never another month.
-    try std.testing.expectError(error.NoMatch, p.execute("20 April 2025"));
+    // Another month is read as that month, in the form detected: März is
+    // German's wide name and its abbreviation, so either. Januar is only
+    // the wide name, so its layout refuses an abbreviation.
+    try std.testing.expectEqual(when(2025, 4, 20, 0, 0, 0, 0), try p.execute("20 April 2025"));
+    try std.testing.expectEqual(when(2025, 10, 20, 0, 0, 0, 0), try p.execute("20 Okt. 2025"));
+    try std.testing.expectError(error.NoMatch, p.execute("20 Aprill 2025"));
+    const jan = detect.detect("15 Januar 2024", .{ .locales = de }).?;
+    const wide = try compile.compile(jan.def.fields(), .{ .locales = de });
+    try std.testing.expectEqual(when(2025, 12, 20, 0, 0, 0, 0), try wide.execute("20 Dezember 2025"));
+    try std.testing.expectError(error.NoMatch, wide.execute("20 Dez. 2025"));
     // Detection folds ASCII only, so the layout does too (DESIGN divergence 7).
     try std.testing.expectError(error.NoMatch, p.execute("20 MÄRZ 2025"));
     try std.testing.expectEqual(null, detect.detect("20 MÄRZ 2025", .{ .locales = de }));

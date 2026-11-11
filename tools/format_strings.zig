@@ -49,7 +49,7 @@ pub fn main(init: std.process.Init) !void {
         for (r.layout.program.insts[0..r.layout.program.n]) |inst| {
             const f: []const u8 = switch (inst.op) {
                 .year4, .year2 => "Y",
-                .month2, .month1or2, .month_name => "M",
+                .month2, .month1or2, .month_name, .month_any => "M",
                 .day2, .day1or2, .day_space_pad => "D",
                 .iso_week, .ordinal_day => "MD",
                 .hour24, .hour12, .hour1or2 => "h",
