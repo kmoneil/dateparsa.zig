@@ -42,7 +42,6 @@ src/rfc2822.zig	match	12	26	16	3	2	2
 src/root.zig	structured	15	16	17	3	3	3
 src/signature.zig	scan	15	17	15	3	1	1
 src/textual.zig	WordMatcher.find	12	19	16	3	1	1
-src/textual.zig	buildFields	14	17	34	2	5	5
 src/textual.zig	dayIsAGuess	17	21	20	3	2	2
 src/textual.zig	findMonthName	9	18	12	3	2	2
 src/textual.zig	hasRival	9	16	9	3	4	4

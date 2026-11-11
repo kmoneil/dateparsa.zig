@@ -620,6 +620,9 @@ const singles = [_][]const u8{
     "3/15/2024 1:30 PM",
     "2024-03-15 1:30:00",
     "15 Mar 2024 9:05",
+    // An hour with am or pm, once read as a day (t58).
+    "at 3pm, was March",
+    "5pm March 15",
     // A dotted date with a time (kmoneil/dateparsa#37).
     "15.03.2024 10:30",
     "01.02.2024 10:30:00",

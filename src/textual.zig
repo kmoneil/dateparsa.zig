@@ -428,6 +428,43 @@ fn addDay(def: *Def, s: []const u8, n: Num) BuildError!void {
     if (suffix > 0) try detect.appendSkip(def, s, n.end, suffix);
 }
 
+/// The numbers in s outside the month name at s[start..end], in order, but
+/// for an hour with am or pm after it.
+fn numbersAround(s: []const u8, start: usize, end: usize, buf: []Num) []Num {
+    var count: usize = 0;
+    var i: usize = 0;
+    while (i < s.len) {
+        if (i >= start and i < end) {
+            i = end;
+            continue;
+        }
+        if (!isDigit(s[i])) {
+            i += 1;
+            continue;
+        }
+        const from = i;
+        var v: u64 = 0;
+        while (i < s.len and isDigit(s[i])) : (i += 1) v = v *| 10 +| (s[i] - '0');
+        if (isAmPmHour(s, from, i)) continue;
+        buf[count] = .{ .value = v, .start = from, .end = i };
+        count += 1;
+    }
+    return buf[0..count];
+}
+
+/// Whether the number at s[from..end] is an hour with am or pm after it,
+/// glued or after a space ("3pm", "5 PM"): a time, never a day or a year,
+/// so "at 3pm, was March" is no date and "5pm March 15" is not 5 March
+/// 2015. A number after a colon is a time's minutes ("10:30 PM").
+fn isAmPmHour(s: []const u8, from: usize, end: usize) bool {
+    if (from > 0 and s[from - 1] == ':') return false;
+    const j = if (end < s.len and s[end] == ' ') end + 1 else end;
+    if (j + 2 > s.len) return false;
+    const c0 = s[j] | 0x20;
+    if ((c0 != 'a' and c0 != 'p') or s[j + 1] | 0x20 != 'm') return false;
+    return j + 2 == s.len or !std.ascii.isAlphabetic(s[j + 2]);
+}
+
 /// The width of an English ordinal suffix at at ("st", "nd", "rd", "th")
 /// when a word ends there, else 0.
 fn ordinalSuffixLen(s: []const u8, at: usize) usize {
@@ -449,24 +486,7 @@ fn isYear4(n: Num) bool {
 /// fields come out of order (the month first) and coverGaps sorts them.
 fn buildFields(def: *Def, s: []const u8, month: u8, start: usize, end: usize) BuildError!void {
     var nums_buf: [compile.max_describable_len / 2 + 1]Num = undefined;
-    var count: usize = 0;
-    var i: usize = 0;
-    while (i < s.len) {
-        if (i >= start and i < end) {
-            i = end;
-            continue;
-        }
-        if (!isDigit(s[i])) {
-            i += 1;
-            continue;
-        }
-        const from = i;
-        var v: u64 = 0;
-        while (i < s.len and isDigit(s[i])) : (i += 1) v = v *| 10 +| (s[i] - '0');
-        nums_buf[count] = .{ .value = v, .start = from, .end = i };
-        count += 1;
-    }
-    const nums = nums_buf[0..count];
+    const nums = numbersAround(s, start, end, &nums_buf);
 
     try add(def, .month_name, start, end - start, month);
     switch (nums.len) {
