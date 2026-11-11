@@ -163,6 +163,42 @@ test "a time alone reads on the base time's day, where the input is read" {
     try std.testing.expectEqual(2026, (try dp.parseWith("December 23rd", eve_est)).time.year);
 }
 
+test "a one-digit hour reads as its zero-padded form" {
+    // kmoneil/dateparsa#38: Go finds no format for any of these.
+    const pairs = [_][2][]const u8{
+        .{ "1:30 PM", "01:30 PM" },
+        .{ "9:05 am", "09:05 am" },
+        .{ "1:30:00 PM", "01:30:00 PM" },
+        .{ "9:30", "09:30" },
+        .{ "9:30:15.123", "09:30:15.123" },
+        .{ "3/15/2024 1:30 PM", "3/15/2024 01:30 PM" },
+        .{ "3/15/2024 1:30", "3/15/2024 01:30" },
+        .{ "2024-03-15 1:30:00", "2024-03-15 01:30:00" },
+        .{ "2024-03-15 9:30Z", "2024-03-15 09:30Z" },
+        .{ "March 15, 2024 1:30 PM", "March 15, 2024 01:30 PM" },
+        .{ "15 Mar 2024 9:05", "15 Mar 2024 09:05" },
+    };
+    for (pairs) |p| {
+        errdefer std.debug.print("\"{s}\"\n", .{p[0]});
+        const short = try dp.parseWith(p[0], .{ .base_time = base });
+        const padded = try dp.parseWith(p[1], .{ .base_time = base });
+        try std.testing.expectEqual(padded.time, short.time);
+        try std.testing.expectEqualStrings(padded.layout.label, short.layout.label);
+        try std.testing.expectEqual(padded.layout.reusable(), short.layout.reusable());
+    }
+    // A layout from a one-digit hour reads two; one from two digits refuses one.
+    const one = try dp.parseWith("1:30 PM", .{ .base_time = base });
+    try std.testing.expectEqual(23, (try one.layout.parse("11:30 PM")).hour);
+    const two = try dp.parseWith("01:30 PM", .{ .base_time = base });
+    try std.testing.expectError(error.NoMatch, two.layout.parse("1:30 PM"));
+    // Refused as their padded forms are, and after ISO 8601's 'T', which
+    // takes two digits.
+    for ([_][]const u8{ "0:30 PM", "13:30 PM", "9:61", "2024-03-15T1:30:00" }) |s| {
+        errdefer std.debug.print("\"{s}\"\n", .{s});
+        try std.testing.expectError(error.NoMatch, dp.parseWith(s, .{ .base_time = base }));
+    }
+}
+
 test "surrounding ASCII whitespace is padding on every path" {
     const Case = struct { []const u8, DateTime };
     const values = [_]Case{

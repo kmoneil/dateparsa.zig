@@ -580,6 +580,11 @@ const singles = [_][]const u8{
     "202March 15, 2024\xcd\x7f\x84",
     // Go's FuzzScanString seed: a crasher there (C1, detect.trimAtSuffix).
     "deC0000\xcd\xcd\xcd At 0",
+    // A one-digit hour, read as its padded form (kmoneil/dateparsa#38).
+    "1:30 PM",
+    "3/15/2024 1:30 PM",
+    "2024-03-15 1:30:00",
+    "15 Mar 2024 9:05",
 };
 
 /// Go's FuzzUnmarshalJSON seeds, and numbers and escapes at the edges of
@@ -671,6 +676,11 @@ const pairs = [_][2][]const u8{
     .{ "2024-03-15T10:30:00Z", "03/15/2024" },
     .{ "1710505800", "2024-03-15" },
     .{ "0", "in0S" },
+    // A one-digit hour's layout reads two digits; a two-digit one's refuses one.
+    .{ "1:30 PM", "11:30 PM" },
+    .{ "11:30 PM", "1:30 PM" },
+    .{ "2024-03-15 1:30:00", "2024-03-16 23:59:59" },
+    .{ "3/15/2024 1:30 PM", "12/25/2024 10:05 AM" },
 };
 
 /// A seed as Smith reads one: each string a four-byte little-endian length

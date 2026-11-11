@@ -63,14 +63,35 @@ const deliberate = [_][]const u8{
 /// "Differences from the Go original" lists: it reads an input Go refuses,
 /// with a layout in `deliberate`, or it reads a time alone on the base
 /// time's day where Go reads 1 January (kmoneil/dateparsa#40).
-fn isDeliberate(go_answer: []const u8, zig_answer: []const u8) bool {
-    if (std.mem.indexOf(u8, zig_answer, " label=TIME_") != null) return onlyDayDiffers(go_answer, zig_answer);
+fn isDeliberate(input: []const u8, go_answer: []const u8, zig_answer: []const u8) bool {
+    if (std.mem.indexOf(u8, zig_answer, " label=TIME_") != null and onlyDayDiffers(go_answer, zig_answer)) return true;
     if (!std.mem.eql(u8, go_answer, "err nomatch")) return false;
+    // A one-digit hour, which Go has no format for (kmoneil/dateparsa#38):
+    // read here, or refused as its zero-padded form would be.
+    if (hasShortHour(input)) return std.mem.startsWith(u8, zig_answer, "ok ") or
+        std.mem.eql(u8, zig_answer, "err nobase") or std.mem.startsWith(u8, zig_answer, "err ambiguous");
     if (!std.mem.startsWith(u8, zig_answer, "ok ")) return false;
     for (deliberate) |label| {
         var buf: [64]u8 = undefined;
         const needle = std.fmt.bufPrint(&buf, " label={s} ", .{label}) catch unreachable;
         if (std.mem.indexOf(u8, zig_answer, needle) != null) return true;
+    }
+    return false;
+}
+
+/// Whether s's first clock time has a one-digit hour: a digit with no
+/// digit before it, a colon, two digits. Letters before it are allowed
+/// (textual dates read one too); ISO 8601's 'T' is not, as there the hour
+/// takes two digits.
+fn hasShortHour(s: []const u8) bool {
+    var i: usize = 0;
+    while (i + 3 < s.len) : (i += 1) {
+        if (!std.ascii.isDigit(s[i])) continue;
+        const one = s[i + 1] == ':' and std.ascii.isDigit(s[i + 2]) and std.ascii.isDigit(s[i + 3]);
+        const two = i + 4 < s.len and std.ascii.isDigit(s[i + 1]) and s[i + 2] == ':' and
+            std.ascii.isDigit(s[i + 3]) and std.ascii.isDigit(s[i + 4]);
+        if (two) return false;
+        if (one) return i == 0 or !(std.ascii.isDigit(s[i - 1]) or s[i - 1] == 'T');
     }
     return false;
 }
@@ -138,7 +159,7 @@ fn answer(buf: []u8, s: []const u8, ci: usize, go_answer: []const u8, deliberate
     var diag: dp.Diagnostics = .{};
     var aw: Io.Writer = .fixed(buf);
     try fmtResult(&aw, dp.parseWith(s, options(ci, &diag)), &diag);
-    if (!isDeliberate(go_answer, aw.buffered())) return aw.buffered();
+    if (!isDeliberate(s, go_answer, aw.buffered())) return aw.buffered();
     deliberate_count.* += 1;
     return go_answer;
 }
@@ -191,7 +212,7 @@ fn run(input: []const u8, w: *Io.Writer) !Counts {
         var gw: Io.Writer = .fixed(&got_buf);
         try fmtResult(&gw, dp.parseWith(s, .{ .diagnostics = &nd }), &nd);
         const got = gw.buffered();
-        if (!std.mem.eql(u8, want, got) and !isDeliberate(want, got)) {
+        if (!std.mem.eql(u8, want, got) and !isDeliberate(s, want, got)) {
             counts.mismatches += 1;
             std.debug.print("no base time, {s}:\n  want {s}\n  got  {s}\n", .{ hex, want, got });
         }
