@@ -230,6 +230,24 @@ test "a dotted date with a time reads as the dotted date alone does" {
     }
 }
 
+test "an hour with am or pm is never a day or a year" {
+    // "3pm" once read as the 3rd, and "5pm March 15" as 5 March 2015.
+    for ([_][]const u8{ "at 3pm, was March", "Friday at 3pm, was March", "3pm March", "5pm March 15", "5 pm March 15" }) |s| {
+        errdefer std.debug.print("\"{s}\"\n", .{s});
+        try std.testing.expectError(error.NoMatch, dp.parseWith(s, .{ .base_time = base }));
+    }
+    // Its neighbours still read: an ordinal, a time with minutes.
+    const Case = struct { []const u8, DateTime };
+    for ([_]Case{
+        .{ "March 3rd", .{ .year = 2026, .month = 3, .day = 3 } },
+        .{ "March 15, 2024 10:30 PM", .{ .year = 2024, .month = 3, .day = 15, .hour = 22, .minute = 30 } },
+        .{ "March 15, 2024 at 5:30pm", .{ .year = 2024, .month = 3, .day = 15, .hour = 17, .minute = 30 } },
+    }) |c| {
+        errdefer std.debug.print("\"{s}\"\n", .{c[0]});
+        try std.testing.expectEqual(c[1], (try dp.parseWith(c[0], .{ .base_time = base })).time);
+    }
+}
+
 /// The base time the find tests read against.
 const find_base: DateTime = .{ .year = 2026, .month = 11, .day = 11, .hour = 12 };
 
@@ -242,6 +260,7 @@ test "findFirst finds a log line's date and where it is" {
         .{ "Date: Sun, 08 Nov 2026 10:00:05 +0000", "Sun, 08 Nov 2026 10:00:05 +0000" },
         .{ "2026-11-08 10:00:01,123 INFO started", "2026-11-08 10:00:01,123" },
         .{ "Shipped on March 5, after the freeze.", "March 5" },
+        .{ "Moved to next Friday at 3pm, was March 5.", "March 5" },
         .{ "release 1.2.3 shipped 2024-03-15", "2024-03-15" },
     };
     for (cases) |c| {

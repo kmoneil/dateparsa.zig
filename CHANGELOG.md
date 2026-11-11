@@ -36,6 +36,14 @@ the difference. Before 1.0 a breaking change is a minor bump.
   dotted date reads with a time only in the shape it reads in alone,
   DD.DD.YYYY, so `1.2.3 10:30` is still no date.
 
+### Fixed
+
+- An hour with am or pm after it is never a day or a year. `at 3pm, was
+  March` read as 3 March, and `5pm March 15` as 5 March 2015; both are now
+  refused, as `at noon, was March` was. The Go library reads them as it
+  did. A time with minutes (`10:30 PM`) and an ordinal (`March 3rd`) read
+  as before.
+
 ## [0.7.0] - 2026-11-11
 
 A time alone reads on the base time's day, not on 1 January. That changes

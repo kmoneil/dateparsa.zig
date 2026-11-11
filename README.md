@@ -552,6 +552,7 @@ Each is deliberate.
 | A time alone (`10:42`) on 1 January of the base time's year | On the base time's day, as `today 10:42` ([kmoneil/dateparsa#40](https://github.com/kmoneil/dateparsa/issues/40)) |
 | No seconds after a relative day: `today 10:42:03` is refused | Read |
 | No format for a dotted date with a time: `15.03.2024 10:30`, `15.03.2024 10:30:00` | Read day first, as `15.03.2024` is ([kmoneil/dateparsa#37](https://github.com/kmoneil/dateparsa/issues/37)) |
+| An hour with am or pm read as a day or a year: `at 3pm, was March` is 3 March, `5pm March 15` is 5 March 2015 | Never a day or a year: both are refused |
 | No format for a one-digit hour: `1:30 PM`, `3/15/2024 9:05 AM`, `2024-03-15 1:30:00` | Read as the zero-padded form is, under its label ([kmoneil/dateparsa#38](https://github.com/kmoneil/dateparsa/issues/38)) |
 | All locales always linked | Chosen at build time with `-Dlocales` |
 | `flextime`: `database/sql`, JSON and text (un)marshalling, `WithJSONFormat`, layout caches shared by the process | `FlexTime`: `std.json` hooks and `fromValue`, always RFC 3339 out, caches per thread |
