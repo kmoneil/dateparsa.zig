@@ -7,7 +7,8 @@
 //!   ASCII whitespace the same way detection did.
 //! - A one-or-two-digit field widens, never narrows: a layout from
 //!   "1 May 2024" reads "12 May 2024"; one from "12 May 2024" refuses
-//!   "1 May 2024".
+//!   "1 May 2024". A day after a month name and two spaces is padded with
+//!   a space (syslog's "Nov  8"), and reads "Nov 10" as well.
 //! - Skipped words take any letters, spaces or accented bytes of the same
 //!   width ("Fri" reads "Sat"); every other skipped byte must be the one the
 //!   first value had there.
@@ -326,6 +327,31 @@ test "a one-or-two-digit day widens and never narrows" {
     try std.testing.expectEqual(date(2024, 3, 12), try numeric.parse("3/12/2024"));
     const wide = try layoutOf("12 May 2024", .{});
     try std.testing.expectError(error.NoMatch, wide.parse("1 May 2024"));
+}
+
+test "a day padded with a space reads the days from the 10th on" {
+    // asctime and syslog write a day under 10 as a space and a digit: the
+    // layout of the 8th reads the 9th, the 10th and the 30th.
+    const asctime = try layoutOf("Fri Nov  8 10:00:05 2024", .{});
+    const padded = for (asctime.program.insts[0..asctime.program.n]) |inst| {
+        if (inst.op == .day_space_pad) break true;
+    } else false;
+    try std.testing.expect(padded);
+    for ([_]struct { []const u8, u8 }{
+        .{ "Sat Nov  9 10:00:05 2024", 9 },
+        .{ "Sun Nov 10 10:00:05 2024", 10 },
+        .{ "Sat Nov 30 10:00:05 2024", 30 },
+    }) |c| {
+        errdefer std.debug.print("\"{s}\"\n", .{c[0]});
+        const want: DateTime = .{ .year = 2024, .month = 11, .day = c[1], .hour = 10, .second = 5 };
+        try std.testing.expectEqual(want, try asctime.parse(c[0]));
+    }
+    // The pad is one space: two spaces before a two-digit day, or none
+    // before one digit, is another width.
+    try std.testing.expectError(error.NoMatch, asctime.parse("Sun Nov  10 10:00:05 2024"));
+    try std.testing.expectError(error.NoMatch, asctime.parse("Sat Nov 9 10:00:05 2024"));
+    const comma = try layoutOf("Mar  5, 2024", .{});
+    try std.testing.expectEqual(date(2024, 3, 15), try comma.parse("Mar 15, 2024"));
 }
 
 test "skipped words take any letters of their width, other bytes must match" {

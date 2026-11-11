@@ -137,7 +137,7 @@ fn spell(l: *const Layout, dialect: Dialect, value: []const u8, w: *std.Io.Write
             .month1or2 => try token(w, dialect, .{ "%m", "1", "M" }),
             .day2 => try token(w, dialect, .{ "%d", "02", "dd" }),
             .day1or2 => try token(w, dialect, .{ "%d", "2", "d" }),
-            .day_space_pad => try token(w, dialect, .{ "%e", "_2", "ppd" }),
+            .day_space_pad => try spaceDay(w, dialect, &held, span.off, text),
             .hour24 => try token(w, dialect, .{ "%H", "15", "HH" }),
             .hour12 => try token(w, dialect, .{ "%I", "03", "hh" }),
             .hour1or2 => try token(w, dialect, if (twelve_hour) .{ "%I", "3", "h" } else .{ "%H", "15", "H" }),
@@ -187,6 +187,20 @@ fn spell(l: *const Layout, dialect: Dialect, value: []const u8, w: *std.Io.Write
     }
     if (end != s.len) return error.NotDetectedFrom;
     try held.flush(w, dialect);
+}
+
+/// A day under 10 written as a space and a digit, at off: Go's _2, Java's
+/// ppd. strftime's %e is no use to Python, whose strptime refuses it before
+/// 3.13.x (3.13.1 still does), so strftime gets the space as text and %d,
+/// which reads " 8" and "10" alike in Python, glibc, Ruby and chrono: a
+/// space in the format takes any run of them, and %d one digit or two.
+fn spaceDay(w: *std.Io.Writer, dialect: Dialect, held: *Held, off: usize, text: []const u8) Error!void {
+    if (dialect != .strftime) return token(w, dialect, .{ null, "_2", "ppd" });
+    if (text[0] == ' ') {
+        held.add(off, 1);
+        try held.flush(w, dialect);
+    }
+    try w.writeAll("%d");
 }
 
 /// Text between fields not yet written: s[start..end].
@@ -837,6 +851,9 @@ test "format strings, each checked by tools/format_check.sh in Python, Go and Ja
     try expectFormat("3/15/2024 10:30 PM", .{ "%m/%d/%Y %I:%M %p", "1/02/2006 03:04 PM", "M/dd/yyyy hh:mm a" });
     try expectFormat("Fri, 15 Mar 2024 10:30:00 +0000", .{ "%a, %d %b %Y %H:%M:%S %z", "Mon, 02 Jan 2006 15:04:05 -0700", "EEE, dd MMM yyyy HH:mm:ss xx" });
     try expectFormat("Mon Jan 2 15:04:05 2006", .{ "%a %b %d %H:%M:%S %Y", "Mon Jan 2 15:04:05 2006", "EEE MMM d HH:mm:ss yyyy" });
+    // asctime and syslog: a day under 10 is a space and a digit.
+    try expectFormat("Mon Jan  2 15:04:05 2006", .{ "%a %b  %d %H:%M:%S %Y", "Mon Jan _2 15:04:05 2006", "EEE MMM ppd HH:mm:ss yyyy" });
+    try expectFormat("Nov  8 10:00:05", .{ "%b  %d %H:%M:%S", "Jan _2 15:04:05", "MMM ppd HH:mm:ss" });
     try expectFormat("March 15, 2024", .{ "%B %d, %Y", "January 02, 2006", "MMMM dd, yyyy" });
     try expectFormat("2014-12-16 06:20:00 UTC", .{ "%Y-%m-%d %H:%M:%S %Z", "2006-01-02 15:04:05 MST", "yyyy-MM-dd HH:mm:ss z" });
     try expectFormat("2014年04月08日", .{ "%Y年%m月%d日", "2006年1月2日", "yyyy年M月d日" });
@@ -852,6 +869,23 @@ test "what no dialect spells is refused, not misspelled" {
     // ignores; a timestamp and natural language, which have no format.
     for ([_][]const u8{ "December 23rd", "the 15th of March 2024", "2015-02-08 03:02:00 +0300 MSK", "1710504800", "3 days ago" }) |s| {
         try expectFormat(s, .{ null, null, null });
+    }
+}
+
+test "strftime spells a space-padded day as a space and %d, which every Python reads" {
+    const l = try Layout.fromFormatString(.strftime, "%b %e %H:%M:%S", .{ .base_time = read_base });
+    for ([_][3][]const u8{
+        .{ "Mar  5 10:30:00", "%b  %d %H:%M:%S", "Jan _2 15:04:05" },
+        .{ "Mar 15 10:30:00", "%b %d %H:%M:%S", "Jan _2 15:04:05" },
+    }) |c| {
+        errdefer std.debug.print("\"{s}\"\n", .{c[0]});
+        var buf: [64]u8 = undefined;
+        var w: std.Io.Writer = .fixed(&buf);
+        try write(&l, .strftime, c[0], &w);
+        try std.testing.expectEqualStrings(c[1], w.buffered());
+        w.end = 0;
+        try write(&l, .go, c[0], &w);
+        try std.testing.expectEqualStrings(c[2], w.buffered());
     }
 }
 
@@ -1115,7 +1149,7 @@ const spelled_values = [_][]const u8{
     "2014年04月08日",
     "10:30:00.123",                   "2024-03-15T10:30:00.123456789Z",    "Mon Jan  2 15:04:05 2006",
     "2014-04-26 05:24:37 PM",         "Friday, March 15, 2024",            "15 March 2024 10:30",
-    "1/2/2024",                       "Fri Jul 03 2015 18:04:07 GMT+0100",
+    "1/2/2024",                       "Fri Jul 03 2015 18:04:07 GMT+0100", "Nov  8 10:00:05",
 };
 
 test "every format string formatString writes reads its value back, and spells the same" {

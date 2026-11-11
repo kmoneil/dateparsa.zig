@@ -331,11 +331,16 @@ test "a found layout finds its format on the next lines" {
     try std.testing.expectEqual((try dp.parse("10/Nov/2026:00:00:01 +0100")).time, next.time);
     try std.testing.expectEqual(null, first.result.layout.find(clf[2]));
 
-    // As far as the layout itself reuses: the same month, a one-digit day.
-    const syslog = [_][]const u8{ "Nov  8 10:00:05 host a: x", "Nov  9 23:59:59 other-host b[2]: y" };
+    // syslog pads a day under 10 with a space: the layout of the 8th
+    // follows the log past the 9th.
+    const syslog = [_][]const u8{ "Nov  8 10:00:05 host a: x", "Nov  9 23:59:59 other-host b[2]: y", "Nov 10 00:00:01 host c: z" };
     const s0 = dp.findFirst(syslog[0], .{ .base_time = find_base }, .{}).?;
-    const s1 = s0.result.layout.find(syslog[1]).?;
-    try std.testing.expectEqualStrings("Nov  9 23:59:59", syslog[1][s1.start..s1.end]);
+    for (syslog[1..], [_][]const u8{ "Nov  9 23:59:59", "Nov 10 00:00:01" }) |line, want| {
+        errdefer std.debug.print("\"{s}\"\n", .{line});
+        const s = s0.result.layout.find(line).?;
+        try std.testing.expectEqualStrings(want, line[s.start..s.end]);
+        try std.testing.expectEqual((try dp.parseWith(want, .{ .base_time = find_base })).time, s.time);
+    }
 }
 
 test "surrounding ASCII whitespace is padding on every path" {
