@@ -77,6 +77,34 @@ fn layout(comptime first: []const u8, comptime row: []const u8) *const fn (u64) 
     return layoutRows(first, row, 1);
 }
 
+/// findFirst on a line: what reading a log line's time costs the first time.
+fn findFirst(comptime line: []const u8) *const fn (u64) void {
+    return struct {
+        fn run(n: u64) void {
+            var in: []const u8 = line;
+            for (0..n) |_| std.mem.doNotOptimizeAway(dp.findFirst(opaqueInput(&in), .{ .base_time = base }, .{}));
+        }
+    }.run;
+}
+
+/// The layout findFirst found in first, finding its format in line: what
+/// each later line of the log costs.
+fn layoutFind(comptime first: []const u8, comptime line: []const u8) *const fn (u64) void {
+    return struct {
+        fn run(n: u64) void {
+            var l = (dp.findFirst(first, .{ .base_time = base }, .{}) orelse unreachable).result.layout;
+            std.mem.doNotOptimizeAway(&l);
+            var in: []const u8 = line;
+            for (0..n) |_| std.mem.doNotOptimizeAway(l.find(opaqueInput(&in)));
+        }
+    }.run;
+}
+
+const clf_line = "10.0.0.7 - - [09/Nov/2026:23:59:59 +0000] \"GET /index.html HTTP/1.1\" 200 512";
+const syslog_line = "Nov  8 10:00:05 host sshd[812]: Accepted publickey for root from 10.0.0.7";
+const iso_line = "2026-11-08T10:00:01.123Z INFO server started on port 8080";
+const no_date_line = "GET /index.html HTTP/1.1 200 512 \"Mozilla/5.0 (X11; Linux x86_64)\"";
+
 /// The layout format reads in dialect, re-parsing row.
 fn formatLayout(comptime dialect: dp.Layout.Dialect, comptime format: []const u8, comptime row: []const u8) *const fn (u64) void {
     return struct {
@@ -177,6 +205,13 @@ const benches = [_]Bench{
     .{ .name = "FormatLayout_Parse_ISODate", .run = formatLayout(.strftime, "%Y-%m-%d", "2025-06-15") },
     .{ .name = "FormatLayout_Parse_DayFirst", .run = formatLayout(.strftime, "%d/%m/%Y", "15/03/2024") },
     .{ .name = "FormatLayout_Parse_TextualMonth", .run = formatLayout(.strftime, "%B %d, %Y", "March 16, 2025") },
+    // Not in Go: dates inside text (t30).
+    .{ .name = "Find_CLF", .run = findFirst(clf_line), .bytes = clf_line.len },
+    .{ .name = "Find_Syslog", .run = findFirst(syslog_line), .bytes = syslog_line.len },
+    .{ .name = "Find_ISO", .run = findFirst(iso_line), .bytes = iso_line.len },
+    .{ .name = "Find_Miss", .run = findFirst(no_date_line), .bytes = no_date_line.len },
+    .{ .name = "LayoutFind_CLF", .run = layoutFind(clf_line, "192.168.100.200 - bob [10/Nov/2026:00:00:01 +0000] \"POST /api/v1/items HTTP/1.1\" 201 64"), .bytes = clf_line.len },
+    .{ .name = "LayoutFind_ISO", .run = layoutFind(iso_line, "2026-11-08T10:00:02.456Z WARN slow request 812ms"), .bytes = iso_line.len },
 };
 
 fn elapsed(io: Io, b: Bench, n: u64) u64 {

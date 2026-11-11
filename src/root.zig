@@ -24,6 +24,7 @@ const locale = @import("locale.zig");
 pub const DateTime = @import("DateTime.zig");
 /// A detected format, compiled, to re-parse the rest of a column with.
 pub const Layout = @import("Layout.zig");
+const span = @import("find.zig");
 /// Parses a column, reusing the first value's layout where it can.
 pub const Parser = @import("Parser.zig");
 /// Settles which order a column writes its numeric dates in (month, day or
@@ -147,7 +148,91 @@ pub fn detect(s: []const u8, opts: Options) ParseError!Layout {
 /// s parsed as a structured date, then as a Unix timestamp, then as a
 /// natural-language expression. Surrounding ASCII whitespace is padding.
 pub fn parseWith(input: []const u8, opts: Options) ParseError!Result {
-    const s = signature.trimPadding(input);
+    return parseAs(signature.trimPadding(input), opts, .{ .natural = true, .numbers = true });
+}
+
+/// A date found inside a longer text.
+pub const Match = struct {
+    /// text[start..end] is the date.
+    start: usize,
+    end: usize,
+    result: Result,
+};
+
+/// What findFirst and findAll read besides structured formats with a
+/// separator or a word in them. Both are off by default: natural language
+/// finds a date in ordinary words ("now", "may"), and a lone number is a
+/// date to parse (2024 a year, 20240315 a compact date, 1710504800 a Unix
+/// timestamp) where in a line it is far more often a port, an id or a
+/// count.
+pub const FindAlso = struct {
+    /// "next Friday at 3pm", "3 days ago".
+    natural: bool = false,
+    /// A run of digits alone, with at most one dot: "1710504800",
+    /// "20240315", "2024".
+    numbers: bool = false,
+};
+
+/// The first date in text, a log line or a sentence: at the leftmost word
+/// that starts one, the longest run of words there that reads as one, as
+/// parseWith reads it. A date starts on a word's first byte, ends on a
+/// word's last (a word is letters, digits and any non-ASCII byte), crosses
+/// no line break or quote, bracket, brace, parenthesis, '<', '>', '=', '|',
+/// ';' or backtick, and is at most find.max_span bytes. Structured formats
+/// with a separator or a word, unless also adds natural language or lone
+/// numbers. A span whose last bytes the reading only passes over is too
+/// long, and a shorter one is taken. A span that
+/// needs a base time opts lacks, or that strict mode finds ambiguous, is no
+/// date here; opts.diagnostics is not written.
+///
+/// "10.0.0.7 - - [09/Nov/2026:23:59:59 +0000] \"GET /\"" finds
+/// "09/Nov/2026:23:59:59 +0000". For the next lines of one log, the
+/// match's layout.find finds the same format again with no detection.
+pub fn findFirst(text: []const u8, opts: Options, also: FindAlso) ?Match {
+    return findFrom(text, 0, opts, also);
+}
+
+/// Every date in text, left to right and not overlapping, each found as
+/// findFirst finds one, into out; as many as out holds.
+pub fn findAll(text: []const u8, opts: Options, also: FindAlso, out: []Match) []Match {
+    var n: usize = 0;
+    var from: usize = 0;
+    while (n < out.len) : (n += 1) {
+        out[n] = findFrom(text, from, opts, also) orelse break;
+        from = out[n].end;
+    }
+    return out[0..n];
+}
+
+fn findFrom(text: []const u8, from: usize, opts_in: Options, also: FindAlso) ?Match {
+    var opts = opts_in;
+    opts.diagnostics = null;
+    for (from..text.len) |i| {
+        if (!span.isStart(text, i)) continue;
+        if (!also.natural and !span.mayStartStructured(text, i, opts.locales)) continue;
+        if (longestAt(text, i, opts, also)) |m| return m;
+    }
+    return null;
+}
+
+/// The longest span starting at start that reads, trying the longest first.
+fn longestAt(text: []const u8, start: usize, opts: Options, also: FindAlso) ?Match {
+    var end = span.limit(text, start);
+    while (end > start) : (end -= 1) {
+        if (!span.isEnd(text, end)) continue;
+        if (!also.numbers and span.isNumber(text[start..end])) continue;
+        const r = parseAs(text[start..end], opts, also) catch continue;
+        // Words read past, not a longer date: a shorter span ends at its value.
+        if (r.layout.source == .program and start + span.valueEnd(&r.layout.program) < end) continue;
+        return .{ .start = start, .end = end, .result = r };
+    }
+    return null;
+}
+
+/// s, with no padding, parsed as a structured date, then as a Unix
+/// timestamp (also.numbers) and as a natural-language expression
+/// (also.natural).
+fn parseAs(s: []const u8, opts: Options, also: FindAlso) ParseError!Result {
     const cfg: detection.Config = .{
         .prefer_day_first = opts.prefer_day_first,
         .prefer_year_first = opts.prefer_year_first,
@@ -159,10 +244,11 @@ pub fn parseWith(input: []const u8, opts: Options) ParseError!Result {
         .mail => |m| return mailFormat(s, m, opts),
         .built => |r| return structured(s, r, opts),
     };
-    if (epoch.detect(s)) |e| {
+    if (also.numbers) if (epoch.detect(s)) |e| {
         return .{ .time = e.time, .layout = Layout.epoch, .ambiguous = false, .kind = .absolute };
-    }
-    return naturalLanguage(s, opts);
+    };
+    if (also.natural) return naturalLanguage(s, opts);
+    return fail(opts, error.NoMatch, no_match);
 }
 
 fn fail(opts: Options, err: ParseError, message: []const u8) ParseError {
@@ -306,6 +392,7 @@ test {
     _ = @import("unicode.zig");
     _ = @import("natural.zig");
     _ = @import("Layout.zig");
+    _ = @import("find.zig");
     _ = @import("formats.zig");
     _ = @import("Parser.zig");
     _ = @import("Column.zig");

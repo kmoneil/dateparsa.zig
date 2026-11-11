@@ -27,6 +27,9 @@
 //! - A layout's format string, read back in its dialect, reads the value
 //!   it was spelled from to the same time, and agrees with the layout on
 //!   any other value both read.
+//! - Every date findAll finds in any bytes is in order, inside the text,
+//!   within find.zig's rules, and reads alone to the time it was found
+//!   with; its layout re-reads whatever it finds in the text.
 //! - A layout read from any format string answers valid times, and its
 //!   format string in every dialect, read back, answers the same.
 //!
@@ -42,6 +45,7 @@ const locale = @import("locale.zig");
 const rfc2822 = @import("rfc2822.zig");
 const textual = @import("textual.zig");
 const Layout = @import("Layout.zig");
+const find = @import("find.zig");
 
 const Allocator = std.mem.Allocator;
 const Smith = std.testing.Smith;
@@ -131,6 +135,37 @@ fn parseOne(_: void, smith: *Smith) anyerror!void {
             error.Unsupported => {},
             else => return err,
         };
+    }
+}
+
+fn findOne(_: void, smith: *Smith) anyerror!void {
+    var buf: [max_input]u8 = undefined;
+    const s = input(smith, &buf);
+    const opts = options(smith);
+    const bits = smith.value(u8);
+    const also: dp.FindAlso = .{ .natural = bits & 1 != 0, .numbers = bits & 2 != 0 };
+    errdefer report(s, null, opts);
+
+    var out: [8]dp.Match = undefined;
+    const found = dp.findAll(s, opts, also, &out);
+    if (found.len > 0) {
+        const first = dp.findFirst(s, opts, also).?;
+        try expectEqual(found[0].start, first.start);
+        try expectEqual(found[0].end, first.end);
+    }
+    var last_end: usize = 0;
+    for (found) |m| {
+        errdefer std.debug.print("match {d}..{d}\n", .{ m.start, m.end });
+        try expect(m.start >= last_end and m.start < m.end and m.end <= s.len);
+        try expect(m.end - m.start <= find.max_span);
+        try expect(find.isStart(s, m.start) and find.isEnd(s, m.end));
+        try expect(m.result.time.isValid());
+        // The span alone reads to the time it was found with.
+        try expectEqual(m.result.time, (try dp.parseWith(s[m.start..m.end], opts)).time);
+        if (m.result.layout.find(s)) |f| {
+            try expectEqual(f.time, try m.result.layout.parse(s[f.start..f.end]));
+        }
+        last_end = m.end;
     }
 }
 
@@ -733,6 +768,28 @@ fn singleSeeds(arena: Allocator) ![]const []const u8 {
     return out.items;
 }
 
+/// Dates as text holds them: log lines and sentences, and every format's
+/// example inside a line.
+fn findSeeds(arena: Allocator) ![]const []const u8 {
+    const lines = [_][]const u8{
+        "10.0.0.7 - - [09/Nov/2026:23:59:59 +0000] \"GET / HTTP/1.1\" 200 512",
+        "Nov  8 10:00:05 host sshd[1]: Accepted publickey",
+        "{\"ts\":\"2026-11-08T10:00:01Z\",\"msg\":\"up\"}",
+        "Date: Sun, 08 Nov 2026 10:00:05 +0000",
+        "2026-11-08 10:00:01,123 INFO started",
+        "Shipped on March 5, after the freeze.",
+        "from 2024-03-15 to 2024-03-20, then 2024-03-15/2024-03-22",
+        "pid 4021 exited at 1710504800",
+        "Moved to next Friday at 3pm, was March 5.",
+    };
+    var out: std.ArrayList([]const u8) = .empty;
+    for (lines) |s| try out.append(arena, try seed(arena, &.{s}));
+    for (formats.examples) |ex| {
+        try out.append(arena, try seed(arena, &.{try std.fmt.allocPrint(arena, "at [{s}] ok", .{ex[1]})}));
+    }
+    return out.items;
+}
+
 /// The pairs, each format's example against itself and the next format's,
 /// and each golden row against the next, which sorts beside it and so often
 /// shares its shape.
@@ -958,6 +1015,12 @@ test "fuzz: parseWith on any bytes answers a valid time its layout re-reads" {
     var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
     defer arena.deinit();
     try std.testing.fuzz({}, parseOne, .{ .corpus = try singleSeeds(arena.allocator()) });
+}
+
+test "fuzz: a date found in text is a span that reads alone as found" {
+    var arena: std.heap.ArenaAllocator = .init(std.testing.allocator);
+    defer arena.deinit();
+    try std.testing.fuzz({}, findOne, .{ .corpus = try findSeeds(arena.allocator()) });
 }
 
 test "fuzz: a layout on another input refuses it or agrees with detection" {

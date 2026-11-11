@@ -30,6 +30,21 @@ test "reuse the detected layout" {
     }
 }
 
+test "dates inside text" {
+    const line = "10.0.0.7 - - [09/Nov/2026:23:59:59 +0000] \"GET / HTTP/1.1\" 200";
+    const m = dateparsa.findFirst(line, .{}, .{}).?;
+    try expectEqualStrings("09/Nov/2026:23:59:59 +0000", line[m.start..m.end]);
+
+    const next = "192.168.1.20 - bob [09/Nov/2026:23:59:59 +0000] \"POST /x\" 201";
+    const f = m.result.layout.find(next).?;
+    try expectEqualStrings("09/Nov/2026:23:59:59 +0000", next[f.start..f.end]);
+    try expectEqual(m.result.time, f.time);
+
+    var buf: [16]dateparsa.Match = undefined;
+    const all = dateparsa.findAll("from 2024-03-15 to 2024-03-20", .{}, .{}, &buf);
+    try expectEqual(2, all.len);
+}
+
 test "parse a column" {
     var p = dateparsa.Parser.init(.{});
     const column = [_][]const u8{ "2024-01-01", "2024-06-15", "March 3, 2024", "2024-12-31" };

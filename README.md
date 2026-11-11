@@ -246,6 +246,39 @@ which cannot say where the fraction stops; a string that is no date format (`%d 
 `base_time`. What `formatString` writes, `fromFormatString` reads back to the
 same time, and a fuzz target holds the two to it.
 
+### Dates inside text
+
+A log line or a sentence holds a date among other words. `findFirst` says
+where the first one is and what it reads as; the layout it found finds the
+same format on the next lines of that log with no detection, wherever each
+line puts it:
+
+```zig
+const line = "10.0.0.7 - - [09/Nov/2026:23:59:59 +0000] \"GET / HTTP/1.1\" 200";
+const m = dateparsa.findFirst(line, .{}, .{}).?;
+// line[m.start..m.end] is "09/Nov/2026:23:59:59 +0000"; m.result is its parse
+
+const next = "192.168.1.20 - bob [09/Nov/2026:23:59:59 +0000] \"POST /x\" 201";
+const f = m.result.layout.find(next).?; // next[f.start..f.end], f.time
+
+var buf: [16]dateparsa.Match = undefined;
+const all = dateparsa.findAll("from 2024-03-15 to 2024-03-20", .{}, .{}, &buf);
+// all.len == 2
+```
+
+A date is found at the leftmost word that starts one, as the longest run of
+words there that reads as one, and a span the reading only passes over the end
+of is cut back to where its value ends. It starts on a word's first byte, ends
+on a word's last, crosses no line break, quote, bracket, brace, parenthesis,
+`<`, `>`, `=`, `|` or `;`, and is at most 80 bytes. By default only structured
+dates with a separator or a word in them are found: natural language
+(`.natural = true`) finds dates in ordinary words, and a lone number
+(`.numbers = true`: `2024`, `20240315`, `1710504800`) is in a log line far more
+often a port, an id or a count. A span that needs a base time the options lack,
+or that strict mode finds ambiguous, is passed over. A layout read from a month
+name reads only that month, so a log written with them (syslog, the common log
+format) needs `findFirst` again when the month changes.
+
 ### Natural language
 
 ```zig
