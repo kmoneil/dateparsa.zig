@@ -24,8 +24,7 @@
 # deadline is cut, with its whole process group (the fuzzer too, which
 # would otherwise outlive `zig build` and change the corpus while it is
 # saved), and the script exits 124: a round that far past the last one is a
-# hang the fuzzer found, or something as wrong. FUZZ_DEADLINE defaults to
-# VMRUN_DEADLINE, the time a vmrun VM deletes itself at.
+# hang the fuzzer found, or something as wrong.
 #
 # Zig 0.17.1's `zig build --fuzz` cannot be trusted to fail when a fuzz test
 # does, whether the test returned an error ("exited with code 1") or
@@ -46,7 +45,7 @@ set -eu
 
 limit=${1:-1M}
 round=${2:-$limit}
-deadline=${FUZZ_DEADLINE:-${VMRUN_DEADLINE:-}}
+deadline=${FUZZ_DEADLINE:-}
 margin=240
 cd "$(dirname "$0")/.."
 log=$(mktemp)
