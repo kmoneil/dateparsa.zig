@@ -208,18 +208,18 @@ fn withTime(name: []const u8) []const u8 {
 }
 
 /// Numeric dates with parts of one to four digits, "3/15/2024",
-/// "3/15/24", and a time after a space: "3/15/2024 10:30:00 AM".
+/// "3/15/24", and a time after a space: "3/15/2024 10:30:00 AM". A dotted
+/// date only as the trie reads one alone, with a time after it.
 pub fn detectVariableNumeric(s: []const u8, cfg: Config) ?Result {
     if (s.len < 3) return null;
-    const sep_at = std.mem.indexOfAny(u8, s[0..@min(s.len, 4)], "/-") orelse return null;
+    const sep_at = std.mem.indexOfAny(u8, s[0..@min(s.len, 4)], "/-.") orelse return null;
     if (sep_at < 1) return null;
     const sep = s[sep_at];
     const date_end = std.mem.indexOfAny(u8, s, " \t") orelse s.len;
     const head = s[0..date_end];
     const parts = splitThree(head, sep) orelse return null;
     for (parts) |p| _ = smallInt(p) orelse return null;
-    // YYYY-MM-DD belongs to the trie.
-    if (sep == '-' and parts[0].len == 4) return null;
+    if (!isOurs(sep, parts, date_end < s.len)) return null;
 
     var def: Def = .{ .name = "" };
     var name, const ambiguity = resolveInto(&def, head, cfg) orelse return null;
@@ -233,6 +233,21 @@ pub fn detectVariableNumeric(s: []const u8, cfg: Config) ?Result {
     }
     def.name = name;
     return .{ .def = def, .ambiguity = ambiguity, .prone = true };
+}
+
+/// Whether a date of these parts is detectVariableNumeric's to read, more
+/// saying whether anything follows it. YYYY-MM-DD belongs to the trie. A
+/// dotted date reads here as "15.03.2024 10:30", day first as "15.03.2024"
+/// does (kmoneil/dateparsa#37): only in the shape the trie reads one in
+/// alone, DD.DD.YYYY, and only with something after it for a time, so
+/// "1.2.3" and "10.15.7" stay version numbers and a dotted date alone stays
+/// the trie's.
+fn isOurs(sep: u8, parts: [3][]const u8, more: bool) bool {
+    return switch (sep) {
+        '-' => parts[0].len != 4,
+        '.' => more and parts[0].len == 2 and parts[1].len == 2 and parts[2].len == 4,
+        else => true,
+    };
 }
 
 /// One way to read an ambiguous input: the format reading it that way and

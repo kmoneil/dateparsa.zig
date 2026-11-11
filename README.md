@@ -472,7 +472,7 @@ oldest system you ship to, such as `-Dtarget=aarch64-macos.13.0`.
 | ISO 8601 / RFC 3339 | `2024-03-15` · `2024-03-15T10:30:00Z` · `2024-03-15T10:30` · `2024-03-15T10:30:00.123456+05:30` · `2024-W11-5` · `2024-074` · `2020-07-20+08:00` |
 | SQL and logs | `2024-03-15 10:30:00` · `2024-03-15 10:30` · `2024-03-15 10:30:00.000000` · `2024-03-15 10:30:00+00` · `2014-12-16 06:20:00 UTC` · `2014-05-11 08:20:13,787` |
 | Compact | `20240315` · `20240315T103000Z` · `20240315103000` · `171113` |
-| Numeric | `03/15/2024` · `15.03.2024` · `3/15/24` · `3/15/2024 10:30 PM` |
+| Numeric | `03/15/2024` · `15.03.2024` · `3/15/24` · `3/15/2024 10:30 PM` · `15.03.2024 10:30` |
 | Textual | `March 15, 2024` · `15 Mar 2024` · `December 23rd` · `March 2024` · `the 15th of March 2024` |
 | RFC 2822, 850, ANSI C | `Fri, 15 Mar 2024 10:30:00 +0000` · `Friday, 15-Mar-24 10:30:00 UTC` · `Mon Jan 2 15:04:05 2006` |
 | Elsewhere | `15/Mar/2024:10:30:00 +0000` (CLF) · `Fri Jul 03 2015 18:04:07 GMT+0100` (JavaScript) · `2015-02-08 03:02:00 +0300 MSK` (Go) · `2014:04:08 22:05:13` (EXIF) · `2014年04月08日` |
@@ -518,6 +518,7 @@ Each is deliberate.
 | No format for an ISO 8601 date-time to the minute: `2024-03-15T10:30`, `2024-03-15 10:30Z`, `2024-03-15T10:30+05:30` | Read with the seconds at zero ([kmoneil/dateparsa#37](https://github.com/kmoneil/dateparsa/issues/37)) |
 | A time alone (`10:42`) on 1 January of the base time's year | On the base time's day, as `today 10:42` ([kmoneil/dateparsa#40](https://github.com/kmoneil/dateparsa/issues/40)) |
 | No seconds after a relative day: `today 10:42:03` is refused | Read |
+| No format for a dotted date with a time: `15.03.2024 10:30`, `15.03.2024 10:30:00` | Read day first, as `15.03.2024` is ([kmoneil/dateparsa#37](https://github.com/kmoneil/dateparsa/issues/37)) |
 | No format for a one-digit hour: `1:30 PM`, `3/15/2024 9:05 AM`, `2024-03-15 1:30:00` | Read as the zero-padded form is, under its label ([kmoneil/dateparsa#38](https://github.com/kmoneil/dateparsa/issues/38)) |
 | All locales always linked | Chosen at build time with `-Dlocales` |
 | `flextime`: `database/sql`, JSON and text (un)marshalling, `WithJSONFormat`, layout caches shared by the process | `FlexTime`: `std.json` hooks and `fromValue`, always RFC 3339 out, caches per thread |

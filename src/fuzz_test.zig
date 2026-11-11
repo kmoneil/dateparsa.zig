@@ -585,6 +585,9 @@ const singles = [_][]const u8{
     "3/15/2024 1:30 PM",
     "2024-03-15 1:30:00",
     "15 Mar 2024 9:05",
+    // A dotted date with a time (kmoneil/dateparsa#37).
+    "15.03.2024 10:30",
+    "01.02.2024 10:30:00",
 };
 
 /// Go's FuzzUnmarshalJSON seeds, and numbers and escapes at the edges of
@@ -681,6 +684,8 @@ const pairs = [_][2][]const u8{
     .{ "11:30 PM", "1:30 PM" },
     .{ "2024-03-15 1:30:00", "2024-03-16 23:59:59" },
     .{ "3/15/2024 1:30 PM", "12/25/2024 10:05 AM" },
+    .{ "15.03.2024 10:30", "16.04.2025 23:45:59" },
+    .{ "15.03.2024 10:30", "15.03.2024" },
 };
 
 /// A seed as Smith reads one: each string a four-byte little-endian length

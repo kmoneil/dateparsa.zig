@@ -199,6 +199,37 @@ test "a one-digit hour reads as its zero-padded form" {
     }
 }
 
+test "a dotted date with a time reads as the dotted date alone does" {
+    // kmoneil/dateparsa#37: Go finds no format for any of these.
+    const Case = struct { []const u8, []const u8, u8, u8 };
+    const cases = [_]Case{
+        .{ "15.03.2024 10:30", "15.03.2024", 10, 30 },
+        .{ "15.03.2024 10:30:00", "15.03.2024", 10, 30 },
+        .{ "15.03.2024 1:30 PM", "15.03.2024", 13, 30 },
+        .{ "01.02.2024 10:30", "01.02.2024", 10, 30 },
+        .{ "31.12.2024 23:59", "31.12.2024", 23, 59 },
+    };
+    for (cases) |c| {
+        errdefer std.debug.print("\"{s}\"\n", .{c[0]});
+        const both = try dp.parseWith(c[0], .{ .base_time = base });
+        const date = try dp.parseWith(c[1], .{ .base_time = base });
+        var want = date.time;
+        want.hour = c[2];
+        want.minute = c[3];
+        try std.testing.expectEqual(want, both.time);
+        try std.testing.expectEqual(date.ambiguous, both.ambiguous);
+        var buf: [32]u8 = undefined;
+        const label = try std.fmt.bufPrint(&buf, "{s}_TIME", .{date.layout.label});
+        try std.testing.expectEqualStrings(label, both.layout.label);
+    }
+    // A dotted date the trie does not read alone, a version number, a
+    // thirteenth month, and words where the time would be.
+    for ([_][]const u8{ "1.3.2024 10:30", "1.2.3 10:30", "15.13.2024 10:30", "15.03.2024 foo" }) |s| {
+        errdefer std.debug.print("\"{s}\"\n", .{s});
+        try std.testing.expectError(error.NoMatch, dp.parseWith(s, .{ .base_time = base }));
+    }
+}
+
 test "surrounding ASCII whitespace is padding on every path" {
     const Case = struct { []const u8, DateTime };
     const values = [_]Case{
