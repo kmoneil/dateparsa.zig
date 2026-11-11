@@ -10,6 +10,16 @@ the difference. Before 1.0 a breaking change is a minor bump.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.10.0] - 2026-11-11
+
+`findFirst` with no base time no longer reads a piece of a syslog date as
+another date years off, and `15 Mar 10:00`, a day, a month name and a time
+with no year, now reads. That second change is to what an input parses to,
+through the library, its C interface and the Python package alike, so this
+is a minor release.
+
 ### Fixed
 
 - `findFirst` and `findAll` with no `base_time` read a piece of a date
@@ -474,7 +484,8 @@ what was changed on purpose.
 - No allocation on any path and no clock: an input that needs a base time and
   was given none fails with `error.NoBaseTime`.
 
-[Unreleased]: https://github.com/kmoneil/dateparsa.zig/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/kmoneil/dateparsa.zig/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/kmoneil/dateparsa.zig/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/kmoneil/dateparsa.zig/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/kmoneil/dateparsa.zig/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/kmoneil/dateparsa.zig/compare/v0.6.0...v0.7.0
