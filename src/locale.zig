@@ -194,8 +194,41 @@ pub fn matchesMonth(name: []const u8, month: u8, set: LocaleSet) bool {
     return false;
 }
 
-/// The month a word names and whether its spelling took the dot after it.
-pub const FoundMonth = struct { month: u8, took_dot: bool };
+/// Which of its month's spellings a month name is, as bits: the
+/// abbreviation (with its dot or without), the wide name, or both, as
+/// English "May" is and a locale's abbreviation that is the whole name.
+pub const form_abbr: u8 = 1;
+pub const form_wide: u8 = 2;
+
+/// The month a word names, whether its spelling took the dot after it, and
+/// which spellings of the month it is (form_abbr, form_wide).
+pub const FoundMonth = struct { month: u8, took_dot: bool, form: u8 };
+
+fn found(month: u8, took_dot: bool, word: []const u8, wide: []const u8, abbr: []const u8) FoundMonth {
+    var form: u8 = 0;
+    if (spells(wide, word, took_dot)) form |= form_wide;
+    if (spells(abbr, word, took_dot)) form |= form_abbr;
+    return .{ .month = month, .took_dot = took_dot, .form = form };
+}
+
+/// Which of a month's spellings, wide and abbr, name is: as detection
+/// writes it, the abbreviation's dot included or left off.
+pub fn spellingForm(name: []const u8, wide: []const u8, abbr: []const u8) u8 {
+    var form: u8 = 0;
+    if (spells(wide, name, false)) form |= form_wide;
+    if (spells(abbr, name, false)) form |= form_abbr;
+    return form;
+}
+
+/// Whether word is spelling, ASCII case folded: with took_dot, as the
+/// spelling without the one dot it ends with (the dot follows the word);
+/// else whole, or without the dots it ends with.
+fn spells(spelling: []const u8, word: []const u8, took_dot: bool) bool {
+    if (spelling.len == 0) return false;
+    const bare = std.mem.trimEnd(u8, spelling, ".");
+    if (took_dot) return bare.len + 1 == spelling.len and std.ascii.eqlIgnoreCase(word, bare);
+    return std.ascii.eqlIgnoreCase(word, spelling) or (bare.len != 0 and std.ascii.eqlIgnoreCase(word, bare));
+}
 
 /// The month word names in the first locale of set, in tag order, that
 /// spells one, with matchesMonth's spellings and case folding. dot_follows
@@ -211,14 +244,14 @@ pub fn findMonth(word: []const u8, dot_follows: bool, set: LocaleSet) ?FoundMont
         for (d.months_wide, d.months_abbr, 1..) |wide, abbr, month| {
             const m: u8 = @intCast(month);
             for ([_][]const u8{ wide, abbr }) |spelling| {
-                if (std.ascii.eqlIgnoreCase(word, spelling)) return .{ .month = m, .took_dot = false };
+                if (std.ascii.eqlIgnoreCase(word, spelling)) return found(m, false, word, wide, abbr);
                 const bare = std.mem.trimEnd(u8, spelling, ".");
                 if (bare.len + 1 == spelling.len and dot_follows and std.ascii.eqlIgnoreCase(word, bare))
-                    return .{ .month = m, .took_dot = true };
+                    return found(m, true, word, wide, abbr);
             }
             const bare = std.mem.trimEnd(u8, abbr, ".");
             if (bare.len != 0 and bare.len != abbr.len and std.ascii.eqlIgnoreCase(word, bare))
-                return .{ .month = m, .took_dot = false };
+                return found(m, false, word, wide, abbr);
         }
     }
     return null;

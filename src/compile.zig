@@ -43,7 +43,7 @@ pub const FieldKind = enum(u8) {
     tz_z_or_offset, // 'Z' for UTC, or an offset
     tail, // everything from offset to the end of the input is ignored
     day_space_pad, // a space and a digit, or two digits
-    month_any, // any month's name, as wide as the name
+    month_any, // any month's name, as wide as the name, in the forms aux says
     weekday_name, // a weekday's name, as wide as the name; checked, not read
     frac_any, // one to nine fractional digits, as many as the input has
     tz_any, // 'Z', +HH:MM or +HHMM, whichever the input writes
@@ -163,6 +163,10 @@ pub fn opFor(k: FieldKind) Op {
 /// One instruction. What aux means depends on op:
 ///
 ///   month_name     the month, 1..12, resolved when the format was detected
+///   month_any      the spellings it reads, locale.form_abbr and form_wide
+///                  bits, and above them the month it was detected from,
+///                  tried first (monthAnyAux); 0 for any spelling and no
+///                  month (a format string's %b and %B)
 ///   literal, skip  what each byte has to be
 ///   numeric ops    sep_none, or a separator fused onto the field
 ///   hour1or2       twelve_hour for a 12-hour clock's hour, 1 to 12; else
@@ -597,7 +601,7 @@ fn interpret(
                 r.month = @intCast(inst.aux);
             },
             .month_any => {
-                const m = readMonthName(s, off, p.locales) orelse return error.NoMatch;
+                const m = readMonthIn(s, off, p.locales, inst) orelse return error.NoMatch;
                 r.month = m.month;
                 w = m.len;
                 delta += @as(isize, @intCast(m.len)) - inst.len;
@@ -917,19 +921,48 @@ pub fn isWordChar(c: u8) bool {
     return std.ascii.isAlphabetic(c) or c >= 0x80;
 }
 
-/// The month s names at off, as a whole word, and how many bytes the name
-/// takes: English, then each locale of locales in tag order, the order
-/// detection searches them. A locale's abbreviation that ends in a dot
-/// takes the dot, as detection's spelling does.
-pub fn readMonthName(s: []const u8, off: usize, locales: locale.LocaleSet) ?struct { month: u8, len: usize } {
+/// A month name read from an input: the month, the bytes the name takes,
+/// and which of the month's spellings it is (locale.form_abbr, form_wide).
+pub const MonthName = struct { month: u8, len: usize, form: u8 };
+
+/// The month s names at off, as a whole word: English, then each locale of
+/// locales in tag order, the order detection searches them. A locale's
+/// abbreviation that ends in a dot takes the dot, as detection's spelling
+/// does.
+pub fn readMonthName(s: []const u8, off: usize, locales: locale.LocaleSet) ?MonthName {
     const word = wordAt(s, off) orelse return null;
-    for (english_months, 1..) |names, month| for (names) |name| {
-        if (std.ascii.eqlIgnoreCase(word, name)) return .{ .month = @intCast(month), .len = word.len };
+    for (english_months, 1..) |names, month| for (names, 0..) |name, k| {
+        if (!std.ascii.eqlIgnoreCase(word, name)) continue;
+        // The wide name first, then its abbreviations; "may" is both.
+        const form = if (names.len == 1) locale.form_abbr | locale.form_wide else if (k == 0) locale.form_wide else locale.form_abbr;
+        return .{ .month = @intCast(month), .len = word.len, .form = form };
     };
     const end = off + word.len;
     const dot = end < s.len and s[end] == '.' and (end + 1 == s.len or !isWordChar(s[end + 1]));
     const m = locale.findMonth(word, dot, locales) orelse return null;
-    return .{ .month = m.month, .len = word.len + @intFromBool(m.took_dot) };
+    return .{ .month = m.month, .len = word.len + @intFromBool(m.took_dot), .form = m.form };
+}
+
+/// month_any's aux from detection: the forms it reads (locale.form_abbr,
+/// form_wide) in the low byte and the month it was detected from above.
+/// A format string's month_any has aux 0: any form, no month to try first.
+pub fn monthAnyAux(forms: u8, month: u8) u16 {
+    return @as(u16, month) << 8 | forms;
+}
+
+/// The month a month_any instruction reads from s at off, else null. The
+/// month it was detected from comes first, at the width it had: on the next
+/// line of a log that is most often the month, one comparison or two, as it
+/// was when a layout read only that month. Any other month is read whole,
+/// and only in the instruction's forms.
+fn readMonthIn(s: []const u8, off: usize, locales: locale.LocaleSet, inst: Inst) ?MonthName {
+    const forms: u8 = @truncate(inst.aux);
+    const hint: u8 = @truncate(inst.aux >> 8);
+    if (hint != 0 and monthNameMatches(s, off, inst.len, hint, locales))
+        return .{ .month = hint, .len = inst.len, .form = forms };
+    const m = readMonthName(s, off, locales) orelse return null;
+    if (forms != 0 and m.form & forms == 0) return null;
+    return m;
 }
 
 /// How many bytes the weekday s names at off takes, as a whole word, in

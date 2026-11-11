@@ -81,7 +81,7 @@ const shapes: [examples.len]Shape = blk: {
             .zone_at = zone_at,
             .def = r.def,
             .month_field = for (r.def.fields(), 0..) |f, i| {
-                if (f.kind == .month_name) break i;
+                if (f.kind == .month_any) break i;
             } else @compileError("no month field: " ++ ex),
         };
     }
@@ -164,20 +164,31 @@ const taken: [weekdays.len + zones.len]Backing = blk: {
     break :blk out;
 };
 
+const abbreviations = [_]*const [3]u8{ "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec" };
+
 /// The month an English three-letter abbreviation names, in any case.
 fn monthOf(w: *const [3]u8) ?u8 {
-    const names = [_]*const [3]u8{ "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec" };
-    for (names, 1..) |n, m| if (std.ascii.eqlIgnoreCase(w, n)) return @intCast(m);
+    for (abbreviations, 1..) |n, m| if (std.ascii.eqlIgnoreCase(w, n)) return @intCast(m);
     return null;
 }
 
-/// The detector's Result for an input m matched.
+/// The detector's Result for an input m matched. Its month field reads any
+/// month spelled as this one is (an abbreviation, and for May a wide name
+/// too, which "May" also is), this month first.
 pub fn result(m: Match) detect.Result {
     const sh = &shapes[m.shape];
     var def = sh.def;
-    def.buf[sh.month_field].aux = m.month;
+    def.buf[sh.month_field].aux = month_aux[m.month - 1];
     return .{ .def = def };
 }
+
+/// Each month's month_any aux, as textual detection gives its English
+/// abbreviation.
+const month_aux: [12]u16 = blk: {
+    var out: [12]u16 = undefined;
+    for (abbreviations, &out, 1..) |a, *o, m| o.* = compile.monthAnyAux(compile.readMonthName(a, 0, .{}).?.form, m);
+    break :blk out;
+};
 
 /// The compiled layout for m, as Layout.fromDetection makes it under the
 /// default options.
