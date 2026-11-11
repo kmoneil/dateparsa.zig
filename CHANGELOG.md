@@ -10,8 +10,13 @@ the difference. Before 1.0 a breaking change is a minor bump.
 
 ## [Unreleased]
 
-A time alone reads on the base time's day. That changes what those inputs
-parse to, so this is a minor release.
+Nothing yet.
+
+## [0.7.0] - 2026-11-11
+
+A time alone reads on the base time's day, not on 1 January. That changes
+what those inputs parse to, so this is a minor release, through the
+library, its C interface and the Python package alike.
 
 ### Changed
 
@@ -370,7 +375,8 @@ what was changed on purpose.
 - No allocation on any path and no clock: an input that needs a base time and
   was given none fails with `error.NoBaseTime`.
 
-[Unreleased]: https://github.com/kmoneil/dateparsa.zig/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/kmoneil/dateparsa.zig/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/kmoneil/dateparsa.zig/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/kmoneil/dateparsa.zig/compare/v0.5.2...v0.6.0
 [0.5.2]: https://github.com/kmoneil/dateparsa.zig/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/kmoneil/dateparsa.zig/compare/v0.5.0...v0.5.1
