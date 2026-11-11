@@ -171,7 +171,19 @@ pub const FindAlso = struct {
     /// A run of digits alone, with at most one dot: "1710504800",
     /// "20240315", "2024".
     numbers: bool = false,
+    /// What a date's format must write to be found (Layout.writes): one
+    /// that writes less is passed over, and the search goes on after it.
+    /// `.{ .day = true, .time = true }` finds a log line's time, passing
+    /// over a clock time alone ("took 10:42") and a date alone
+    /// ("GET /2024-03-15/report").
+    writes: Layout.Writes = .{},
 };
+
+/// Whether have writes every part want asks for.
+fn writesAll(have: Layout.Writes, want: Layout.Writes) bool {
+    return (have.year or !want.year) and (have.month or !want.month) and (have.day or !want.day) and
+        (have.time or !want.time) and (have.zone or !want.zone);
+}
 
 /// The first date in text, a log line or a sentence: at the leftmost word
 /// that starts one, the longest run of words there that reads as one, as
@@ -214,7 +226,9 @@ fn findFrom(text: []const u8, from: usize, opts_in: Options, also: FindAlso) ?Ma
         if (!span.isStart(text, i)) continue;
         if (!also.natural and !span.mayStartStructured(text, i, opts.locales)) continue;
         switch (longestAt(text, i, opts, also)) {
-            .found => |m| return m,
+            .found => |m| if (writesAll(m.result.layout.writes(), also.writes)) return m else {
+                i = m.end - 1;
+            },
             // The next start inside it would read a piece of it.
             .unread => |end| i = end - 1,
             .none => {},

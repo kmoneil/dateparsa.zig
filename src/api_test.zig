@@ -307,6 +307,37 @@ test "findFirst passes over what it cannot settle" {
     try std.testing.expectEqual(10, d.end);
 }
 
+test "findFirst finds only a date whose format writes what is asked" {
+    const opts: dp.Options = .{ .base_time = find_base };
+    const dated: dp.FindAlso = .{ .writes = .{ .day = true, .time = true } };
+    const Case = struct { []const u8, ?[]const u8 };
+    for ([_]Case{
+        // A clock time alone, then a date alone, are passed over.
+        .{ "took 10:42 to finish at 2026-11-08 10:00:01", "2026-11-08 10:00:01" },
+        .{ "GET /2024-03-15/report 2026-11-08T10:00:01Z", "2026-11-08T10:00:01Z" },
+        .{ "Nov  8 10:00:05 host sshd[1]: up", "Nov  8 10:00:05" },
+        .{ "took 10:42, then 2024-03-15", null },
+    }) |c| {
+        errdefer std.debug.print("\"{s}\"\n", .{c[0]});
+        const m = dp.findFirst(c[0], opts, dated);
+        if (c[1]) |want| {
+            try std.testing.expectEqualStrings(want, c[0][m.?.start..m.?.end]);
+        } else try std.testing.expectEqual(null, m);
+    }
+    // Asked for a zone, a time at timezone_offset is passed over for one
+    // at its own.
+    const line = "2026-11-08 10:00:01 local, 2026-11-08T09:00:01+01:00 sent";
+    const zoned = dp.findFirst(line, opts, .{ .writes = .{ .zone = true } }).?;
+    try std.testing.expectEqualStrings("2026-11-08T09:00:01+01:00", line[zoned.start..zoned.end]);
+    try std.testing.expect(zoned.result.layout.writes().zone);
+    const plain = dp.findFirst(line, opts, .{}).?;
+    try std.testing.expect(!plain.result.layout.writes().zone);
+    // findAll the same way.
+    var out: [4]dp.Match = undefined;
+    const all = dp.findAll("at 10:42 and 2024-03-15 10:00, 11:00 and 2024-03-16 11:00", opts, dated, &out);
+    try std.testing.expectEqual(2, all.len);
+}
+
 test "a day, a month name and a time read as the month first does" {
     // The time comes after the month name, not straight after the day
     // (kmoneil/dateparsa#44): "15 Mar 10:00" reads as "Mar 15 10:00" does.

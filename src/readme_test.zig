@@ -45,6 +45,18 @@ test "dates inside text" {
     try expectEqual(2, all.len);
 }
 
+test "what a format writes" {
+    const base: dateparsa.DateTime = .{ .year = 2026, .month = 11, .day = 11 };
+    const dated: dateparsa.FindAlso = .{ .writes = .{ .day = true, .time = true } };
+    const line = "took 10:42, at 2026-11-08 10:00:01";
+    const t = dateparsa.findFirst(line, .{ .base_time = base }, dated).?;
+    try expectEqualStrings("2026-11-08 10:00:01", line[t.start..t.end]);
+    try expect(!t.result.layout.writes().zone);
+    // A syslog time writes no year.
+    const syslog = try dateparsa.parseWith("Nov  8 10:00:05", .{ .base_time = base });
+    try expect(!syslog.layout.writes().year);
+}
+
 test "parse a column" {
     var p = dateparsa.Parser.init(.{});
     const column = [_][]const u8{ "2024-01-01", "2024-06-15", "March 3, 2024", "2024-12-31" };

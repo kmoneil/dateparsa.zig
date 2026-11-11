@@ -10,7 +10,20 @@ the difference. Before 1.0 a breaking change is a minor bump.
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- `Layout.writes()` says what a layout's format writes: its year, month,
+  day, time of day and zone (`Layout.Writes`). What it does not write came
+  from the base time or `timezone_offset`, so a caller can tell a syslog
+  time's year was supplied, or a time with no zone is at
+  `timezone_offset`, without reading the program's instructions or
+  passing an offset no zone has. A format that writes a zone writes one
+  in every value it reads, so `.zone` answers for each value too.
+- `FindAlso.writes`: `findFirst` and `findAll` find only a date whose
+  format writes what is asked, and go on after one that writes less.
+  `.{ .day = true, .time = true }` finds a log line's time, passing over
+  a clock time alone (`took 10:42`) and a date alone
+  (`GET /2024-03-15/report`). Both asked for by pawl-cli.
 
 ## [0.10.0] - 2026-11-11
 

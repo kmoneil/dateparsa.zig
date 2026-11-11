@@ -144,6 +144,52 @@ pub fn dateOrder(l: *const Layout) ?Order {
     return null;
 }
 
+/// What a format writes of a date and time, and so what a value read with
+/// it says: each part it does not write comes from somewhere else, the
+/// base time (a year, a day, the time 00:00) or Options.timezone_offset (the
+/// zone).
+pub const Writes = struct {
+    year: bool = false,
+    /// Written, or settled by what is: a day of the year ("2024-074") or an
+    /// ISO week and its weekday ("2024-W11-5") are a month and a day.
+    month: bool = false,
+    day: bool = false,
+    /// A time of day: its hour at least.
+    time: bool = false,
+    /// A zone: "Z", an offset or a zone's name. A format that writes one
+    /// writes it in every value it reads, so this also says whether a value
+    /// it read was at Options.timezone_offset (false) or at its own zone.
+    zone: bool = false,
+};
+
+/// What this layout's format writes. A Unix timestamp writes all of it, its
+/// zone UTC; natural language writes none of it, since its answer comes from
+/// the base time ("3 days ago", "next friday at 5pm").
+pub fn writes(l: *const Layout) Writes {
+    switch (l.source) {
+        .program => {},
+        .epoch => return .{ .year = true, .month = true, .day = true, .time = true, .zone = true },
+        .natural_language => return .{},
+    }
+    var w: Writes = .{};
+    // Every op named, so a new one is placed here before it compiles.
+    for (l.program.insts[0..l.program.n]) |inst| switch (inst.op) {
+        .year4, .year2 => w.year = true,
+        .month2, .month1or2, .month_name, .month_any => w.month = true,
+        .day2, .day1or2, .day_space_pad => w.day = true,
+        .ordinal_day, .iso_week_day => {
+            w.month = true;
+            w.day = true;
+        },
+        .hour24, .hour12, .hour1or2 => w.time = true,
+        .tz_z, .tz_offset, .tz_name, .tz_z_or_offset, .tz_any => w.zone = true,
+        // A week alone is no month or day; the rest qualify what is above,
+        // or read nothing.
+        .iso_week, .minute2, .second2, .frac_sec, .frac_any, .ampm, .weekday_name, .literal, .skip, .tail, .nop => {},
+    };
+    return w;
+}
+
 /// The tools formatString spells a format for.
 pub const Dialect = format_string.Dialect;
 
@@ -322,6 +368,34 @@ test "padding does not break reuse" {
     var raw = l;
     raw.trims_padding = false;
     try std.testing.expectError(error.NoMatch, raw.parse(" 2024-03-16"));
+}
+
+test "writes says what each format writes" {
+    const all: Writes = .{ .year = true, .month = true, .day = true, .time = true, .zone = true };
+    const date_only: Writes = .{ .year = true, .month = true, .day = true };
+    const Case = struct { []const u8, Writes };
+    for ([_]Case{
+        .{ "2024-03-15T10:30:00Z", all },
+        .{ "Fri, 15 Mar 2024 10:30:00 +0000", all },
+        .{ "2014-12-16 06:20:00 UTC", all },
+        .{ "15/Mar/2024:10:30:00 +0000", all },
+        .{ "2024-03-15 10:30:00", .{ .year = true, .month = true, .day = true, .time = true } },
+        .{ "2024-03-15", date_only },
+        .{ "March 15, 2024", date_only },
+        .{ "2024-074", date_only },
+        .{ "2024-W11-5", date_only },
+        .{ "March 2024", .{ .year = true, .month = true } },
+        .{ "Nov  8 10:00:05", .{ .month = true, .day = true, .time = true } },
+        .{ "10:30", .{ .time = true } },
+        .{ "10:30 PM", .{ .time = true } },
+    }) |c| {
+        errdefer std.debug.print("\"{s}\"\n", .{c[0]});
+        try std.testing.expectEqual(c[1], (try layoutOf(c[0], .{})).writes());
+    }
+    try std.testing.expectEqual(all, epoch.writes());
+    try std.testing.expectEqual(Writes{}, natural_language.writes());
+    const hm = try fromFormatString(.strftime, "%H:%M", .{ .base_time = date(2024, 1, 1) });
+    try std.testing.expectEqual(Writes{ .time = true }, hm.writes());
 }
 
 test "a one-or-two-digit day widens and never narrows" {

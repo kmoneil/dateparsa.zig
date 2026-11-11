@@ -284,6 +284,19 @@ ambiguous is passed over too. A layout read from a month name reads any month
 written the same way, so it follows a log written with them (syslog, the common
 log format) into the next month.
 
+`layout.writes()` says what a format writes: its year, month, day, time of day
+and zone. What it does not write came from the base time or `timezone_offset`,
+so a syslog time (`Nov  8 10:00:05`) writes no year, and a time whose format
+writes no zone is at `timezone_offset`, not at a zone of its own. `FindAlso.writes`
+finds only a date whose format writes what is asked:
+
+```zig
+const dated: dateparsa.FindAlso = .{ .writes = .{ .day = true, .time = true } };
+const t = dateparsa.findFirst("took 10:42, at 2026-11-08 10:00:01", .{ .base_time = base }, dated).?;
+// "2026-11-08 10:00:01": the clock time alone is passed over
+// t.result.layout.writes().zone is false: it is at timezone_offset
+```
+
 ### Natural language
 
 ```zig
