@@ -1,6 +1,8 @@
 //! Tests of the public API, ported from the Go dateparsa's root-package
 //! tests. Expected values in the first table are the Go library's own
-//! answers on the same inputs and options.
+//! answers on the same inputs and options, but for a time alone, which Go
+//! reads on 1 January (kmoneil/dateparsa#40) and this port on the base
+//! time's day.
 
 const std = @import("std");
 const dp = @import("root.zig");
@@ -84,7 +86,7 @@ test "parse answers what the Go original answers" {
         .{ 0, "Fri, 15 Mar 2024 10:30:00 +0000", "ok 2024-03-15T10:30:00.000000000+0 kind=absolute label=DAY_MONTH_YEAR amb=false reusable=true" },
         .{ 0, "March 15", "ok 2026-03-15T00:00:00.000000000+0 kind=absolute label=MONTH_DAY amb=true reusable=false" },
         .{ 0, "December 23rd", "ok 2026-12-23T00:00:00.000000000+0 kind=absolute label=MONTH_DAY amb=false reusable=true" },
-        .{ 0, "10:30:00", "ok 2026-01-01T10:30:00.000000000+0 kind=absolute label=TIME_HMS amb=false reusable=true" },
+        .{ 0, "10:30:00", "ok 2026-08-20T10:30:00.000000000+0 kind=absolute label=TIME_HMS amb=false reusable=true" },
         .{ 0, "1710504800", "ok 2024-03-15T12:13:20.000000000+0 kind=absolute label=UNIX_TIMESTAMP amb=false reusable=false" },
         .{ 0, "1710504800123", "ok 2024-03-15T12:13:20.123000000+0 kind=absolute label=UNIX_TIMESTAMP amb=false reusable=false" },
         .{ 0, "3 days ago", "ok 2026-08-17T12:00:00.000000000+0 kind=relative label=NATURAL_LANGUAGE amb=false reusable=false" },
@@ -107,13 +109,13 @@ test "parse answers what the Go original answers" {
         .{ 3, "2024-03-15", "ok 2024-03-15T00:00:00.000000000+0 kind=absolute label=ISO8601_DATE amb=false reusable=true" },
         .{ 4, "2024-03-15", "ok 2024-03-15T00:00:00.000000000+19800 kind=absolute label=ISO8601_DATE amb=false reusable=true" },
         .{ 4, "2024-03-15T10:30:00Z", "ok 2024-03-15T10:30:00.000000000+0 kind=absolute label=ISO8601_DATETIME_Z amb=false reusable=true" },
-        .{ 4, "10:30:00", "ok 2026-01-01T10:30:00.000000000+19800 kind=absolute label=TIME_HMS amb=false reusable=true" },
+        .{ 4, "10:30:00", "ok 2026-08-20T10:30:00.000000000+19800 kind=absolute label=TIME_HMS amb=false reusable=true" },
         .{ 4, "1710504800", "ok 2024-03-15T12:13:20.000000000+0 kind=absolute label=UNIX_TIMESTAMP amb=false reusable=false" },
         .{ 5, "15 mars 2024", "ok 2024-03-15T00:00:00.000000000+0 kind=absolute label=DAY_MONTH_YEAR amb=false reusable=true" },
         .{ 5, "hace 3 días", "ok 2026-08-17T12:00:00.000000000+0 kind=relative label=NATURAL_LANGUAGE amb=false reusable=false" },
         .{ 5, "15 марта 2024", "ok 2024-03-15T00:00:00.000000000+0 kind=absolute label=DAY_MONTH_YEAR amb=false reusable=true" },
         .{ 6, "monday", "ok 2026-08-24T00:00:00.000000000+0 kind=relative label=NATURAL_LANGUAGE amb=false reusable=false" },
-        .{ 7, "10:30:00", "ok 2031-01-01T10:30:00.000000000+0 kind=absolute label=TIME_HMS amb=false reusable=true" },
+        .{ 7, "10:30:00", "ok 2031-02-03T10:30:00.000000000+0 kind=absolute label=TIME_HMS amb=false reusable=true" },
         .{ 7, "3 days ago", "ok 2031-01-31T04:05:06.000000000+0 kind=relative label=NATURAL_LANGUAGE amb=false reusable=false" },
         .{ 8, "कल", "err ambiguous n=2 NATURAL_LANGUAGE@2026-08-19T00:00:00.000000000+0 NATURAL_LANGUAGE@2026-08-21T00:00:00.000000000+0" },
     };
@@ -128,13 +130,46 @@ test "parse answers what the Go original answers" {
     }
 }
 
+test "a time alone reads on the base time's day, where the input is read" {
+    // As journalctl and GNU date read a bare time, and as "today 10:42" reads.
+    const b: DateTime = .{ .year = 2026, .month = 11, .day = 8, .hour = 10, .second = 3 };
+    const want: DateTime = .{ .year = 2026, .month = 11, .day = 8, .hour = 10, .minute = 42 };
+    try std.testing.expectEqual(want, (try dp.parseWith("10:42", .{ .base_time = b })).time);
+    try std.testing.expectEqual(want, (try dp.parseWith("today 10:42", .{ .base_time = b })).time);
+    var with_seconds = want;
+    with_seconds.second = 5;
+    try std.testing.expectEqual(with_seconds, (try dp.parseWith("10:42:05", .{ .base_time = b })).time);
+    try std.testing.expectEqual(with_seconds, (try dp.parseWith("today 10:42:05", .{ .base_time = b })).time);
+
+    // 22:00 on the 8th at UTC-5 is the 9th in UTC, the zone an input that
+    // writes none is read in by default.
+    const late: DateTime = .{ .year = 2026, .month = 11, .day = 8, .hour = 22, .offset_seconds = -5 * 3600 };
+    const utc = try dp.parseWith("10:42", .{ .base_time = late });
+    try std.testing.expectEqual(DateTime{ .year = 2026, .month = 11, .day = 9, .hour = 10, .minute = 42 }, utc.time);
+    const est = try dp.parseWith("10:42", .{ .base_time = late, .timezone_offset = -5 * 3600 });
+    const est_want: DateTime = .{ .year = 2026, .month = 11, .day = 8, .hour = 10, .minute = 42, .offset_seconds = -5 * 3600 };
+    try std.testing.expectEqual(est_want, est.time);
+
+    // A reused layout keeps the day it was made on, and so does a format
+    // string's.
+    try std.testing.expectEqual(DateTime{ .year = 2026, .month = 11, .day = 9, .hour = 23, .minute = 5 }, try utc.layout.parse("23:05"));
+    const hm = try dp.Layout.fromFormatString(.strftime, "%H:%M", .{ .base_time = late });
+    try std.testing.expectEqual(utc.time, try hm.parse("10:42"));
+
+    // A date with no year takes the year of that same day.
+    const eve: DateTime = .{ .year = 2026, .month = 12, .day = 31, .hour = 22, .offset_seconds = -5 * 3600 };
+    try std.testing.expectEqual(2027, (try dp.parseWith("December 23rd", .{ .base_time = eve })).time.year);
+    const eve_est: dp.Options = .{ .base_time = eve, .timezone_offset = -5 * 3600 };
+    try std.testing.expectEqual(2026, (try dp.parseWith("December 23rd", eve_est)).time.year);
+}
+
 test "surrounding ASCII whitespace is padding on every path" {
     const Case = struct { []const u8, DateTime };
     const values = [_]Case{
         .{ "2024-03-15", .{ .year = 2024, .month = 3, .day = 15 } },
         .{ "2024-03-15T10:30:00Z", .{ .year = 2024, .month = 3, .day = 15, .hour = 10, .minute = 30 } },
         .{ "2024-03-15 10:30:00", .{ .year = 2024, .month = 3, .day = 15, .hour = 10, .minute = 30 } },
-        .{ "10:30:00", .{ .year = 2026, .month = 1, .day = 1, .hour = 10, .minute = 30 } },
+        .{ "10:30:00", .{ .year = 2026, .month = 8, .day = 20, .hour = 10, .minute = 30 } },
         .{ "03/15/2024", .{ .year = 2024, .month = 3, .day = 15 } },
         .{ "3/15/2024", .{ .year = 2024, .month = 3, .day = 15 } },
         .{ "March 15, 2024", .{ .year = 2024, .month = 3, .day = 15 } },

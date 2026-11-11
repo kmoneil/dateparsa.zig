@@ -56,8 +56,10 @@ pub const What = union(enum) {
     midnight,
     ampm: AmPm,
     /// An inline time, its hour already through AM/PM: "5pm" is 17. Go
-    /// does not bound a bare number with a suffix, so "25pm" is 37.
-    time: struct { hour: u32, minute: u8 },
+    /// does not bound a bare number with a suffix, so "25pm" is 37. Go
+    /// reads no seconds; this port does, so that "today 10:42:03", a time
+    /// copied out of a log line, reads.
+    time: struct { hour: u32, minute: u8, second: u8 = 0 },
     half,
     time_of_day: u8, // its hour: morning 8, afternoon 14, evening 18, night 21
     conjunction, // "and"
@@ -147,30 +149,40 @@ fn scanNumber(s: []const u8, start: usize) Token {
     return token(start, i - start, .{ .number = val });
 }
 
-/// "HH:MM" with an optional am/pm straight after, hour 0..23, two-digit
-/// minutes 0..59.
 fn ampmOf(suffix: []const u8) ?AmPm {
     if (std.mem.eql(u8, suffix, "am")) return .am;
     if (std.mem.eql(u8, suffix, "pm")) return .pm;
     return null;
 }
 
+/// "HH:MM" or "HH:MM:SS" with an optional am/pm straight after, hour
+/// 0..23, two-digit minutes and seconds 0..59.
 fn timePattern(s: []const u8, start: usize, hour: u32, colon: usize) ?Token {
-    if (colon >= s.len or s[colon] != ':') return null;
-    if (colon + 1 >= s.len or !std.ascii.isDigit(s[colon + 1])) return null;
-    var i = colon + 1;
-    var minute: u32 = 0;
-    while (i < s.len and std.ascii.isDigit(s[i])) : (i += 1) {
-        if (i - colon <= 3) minute = minute * 10 + (s[i] - '0');
+    if (colon >= s.len or s[colon] != ':' or hour > 23) return null;
+    const minute = twoDigits(s, colon + 1, 59) orelse return null;
+    var i = colon + 3;
+    var second: u8 = 0;
+    if (i + 1 < s.len and s[i] == ':' and std.ascii.isDigit(s[i + 1])) {
+        second = twoDigits(s, i + 1, 59) orelse return null;
+        i += 3;
     }
-    if (i - (colon + 1) != 2 or hour > 23 or minute > 59) return null;
     var ampm: ?AmPm = null;
     if (i + 2 <= s.len) {
         ampm = ampmOf(s[i..][0..2]);
         if (ampm != null) i += 2;
     }
-    const at: What = .{ .time = .{ .hour = hourWith(hour, ampm), .minute = @intCast(minute) } };
+    const at: What = .{ .time = .{ .hour = hourWith(hour, ampm), .minute = minute, .second = second } };
     return token(start, i - start, at);
+}
+
+/// The value of the two digits at s[from..], or null unless exactly two
+/// digits sit there and their value is at most max.
+fn twoDigits(s: []const u8, from: usize, max: u8) ?u8 {
+    var i = from;
+    while (i < s.len and std.ascii.isDigit(s[i])) : (i += 1) {}
+    if (i - from != 2) return null;
+    const v = (s[from] - '0') * 10 + (s[from + 1] - '0');
+    return if (v <= max) v else null;
 }
 
 const english_words = std.StaticStringMap(What).initComptime(.{
@@ -652,7 +664,7 @@ fn timeSuffix(ts: []const Token, t: DateTime) struct { DateTime, usize } {
     }
     switch (ts[idx].what) {
         .time => |tm| {
-            const seconds = @as(i64, tm.hour) * 3600 + @as(i64, tm.minute) * 60;
+            const seconds = @as(i64, tm.hour) * 3600 + @as(i64, tm.minute) * 60 + tm.second;
             return .{ addDuration(day, seconds, 0), idx + 1 };
         },
         .noon => return .{ addDuration(day, 12 * 3600, 0), idx + 1 },
@@ -941,6 +953,11 @@ test "expressions read as the Go original reads them" {
         .{ "-", "tomorrow at 14:00", dt(2024, 3, 16, 14, 0, 0, 0, 0) },
         .{ "-", "today at noon", dt(2024, 3, 15, 12, 0, 0, 0, 0) },
         .{ "-", "next friday at 5:30pm", dt(2024, 3, 22, 17, 30, 0, 0, 0) },
+        .{ "-", "today 10:42:03", dt(2024, 3, 15, 10, 42, 3, 0, 0) },
+        .{ "-", "yesterday at 5:30:15pm", dt(2024, 3, 14, 17, 30, 15, 0, 0) },
+        .{ "-", "today 10:42:60", null },
+        .{ "-", "today 10:42:3", null },
+        .{ "-", "today 10:42:003", null },
         .{ "-", "tomorrow at 9 am", dt(2024, 3, 16, 9, 0, 0, 0, 0) },
         .{ "-", "today at 25pm", dt(2024, 3, 16, 13, 0, 0, 0, 0) },
         .{ "-", "in 2 hours and 30 minutes", dt(2024, 3, 15, 14, 30, 0, 0, 0) },
@@ -1070,6 +1087,9 @@ test "English tokens" {
 
     t = english(&buf, "next friday at 14:00");
     try std.testing.expectEqual(What{ .time = .{ .hour = 14, .minute = 0 } }, t.buf[3].what);
+
+    t = english(&buf, "today 10:42:03pm");
+    try std.testing.expectEqual(What{ .time = .{ .hour = 22, .minute = 42, .second = 3 } }, t.buf[1].what);
 
     t = english(&buf, "3 days from now");
     try std.testing.expectEqual(What{ .direction = .from_now }, t.buf[2].what);

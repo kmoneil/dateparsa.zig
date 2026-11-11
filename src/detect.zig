@@ -641,8 +641,7 @@ fn dt(year: i32, month: u8, day: u8, hour: u8, minute: u8, second: u8, ns: u32, 
 fn parseOnce(s: []const u8) !struct { name: []const u8, time: DateTime } {
     const r = detect(s, .{}) orelse return error.NotDetected;
     const fields = r.def.fields();
-    const year: i32 = if (compile.needsBaseYear(fields)) 2026 else 0;
-    const p = try compile.compile(fields, .{ .base_year = year });
+    const p = try compile.compile(fields, .{ .base_date = compile.baseDate(fields, .{ .year = 2026, .month = 1, .day = 1 }, 0) });
     return .{ .name = r.def.name, .time = try p.execute(s) };
 }
 

@@ -10,9 +10,9 @@
 //! answer changed between the two base times it was given, and gives Go's
 //! answer everywhere else. It exits 1 on a mismatch there.
 //!
-//! Where Go refuses an input and this port reads it with a layout listed in
-//! `deliberate`, Go's answer is written in place of this port's and the row
-//! is counted, so the diff shows only differences nobody decided on.
+//! Where this port answers differently from Go on purpose (isDeliberate),
+//! Go's answer is written in place of this port's and the row is counted,
+//! so the diff shows only differences nobody decided on.
 
 const std = @import("std");
 const dp = @import("dateparsa");
@@ -45,7 +45,7 @@ pub fn main(init: std.process.Init) !void {
     const counts = try run(input, &fw.interface);
     try fw.interface.flush();
     if (counts.deliberate > 0) {
-        std.debug.print("{d} answers read where Go refuses, on purpose (deliberate in tools/oracle_api.zig)\n", .{counts.deliberate});
+        std.debug.print("{d} answers differ from Go's on purpose (isDeliberate in tools/oracle_api.zig)\n", .{counts.deliberate});
     }
     if (counts.mismatches > 0) {
         std.debug.print("{d} no-base-time mismatches\n", .{counts.mismatches});
@@ -59,8 +59,12 @@ const deliberate = [_][]const u8{
     "ISO8601_DATETIME_HM", // kmoneil/dateparsa#37
 };
 
-/// Whether this port's answer is a deliberate reading of an input Go refuses.
+/// Whether this port's answer differs from Go's on purpose, as the README's
+/// "Differences from the Go original" lists: it reads an input Go refuses,
+/// with a layout in `deliberate`, or it reads a time alone on the base
+/// time's day where Go reads 1 January (kmoneil/dateparsa#40).
 fn isDeliberate(go_answer: []const u8, zig_answer: []const u8) bool {
+    if (std.mem.indexOf(u8, zig_answer, " label=TIME_") != null) return onlyDayDiffers(go_answer, zig_answer);
     if (!std.mem.eql(u8, go_answer, "err nomatch")) return false;
     if (!std.mem.startsWith(u8, zig_answer, "ok ")) return false;
     for (deliberate) |label| {
@@ -69,6 +73,15 @@ fn isDeliberate(go_answer: []const u8, zig_answer: []const u8) bool {
         if (std.mem.indexOf(u8, zig_answer, needle) != null) return true;
     }
     return false;
+}
+
+/// Whether both answers read a time, Go's on 1 January, and agree on
+/// everything after the date.
+fn onlyDayDiffers(go_answer: []const u8, zig_answer: []const u8) bool {
+    if (!std.mem.startsWith(u8, go_answer, "ok ") or !std.mem.startsWith(u8, zig_answer, "ok ")) return false;
+    const g = std.mem.indexOfScalarPos(u8, go_answer, 3, 'T') orelse return false;
+    const z = std.mem.indexOfScalarPos(u8, zig_answer, 3, 'T') orelse return false;
+    return std.mem.endsWith(u8, go_answer[0..g], "-01-01") and std.mem.eql(u8, go_answer[g..], zig_answer[z..]);
 }
 
 /// Every compiled-in locale: the set's backing integer has one bit each.
@@ -149,14 +162,21 @@ fn run(input: []const u8, w: *Io.Writer) !Counts {
             const row_hex = it.next().?;
             const first = try std.fmt.hexToBytes(&in_buf, first_hex);
             const row = try std.fmt.hexToBytes(&row_buf, row_hex);
+            const go_reused = it.rest();
             try w.print("R {s} {s} ", .{ first_hex, row_hex });
             var diag: dp.Diagnostics = .{};
             const r = try dp.parseWith(first, options(0, &diag));
+            var rw: Io.Writer = .fixed(&answer_buf);
             if (r.layout.parse(row)) |t| {
-                try w.writeAll("ok ");
-                try fmtTime(w, t);
-            } else |_| try w.writeAll("err");
-            try w.writeAll("\n");
+                try rw.writeAll("ok ");
+                try fmtTime(&rw, t);
+            } else |_| try rw.writeAll("err");
+            const reused = rw.buffered();
+            // A time's layout reads on its base day, as its first row did.
+            if (std.mem.startsWith(u8, r.layout.label, "TIME_") and onlyDayDiffers(go_reused, reused)) {
+                counts.deliberate += 1;
+                try w.print("{s}\n", .{go_reused});
+            } else try w.print("{s}\n", .{reused});
             continue;
         }
         const ci = try std.fmt.parseInt(usize, tag, 10);

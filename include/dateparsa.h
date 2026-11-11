@@ -138,9 +138,11 @@ typedef struct dateparsa_diagnostics {
 
 /* How to read an input. Zeroed is the default. */
 typedef struct dateparsa_options {
-    /* What relative expressions and year-less formats are read against.
-     * NULL means such inputs fail with DATEPARSA_NO_BASE_TIME. Its year must
-     * be within 999999999 either way of year 0. */
+    /* What relative expressions and year-less formats are read against: a
+     * time alone reads on its day as seen at timezone_offset, a date with no
+     * year in that day's year. NULL means such inputs fail with
+     * DATEPARSA_NO_BASE_TIME. Its year must be within 999999999 either way
+     * of year 0. */
     const dateparsa_datetime *base_time;
     /* UTC offset, seconds east, for an input that writes no zone. Within a
      * day either way. */

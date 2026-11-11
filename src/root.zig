@@ -100,8 +100,10 @@ pub const Diagnostics = struct {
 /// How to read an input. The default reads English, assumes UTC for an
 /// input that writes no zone, and has no base time.
 pub const Options = struct {
-    /// What relative expressions and year-less formats are read against.
-    /// Null means such inputs fail with error.NoBaseTime.
+    /// What relative expressions and year-less formats are read against: a
+    /// time alone reads on its day as seen at timezone_offset, a date with
+    /// no year in that day's year. Null means such inputs fail with
+    /// error.NoBaseTime.
     base_time: ?DateTime = null,
     /// UTC offset, seconds east, for an input that writes no zone.
     timezone_offset: i32 = 0,
@@ -176,7 +178,7 @@ fn configFor(fields: []const compile.Field, opts: Options) ParseError!compile.Co
     var c: compile.Config = .{ .offset_seconds = opts.timezone_offset, .locales = opts.locales };
     if (compile.needsBaseYear(fields)) {
         const base = opts.base_time orelse return fail(opts, error.NoBaseTime, no_base_time);
-        c.base_year = base.year;
+        c.base_date = compile.baseDate(fields, base, opts.timezone_offset);
     }
     return c;
 }
@@ -216,7 +218,7 @@ fn structured(s: []const u8, r: *const detection.Result, opts: Options) ParseErr
         // NoBaseTime only for an input some base year would read; "February
         // 30" is no date in any year. A leap year is the most permissive
         // probe, since only the 29th of February depends on the year.
-        var probe_config: compile.Config = .{ .base_year = 2000, .locales = opts.locales };
+        var probe_config: compile.Config = .{ .base_date = .{ .year = 2000, .month = 1, .day = 1 }, .locales = opts.locales };
         probe_config.offset_seconds = opts.timezone_offset;
         const probe = Layout.fromDetection(r, probe_config) catch
             return fail(opts, error.NoMatch, no_match);

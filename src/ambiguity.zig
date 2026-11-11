@@ -479,8 +479,7 @@ const Parsed = struct { name: []const u8, time: DateTime, ambiguity: Ambiguity, 
 fn parseWith(s: []const u8, cfg: Config) !Parsed {
     const r = detect.detect(s, cfg) orelse return error.NotDetected;
     const fields = r.def.fields();
-    const year: i32 = if (compile.needsBaseYear(fields)) 2026 else 0;
-    const p = try compile.compile(fields, .{ .base_year = year });
+    const p = try compile.compile(fields, .{ .base_date = compile.baseDate(fields, .{ .year = 2026, .month = 1, .day = 1 }, 0) });
     return .{
         .name = r.def.name,
         .time = try p.execute(s),

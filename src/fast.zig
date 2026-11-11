@@ -103,7 +103,7 @@ fn sepOk(s: []const u8, at: usize, aux: u16) bool {
 /// interpreter's coverage sum: the slots tile the input by construction.
 pub fn execute(p: *const Program, s: []const u8) Error!DateTime {
     if (s.len != p.width and s.len != p.width_alt) return error.NoMatch;
-    var r: compile.Reading = .{ .offset_seconds = p.offset_seconds };
+    var r: compile.Reading = .{ .month = p.base_date.month, .day = p.base_date.day, .offset_seconds = p.offset_seconds };
 
     const year = slot(p, .year);
     if (year.op != .nop) {
@@ -168,7 +168,7 @@ pub fn execute(p: *const Program, s: []const u8) Error!DateTime {
     const zone = slot(p, .zone);
     if (zone.op != .nop) r.offset_seconds = try zoneOffset(s, zone);
 
-    return r.finish(p.base_year);
+    return r.finish(p.base_date.year);
 }
 
 fn zoneOffset(s: []const u8, inst: Inst) Error!i32 {
@@ -226,7 +226,9 @@ test "every structured format takes the fast path and agrees with the interprete
     const subs = "09x-: Z+\x00";
     inline for (formats.table, formats.examples) |e, ex| {
         if (e.ambiguous) continue;
-        const p = try compile.compile(&formats.stampedFields(e), .{ .base_year = 2026 });
+        const fields = formats.stampedFields(e);
+        const base: DateTime = .{ .year = 2026, .month = 3, .day = 15 };
+        const p = try compile.compile(&fields, .{ .base_date = compile.baseDate(&fields, base, 0) });
         if (!p.isFast()) {
             std.debug.print("{s} did not take the fast path\n", .{e.name});
             return error.TestUnexpectedResult;
