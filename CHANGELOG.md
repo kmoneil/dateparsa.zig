@@ -10,6 +10,15 @@ the difference. Before 1.0 a breaking change is a minor bump.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.11.0] - 2026-11-11
+
+A layout says what its format writes (year, month, day, time of day and
+zone), and `findFirst` can be asked for only dates that write a day and a
+time, a log line's time. Both are new API, in Zig only for now; what every
+input parses to is unchanged.
+
 ### Added
 
 - `Layout.writes()` says what a layout's format writes: its year, month,
@@ -497,7 +506,8 @@ what was changed on purpose.
 - No allocation on any path and no clock: an input that needs a base time and
   was given none fails with `error.NoBaseTime`.
 
-[Unreleased]: https://github.com/kmoneil/dateparsa.zig/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/kmoneil/dateparsa.zig/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/kmoneil/dateparsa.zig/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/kmoneil/dateparsa.zig/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/kmoneil/dateparsa.zig/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/kmoneil/dateparsa.zig/compare/v0.7.0...v0.8.0
