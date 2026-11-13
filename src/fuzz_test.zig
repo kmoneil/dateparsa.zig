@@ -56,6 +56,14 @@ const expectEqual = std.testing.expectEqual;
 /// bounds are fuzzed too.
 const max_input = 600;
 
+/// findOne's text, shorter: findAll parses at every word end within
+/// find.max_span of every word start, so a run costs more the longer the
+/// text, and at max_input findOne cost about ten times any other target a
+/// run, most of every fuzz round (t65, t66). Three spans and more is room
+/// for a span cut at max_span, one cut at the text's end, and more dates
+/// than findOne's out holds.
+const find_input = 256;
+
 /// The golden corpus's base time, so its rows read as they do there.
 const base: dp.DateTime = .{ .year = 2024, .month = 6, .day = 15, .hour = 12 };
 
@@ -139,8 +147,8 @@ fn parseOne(_: void, smith: *Smith) anyerror!void {
 }
 
 fn findOne(_: void, smith: *Smith) anyerror!void {
-    var buf: [max_input]u8 = undefined;
-    const s = input(smith, &buf);
+    var buf: [find_input]u8 = undefined;
+    const s = buf[0..smith.slice(&buf)];
     const opts = options(smith);
     const bits = smith.value(u8);
     const also: dp.FindAlso = .{ .natural = bits & 1 != 0, .numbers = bits & 2 != 0 };
