@@ -105,18 +105,25 @@ jobs:
 
       # tools/fuzz.sh fails the step on a find, which `zig build --fuzz` alone
       # does not always do, and prints the failing input in hex. After a
-      # merge, one round of 50K a target, 3 to 7 minutes. A night, rounds of
-      # 100K a target until 30 minutes are up. A round took about 380 s on
-      # 2026-11-06 (run 42264883905: 395, 372 and 379 s, the first with the
-      # build), so a night is three rounds, about 19 minutes of fuzzing:
-      # no round starts that might end later than 4 minutes before the
-      # deadline. A round still running then is cut and fails the step: a
-      # hang the fuzzer found, or something as wrong. fuzz.sh prints each
-      # round's time, so a night that drifts says so.
+      # merge, one round of 25K a target. A night, rounds of 25K a target
+      # until 30 minutes are up: no round starts that might end later than 4
+      # minutes before the deadline. A round still running then is cut and
+      # fails the step: a hang the fuzzer found, or something as wrong.
+      # fuzz.sh prints each round's time, so a night that drifts says so.
+      #
+      # Rounds were 50K after a merge and 100K a night until 2026-11-13. A
+      # 100K round took about 380 s on 2026-11-06 (run 42264883905: 395, 372
+      # and 379 s, the first with the build). Then findOne came in, on
+      # 2026-11-11, at about ten times any other target's cost a run, and
+      # grew with its corpus: 854 s on 2026-11-12, and past 1560 s on
+      # 2026-11-13, when the night's only round was cut (run 43447044785).
+      # Its text is shorter now (find_input in src/fuzz_test.zig), which
+      # took a 25K round on that night's corpus from 108 s to 48 s on a
+      # laptop, and a round this size still fits if a target drifts again.
       - name: Coverage-guided fuzzing
         env:
-          LIMIT: ${{ github.event_name == 'push' && '50K' || inputs.limit || '1G' }}
-          ROUND: ${{ github.event_name == 'push' && '50K' || '100K' }}
+          LIMIT: ${{ github.event_name == 'push' && '25K' || inputs.limit || '1G' }}
+          ROUND: 25K
           MINUTES: ${{ github.event_name == 'push' && '15' || inputs.minutes || '30' }}
         run: |
           set -o pipefail
